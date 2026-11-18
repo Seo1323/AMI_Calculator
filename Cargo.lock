@@ -34,7 +34,7 @@ dependencies = [
 
 [[package]]
 name = "ami-calculator"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "ami-core",
  "chrono",
@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "ami-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "rusqlite",
