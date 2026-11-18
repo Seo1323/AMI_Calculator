@@ -3,7 +3,6 @@
 //! Everything money-related uses [`rust_decimal::Decimal`]; floats are never
 //! used for amounts.
 
-pub mod budget;
 pub mod dashboard;
 pub mod error;
 pub mod export;

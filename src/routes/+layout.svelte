@@ -25,20 +25,18 @@
 		if (ready) startAutoRefresh();
 	});
 
-	type IconName = 'dashboard' | 'budget' | 'portfolio' | 'rebalance' | 'reports' | 'settings';
+	type IconName = 'dashboard' | 'portfolio' | 'rebalance' | 'settings';
 	const nav: { href: string; key: MessageKey; icon: IconName }[] = [
 		{ href: '/', key: 'nav.dashboard', icon: 'dashboard' },
-		{ href: '/budget', key: 'nav.budget', icon: 'budget' },
 		{ href: '/portfolio', key: 'nav.portfolio', icon: 'portfolio' },
 		{ href: '/rebalance', key: 'nav.rebalance', icon: 'rebalance' },
-		{ href: '/reports', key: 'nav.reports', icon: 'reports' },
 		{ href: '/settings', key: 'nav.settings', icon: 'settings' }
 	];
 
 	const isActive = (href: string) => (href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href));
 
 	function onKey(e: KeyboardEvent) {
-		// Alt+1..6 jumps between sections; Alt+H hides amounts; Alt+B toggles the sidebar.
+		// Alt+1..4 jumps between sections; Alt+H hides amounts; Alt+B toggles the sidebar.
 		if (!e.altKey || e.ctrlKey || e.metaKey) return;
 		const n = Number(e.key);
 		if (n >= 1 && n <= nav.length) {

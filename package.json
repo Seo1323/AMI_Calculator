@@ -1,7 +1,7 @@
 {
   "name": "ami-calculator",
   "version": "0.3.0",
-  "description": "AMI_Calculator - budżet i rebalansowanie portfela",
+  "description": "AMI_Calculator - kalkulator rebalansowania portfela",
   "type": "module",
   "scripts": {
     "dev": "vite dev",

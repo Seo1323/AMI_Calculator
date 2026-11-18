@@ -1,11 +1,9 @@
-//! One-call overview for the dashboard: net worth, this month's budget, portfolios.
+//! One-call overview for the dashboard: total portfolio value and portfolio tiles.
 
-use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::budget::{self, MonthSummary};
 use crate::error::Result;
 use crate::model::Portfolio;
 use crate::money::{Currency, Money};
@@ -39,16 +37,14 @@ pub struct PortfolioTile {
 #[serde(rename_all = "camelCase")]
 pub struct Dashboard {
     pub currency: Currency,
-    pub accounts_total: Decimal,
-    pub portfolios_total: Decimal,
-    pub net_worth: Decimal,
+    pub total_value: Decimal,
+    pub total_gain: Decimal,
     /// Currencies that could not be converted (their amounts are left out).
     pub missing_rates: Vec<String>,
-    pub month: MonthSummary,
     pub portfolios: Vec<PortfolioTile>,
 }
 
-pub fn build(store: &Store, today: NaiveDate, currency: &Currency) -> Result<Dashboard> {
+pub fn build(store: &Store, currency: &Currency) -> Result<Dashboard> {
     let fx = store.fx_table()?;
     let mut missing: Vec<String> = Vec::new();
     let mut note_missing = |c: &Currency| {
@@ -66,16 +62,8 @@ pub fn build(store: &Store, today: NaiveDate, currency: &Currency) -> Result<Das
         }
     };
 
-    let mut accounts_total = Decimal::ZERO;
-    for b in budget::account_balances(store)? {
-        if !b.account.archived
-            && let Some(v) = convert(b.balance, &b.account.currency)
-        {
-            accounts_total += v;
-        }
-    }
-
-    let mut portfolios_total = Decimal::ZERO;
+    let mut total_value = Decimal::ZERO;
+    let mut total_gain = Decimal::ZERO;
     let mut tiles = Vec::new();
     let mut list = store.list::<Portfolio>()?;
     list.sort_by(|a, b| a.name.cmp(&b.name));
@@ -84,7 +72,8 @@ pub fn build(store: &Store, today: NaiveDate, currency: &Currency) -> Result<Das
         let base = &v.portfolio.base_currency;
         let value = convert(v.total_value, base);
         let gain = convert(v.total_gain, base);
-        portfolios_total += value.unwrap_or_default();
+        total_value += value.unwrap_or_default();
+        total_gain += gain.unwrap_or_default();
         tiles.push(PortfolioTile {
             id: p.meta.id,
             name: p.name,
@@ -106,20 +95,11 @@ pub fn build(store: &Store, today: NaiveDate, currency: &Currency) -> Result<Das
         });
     }
 
-    let month = budget::month_summary(store, today, currency)?;
-    for c in &month.missing_rates {
-        if !missing.contains(c) {
-            missing.push(c.clone());
-        }
-    }
-
     Ok(Dashboard {
         currency: currency.clone(),
-        accounts_total: accounts_total.round_dp(2),
-        portfolios_total: portfolios_total.round_dp(2),
-        net_worth: (accounts_total + portfolios_total).round_dp(2),
+        total_value: total_value.round_dp(2),
+        total_gain: total_gain.round_dp(2),
         missing_rates: missing,
-        month,
         portfolios: tiles,
     })
 }
@@ -128,35 +108,64 @@ pub fn build(store: &Store, today: NaiveDate, currency: &Currency) -> Result<Das
 mod tests {
     use super::*;
     use crate::model::*;
-    use chrono::Utc;
+    use chrono::{NaiveDate, Utc};
     use rust_decimal_macros::dec;
 
     #[test]
-    fn net_worth_converts_and_reports_missing_rates() {
+    fn total_converts_and_reports_missing_rates() {
         let s = Store::open_in_memory().unwrap();
         let pln = Currency::new("PLN").unwrap();
         let eur = Currency::new("EUR").unwrap();
-        for (name, cur, bal) in [("PLN", &pln, dec!(1000)), ("EUR", &eur, dec!(100))] {
-            s.save(Account {
+        let mut ids = Vec::new();
+        for (name, cur) in [("PLN", &pln), ("EUR", &eur)] {
+            let p = s
+                .save(Portfolio {
+                    meta: Meta::new(),
+                    name: name.into(),
+                    base_currency: cur.clone(),
+                    tolerance_percent: dec!(5),
+                })
+                .unwrap();
+            let i = s
+                .save(Instrument {
+                    meta: Meta::new(),
+                    symbol: name.into(),
+                    name: name.into(),
+                    kind: InstrumentKind::Etf,
+                    currency: cur.clone(),
+                    quote_source: QuoteSource::Manual,
+                    fractional: false,
+                })
+                .unwrap();
+            s.save(Trade {
                 meta: Meta::new(),
-                name: name.into(),
-                kind: AccountKind::Checking,
-                currency: cur.clone(),
-                opening_balance: bal,
-                archived: false,
-                color: None,
+                portfolio_id: p.meta.id,
+                instrument_id: i.meta.id,
+                date: NaiveDate::from_ymd_opt(2026, 11, 18).unwrap(),
+                side: TradeSide::Buy,
+                quantity: dec!(10),
+                price: dec!(100),
+                fee: dec!(0),
             })
             .unwrap();
+            s.set_quote(&Quote {
+                instrument_id: i.meta.id,
+                price: dec!(100),
+                currency: cur.clone(),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
+            .unwrap();
+            ids.push(p.meta.id);
         }
-        let today = NaiveDate::from_ymd_opt(2026, 11, 18).unwrap();
-        let d = build(&s, today, &pln).unwrap();
-        assert_eq!(d.accounts_total, dec!(1000));
+        let d = build(&s, &pln).unwrap();
+        assert_eq!(d.total_value, dec!(1000));
         assert_eq!(d.missing_rates, ["EUR"]);
 
         s.set_fx_rate(&FxRate { currency: eur, rate_pln: dec!(4.25), source: "nbp".into(), fetched_at: Utc::now() })
             .unwrap();
-        let d = build(&s, today, &pln).unwrap();
-        assert_eq!(d.net_worth, dec!(1425));
+        let d = build(&s, &pln).unwrap();
+        assert_eq!(d.total_value, dec!(5250));
         assert!(d.missing_rates.is_empty());
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "ami-calculator"
-description = "AMI_Calculator - budżet i rebalansowanie portfela"
+description = "AMI_Calculator - kalkulator rebalansowania portfela"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

@@ -4,7 +4,7 @@ export type Locale = 'pl' | 'en';
 export type Theme = 'system' | 'light' | 'dark';
 export type Density = 'compact' | 'comfortable' | 'spacious';
 export type NumberLocale = 'auto' | 'pl-PL' | 'en-US' | 'en-GB' | 'de-DE';
-export type StartPage = '/' | '/budget' | '/portfolio' | '/rebalance' | '/reports';
+export type StartPage = '/' | '/portfolio' | '/rebalance';
 
 export interface Settings {
 	locale: Locale;
@@ -42,7 +42,7 @@ export const DEFAULTS: Settings = {
 	refreshMinutes: 30,
 	hideAmounts: false,
 	/** Comma-separated widget ids in display order; a leading "-" hides one. */
-	dashboardWidgets: 'netWorth,month,portfolios'
+	dashboardWidgets: 'netWorth,portfolios'
 };
 
 const KEY = 'ami.settings.v1';
@@ -54,6 +54,8 @@ function sanitize(raw: unknown): Partial<Settings> {
 		const v = (raw as Record<string, unknown>)[k];
 		if (v !== undefined && typeof v === typeof DEFAULTS[k]) (out as Record<string, unknown>)[k] = v;
 	}
+	// Start pages of the removed budget/reports sections go back to the dashboard.
+	if (!['/', '/portfolio', '/rebalance'].includes(out.startPage ?? '/')) out.startPage = '/';
 	return out;
 }
 
@@ -123,7 +125,7 @@ export function snapshotSettings(): Settings {
 	return $state.snapshot(settings) as Settings;
 }
 
-export const DASHBOARD_WIDGETS = ['netWorth', 'month', 'portfolios'] as const;
+export const DASHBOARD_WIDGETS = ['netWorth', 'portfolios'] as const;
 export type WidgetId = (typeof DASHBOARD_WIDGETS)[number];
 
 /** Dashboard widgets in display order; unknown ids are dropped, missing ones appended. */

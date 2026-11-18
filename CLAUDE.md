@@ -1,5 +1,7 @@
 # AMI_Calculator
 
-Budżet domowy i kalkulator rebalansowania portfela (Tauri 2 + Rust + Svelte). Użytkownik pisze po polsku.
+Kalkulator rebalansowania portfela inwestycyjnego (Tauri 2 + Rust + Svelte). Użytkownik pisze po polsku.
 
-Aktualny plan, stan prac, ważne ścieżki i procedura wydania: @PLAN.md
+**Zakres: tylko kalkulator portfela.** Budżet domowy i raporty zostały wycięte (decyzja właściciela, 2026-11-18), nie wracają. Tabele budżetu zostają w migracji SQLite jako nieużywane, nie usuwaj ich.
+
+Plan, ścieżki, procedura wydania: @PLAN.md

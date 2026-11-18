@@ -1,6 +1,6 @@
 # AMI_Calculator
 
-Budżet domowy i kalkulator rebalansowania portfela inwestycyjnego.
+Kalkulator rebalansowania portfela inwestycyjnego.
 Windows (priorytet), Linux, później Android. Język: polski / English.
 
 ## Stack
@@ -26,7 +26,7 @@ cargo test --workspace   # testy logiki
 ```
 
 ## Wydania
-`npm run release 0.2.0` podbija wersję, tworzy tag i wypycha go. GitHub buduje instalatory
+`npm run release 0.4.0` podbija wersję, tworzy tag i wypycha go. GitHub buduje instalatory
 Windows (exe/msi), Linux (AppImage/deb/rpm) i Android (arm64 APK) do szkicu Release.
 
 ## Plan
@@ -35,8 +35,7 @@ Windows (exe/msi), Linux (AppImage/deb/rpm) i Android (arm64 APK) do szkicu Rele
 | 0 | Szkielet, CI, motywy, i18n, ustawienia | ✅ |
 | 1 | Rust core: model danych, waluty, SQLite, eksport/import, testy | ✅ |
 | 2 | Portfele, instrumenty, transakcje, alokacja, rebalansowanie portfela | ✅ |
-| 3 | Budżet: konta, kategorie, transakcje, przelewy, limity, podsumowanie miesiąca | ✅ |
 | 4 | Kursy online: NBP (waluty), Yahoo Finance (GPW, ETF, akcje), CoinGecko (krypto) | ✅ |
-| 5 | Pulpit, raporty, wykresy, personalizacja, animacje, skróty klawiszowe | ✅ |
+| 5 | Pulpit, wykresy, personalizacja, animacje, skróty klawiszowe | ✅ |
 | 6 | Dopracowanie Linuksa, build na Androida | ⏳ |
 | Później | Synchronizacja, import z banków | 💭 |

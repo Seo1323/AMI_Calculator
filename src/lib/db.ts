@@ -2,10 +2,6 @@ import { invoke } from '$lib/tauri';
 
 /** Mirrors `ami_core::store::EntityKind`. */
 export type EntityKind =
-	| 'account'
-	| 'category'
-	| 'transaction'
-	| 'budgetLimit'
 	| 'instrument'
 	| 'portfolio'
 	| 'allocationTarget'

@@ -1,6 +1,6 @@
 [package]
 name = "ami-core"
-description = "Core logic of AMI_Calculator: money, currencies, budgeting and portfolio rebalancing"
+description = "Core logic of AMI_Calculator: money, currencies and portfolio rebalancing"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

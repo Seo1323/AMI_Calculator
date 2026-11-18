@@ -4,9 +4,9 @@ Stan na 2026-11-18. Plik czyta Claude Code na początku sesji (patrz `CLAUDE.md`
 
 ## 1. Co robimy
 
-Aplikacja do budżetu domowego i rebalansowania portfela inwestycyjnego, dla jednej osoby (właściciel repo), na razie dla znajomych. Priorytet platform: **Windows > Linux > Android**.
+Kalkulator rebalansowania portfela inwestycyjnego, dla jednej osoby (właściciel repo), na razie dla znajomych. Priorytet platform: **Windows > Linux > Android**.
 
-- **Budżet**: konta, kategorie, wydatki, przychody, przelewy, miesięczne limity, raporty.
+- **Zakres: tylko kalkulator portfela.** Budżet domowy został wycięty (decyzja właściciela, 2026-11-18), nie wraca.
 - **Portfele**: instrumenty (GPW, ETF-y, akcje, krypto), transakcje, średnia cena, zysk, alokacja docelowa, rebalansowanie (tylko dokupowanie albo pełne).
 - **Kursy online**: NBP (waluty), Yahoo Finance (GPW `.WA`, giełdy zagraniczne), CoinGecko (krypto).
 - **Dane lokalnie**, bez kont i chmury. Kopia w jednym pliku `.ami` (JSON), np. na pendrive.
@@ -17,10 +17,10 @@ Aplikacja do budżetu domowego i rebalansowania portfela inwestycyjnego, dla jed
 
 - **Tauri 2** (Rust) + **Svelte 5 / SvelteKit 3** (SPA, `adapter-static`), TypeScript.
 - Kwoty zawsze jako `rust_decimal` (w UI jako stringi), nigdy float.
-- SQLite przez `rusqlite` (bundled), migracje w `store.rs` (`MIGRATIONS`, obecnie wersja 2).
+- SQLite przez `rusqlite` (bundled), migracje w `store.rs` (`MIGRATIONS`, obecnie wersja 2). Tabele dawnego budżetu (accounts, categories, transactions, budget_limits) zostają w migracji i w istniejących bazach jako nieużywane, żeby aktualizacja niczego nie kasowała. Nie usuwaj ich.
 
 ```
-crates/ami-core/   logika bez UI: model, store, rebalance, portfolio, budget, dashboard, providers, export
+crates/ami-core/   logika bez UI: model, store, rebalance, portfolio, dashboard, providers, export
 src-tauri/         aplikacja Tauri: komendy (lib.rs), pobieranie kursów (fetch.rs)
 src/               frontend: routes/ (strony), lib/ (i18n, settings, komponenty, typy)
 scripts/           release.mjs (wydanie), android-signing.py (podpis APK w CI)
@@ -44,7 +44,7 @@ scripts/           release.mjs (wydanie), android-signing.py (podpis APK w CI)
 ```sh
 npm install
 npm run tauri dev                 # aplikacja desktopowa (dev, odświeża na żywo)
-cargo test --workspace            # testy logiki (41)
+cargo test --workspace            # testy logiki
 cargo clippy --workspace --all-targets -- -D warnings
 npm run check                     # typy frontendu
 npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
@@ -68,24 +68,25 @@ npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 | 0 | Szkielet, CI, motywy, i18n PL/EN, ustawienia | |
 | 1 | SQLite, migracje, eksport i import `.ami` (zastąp / scal), kopia przed importem | |
 | 2 | Portfele, instrumenty, transakcje, średnia cena, rebalansowanie portfela | 0.1.2 |
-| 3 | Budżet: konta, kategorie, przelewy (także walutowe), limity, podsumowanie miesiąca | 0.2.0 |
 | 4 | Kursy online: NBP, Yahoo, CoinGecko, odświeżanie automatyczne | 0.2.0 |
-| 5 | Pulpit i wykresy (0.2.1), raporty + CSV, animowany pasek boczny, tryb prywatny, skróty Alt+1…6/H/B, układ pulpitu (0.3.0) | 0.2.1, 0.3.0 |
-| 6 (start) | Zapis plików przez `plugin-fs` (Android), commit `fa6097e` | jeszcze nie wydane |
+| 5 | Pulpit i wykresy, animowany pasek boczny, tryb prywatny, skróty Alt+1…4/H/B, układ pulpitu | 0.2.1, 0.3.0 |
+| 6 (start) | Zapis plików przez `plugin-fs` (Android), commit `fa6097e` | 0.4.0 |
+| 7 | Wycięcie budżetu i raportów: aplikacja to sam kalkulator portfela (Pulpit, Portfele, Rebalansowanie, Ustawienia) | 0.4.0 |
+
+(Etap 3, budżet domowy, był w 0.2.0 i 0.3.0, a w 0.4.0 został usunięty.)
 
 Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podpisany) działa. Opublikowane pre-release: **0.1.2, 0.2.0, 0.2.1, 0.3.0**, każde z 6 plikami. Właściciel potwierdził, że APK działa na telefonie.
 
 ## 6. Do zrobienia (w tej kolejności)
 
-1. **Wydać 0.3.1** z poprawką zapisu plików na Androidzie (`fa6097e`, CI zielone). Poprosić o test eksportu/importu `.ami` i CSV na telefonie.
-2. **Ikona aplikacji**: wszystkie platformy mają domyślną ikonę Tauri. Zrobić własną i `npm run tauri icon`.
-3. **Edycja istniejących rekordów**: transakcje budżetu i transakcje giełdowe da się dodać i usunąć, ale nie edytować. Do tego zmiana nazwy i tolerancji portfela oraz archiwizacja konta.
-4. **Android (etap 6)**: przycisk „wstecz”, bezpieczne marginesy, wygląd na małym ekranie, test na emulatorze lub telefonie, odświeżanie kursów w tle.
-5. **Windows**: instalator był tylko budowany w CI, nigdy uruchomiony. Poprosić o test na prawdziwym Windowsie. SmartScreen pokaże ostrzeżenie (brak płatnego certyfikatu).
-6. **Linux**: przetestować AppImage i deb (do tej pory uruchamiany był tylko plik z `target/`).
-7. **Z pierwotnego planu, jeszcze nie ma**: transakcje cykliczne (czynsz, pensja), import CSV z banku, historia wartości portfela (wykres w czasie), rebalansowanie z podatkiem (IKE/IKZE/zwykły rachunek).
-8. **Drobne**: pole daty pokazuje format amerykański (ustawienia systemu WebKit), wąskie okno wymaga przewijania tabel w bok.
-9. **Później**: synchronizacja między urządzeniami; upublicznienie repozytorium (licencja, README ze zrzutami ekranu, certyfikat podpisu Windows, ewentualnie automatyczne aktualizacje).
+1. **Ikona aplikacji**: wszystkie platformy mają domyślną ikonę Tauri. Zrobić własną i `npm run tauri icon`.
+2. **Edycja istniejących rekordów**: transakcje giełdowe da się dodać i usunąć, ale nie edytować. Do tego zmiana nazwy i tolerancji portfela.
+3. **Android (etap 6)**: przycisk „wstecz”, bezpieczne marginesy, wygląd na małym ekranie, test na emulatorze lub telefonie (w tym eksport/import `.ami` i CSV), odświeżanie kursów w tle.
+4. **Windows**: instalator był tylko budowany w CI, nigdy uruchomiony. Poprosić o test na prawdziwym Windowsie. SmartScreen pokaże ostrzeżenie (brak płatnego certyfikatu).
+5. **Linux**: przetestować AppImage i deb (do tej pory uruchamiany był tylko plik z `target/`).
+6. **Z pierwotnego planu, jeszcze nie ma**: import CSV z biura maklerskiego, historia wartości portfela (wykres w czasie), rebalansowanie z podatkiem (IKE/IKZE/zwykły rachunek).
+7. **Drobne**: pole daty pokazuje format amerykański (ustawienia systemu WebKit), wąskie okno wymaga przewijania tabel w bok.
+8. **Później**: synchronizacja między urządzeniami; upublicznienie repozytorium (licencja, README ze zrzutami ekranu, certyfikat podpisu Windows, ewentualnie automatyczne aktualizacje).
 
 ## 7. Zasady właściciela
 

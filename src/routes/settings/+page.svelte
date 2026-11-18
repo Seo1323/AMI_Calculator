@@ -198,10 +198,8 @@
 			{t('settings.startPage')}
 			<select bind:value={settings.startPage}>
 				<option value="/">{t('nav.dashboard')}</option>
-				<option value="/budget">{t('nav.budget')}</option>
 				<option value="/portfolio">{t('nav.portfolio')}</option>
 				<option value="/rebalance">{t('nav.rebalance')}</option>
-				<option value="/reports">{t('nav.reports')}</option>
 			</select>
 		</label>
 	</section>

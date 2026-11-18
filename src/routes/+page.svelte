@@ -1,10 +1,9 @@
 <script lang="ts">
-	import { t, fmtMoney, fmtNumber, numberLocale, errorText } from '$lib/i18n/index.svelte';
+	import { t, fmtMoney, fmtNumber, errorText } from '$lib/i18n/index.svelte';
 	import { settings, widgetList } from '$lib/settings.svelte';
 	import { invoke, isTauri } from '$lib/tauri';
 	import { quotes } from '$lib/quotes.svelte';
 	import AllocationBar from '$lib/components/AllocationBar.svelte';
-	import CategoryBars from '$lib/components/CategoryBars.svelte';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import type { Dashboard } from '$lib/types';
 
@@ -20,14 +19,6 @@
 			.catch((e) => (error = errorText(e)));
 	});
 
-	const monthLabel = $derived(
-		data ? new Intl.DateTimeFormat(numberLocale(), { month: 'long', year: 'numeric' }).format(new Date(data.month.month + 'T00:00:00')) : ''
-	);
-	const spending = $derived(
-		(data?.month.categories ?? [])
-			.filter((c) => c.category.kind === 'expense')
-			.map((c) => ({ id: c.category.id, label: c.category.name, value: Number(c.amount), limit: c.limit === null ? null : Number(c.limit) }))
-	);
 	// One color slot per instrument across all portfolios (sorted by symbol).
 	const slots = $derived.by(() => {
 		const symbols = new Map<string, string>();
@@ -37,7 +28,7 @@
 	});
 	const colorOf = (id: string) => slots.get(id) ?? 8;
 	const widgets = $derived(widgetList().filter((w) => w.visible));
-	const empty = $derived(data !== null && data.portfolios.length === 0 && Number(data.accountsTotal) === 0 && Number(data.month.expense) === 0);
+	const empty = $derived(data !== null && data.portfolios.length === 0);
 </script>
 
 <div class="stack">
@@ -66,55 +57,20 @@
 		<div class="grid">
 			{#each widgets as w (w.id)}
 				{#if w.id === 'netWorth'}
-		<!-- Net worth -->
+		<!-- Total value -->
 		<section class="card hero wide">
 			<div>
 				<span class="muted">{t('dashboard.netWorth')}</span>
-				<div class="hero-num">{fmtMoney(data.netWorth, data.currency)}</div>
+				<div class="hero-num">{fmtMoney(data.totalValue, data.currency)}</div>
 				<span class="muted small">{t('dashboard.netWorthHint', { currency: data.currency })}</span>
 			</div>
 			<dl class="split">
 				<div>
-					<dt>{t('dashboard.accounts')}</dt>
-					<dd>{fmtMoney(data.accountsTotal, data.currency)}</dd>
-				</div>
-				<div>
-					<dt>{t('dashboard.portfolios')}</dt>
-					<dd>{fmtMoney(data.portfoliosTotal, data.currency)}</dd>
+					<dt>{t('dashboard.gain')}</dt>
+					<dd class:pos={Number(data.totalGain) > 0} class:neg={Number(data.totalGain) < 0}>{fmtMoney(data.totalGain, data.currency)}</dd>
 				</div>
 			</dl>
 		</section>
-
-				{:else if w.id === 'month'}
-			<!-- Month -->
-			<section class="card stack">
-				<div class="section-head">
-					<h2 class="cap">{t('dashboard.month', { month: monthLabel })}</h2>
-					<a href="/budget" class="small">{t('dashboard.goBudget')}</a>
-				</div>
-				<dl class="split three">
-					<div>
-						<dt>{t('budget.income')}</dt>
-						<dd>{fmtMoney(data.month.income, data.currency)}</dd>
-					</div>
-					<div>
-						<dt>{t('budget.expense')}</dt>
-						<dd>{fmtMoney(data.month.expense, data.currency)}</dd>
-					</div>
-					<div>
-						<dt>{t('budget.net')}</dt>
-						<dd class:pos={Number(data.month.net) > 0} class:neg={Number(data.month.net) < 0}>
-							{fmtMoney(data.month.net, data.currency)}
-						</dd>
-					</div>
-				</dl>
-				<h3>{t('dashboard.spending')}</h3>
-				{#if spending.some((s) => s.value > 0)}
-					<CategoryBars rows={spending} currency={data.currency} otherLabel={t('dashboard.other')} />
-				{:else}
-					<p class="muted">{t('dashboard.noSpending')}</p>
-				{/if}
-			</section>
 
 				{:else if w.id === 'portfolios'}
 			<!-- Portfolios -->
@@ -170,15 +126,8 @@
 	p {
 		margin: 0;
 	}
-	h3 {
-		font-size: 0.95rem;
-		margin: 0;
-	}
 	.small {
 		font-size: 0.85rem;
-	}
-	.cap::first-letter {
-		text-transform: uppercase;
 	}
 	.head,
 	.section-head {

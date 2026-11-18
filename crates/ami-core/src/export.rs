@@ -16,10 +16,6 @@ pub const FILE_EXTENSION: &str = "ami";
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DataSet {
-    pub accounts: Vec<Account>,
-    pub categories: Vec<Category>,
-    pub transactions: Vec<Transaction>,
-    pub budget_limits: Vec<BudgetLimit>,
     pub instruments: Vec<Instrument>,
     pub portfolios: Vec<Portfolio>,
     pub targets: Vec<AllocationTarget>,
@@ -90,20 +86,25 @@ mod tests {
     #[test]
     fn roundtrip() {
         let mut data = DataSet::default();
-        data.accounts.push(Account {
+        data.portfolios.push(Portfolio {
             meta: Meta::new(),
-            name: "Konto".into(),
-            kind: AccountKind::Checking,
-            currency: Currency::new("PLN").unwrap(),
-            opening_balance: dec!(1234.56),
-            archived: false,
-            color: None,
+            name: "IKE".into(),
+            base_currency: Currency::new("PLN").unwrap(),
+            tolerance_percent: dec!(5.5),
         });
         data.settings = serde_json::json!({ "theme": "dark" });
         let json = ExportBundle::new("0.1.0", data).to_json().unwrap();
         let back = ExportBundle::from_json(&json).unwrap();
-        assert_eq!(back.data.accounts[0].opening_balance, dec!(1234.56));
+        assert_eq!(back.data.portfolios[0].tolerance_percent, dec!(5.5));
         assert_eq!(back.data.settings["theme"], "dark");
+    }
+
+    /// Backups made while the app still had a budget module must keep importing.
+    #[test]
+    fn ignores_unknown_sections_from_older_files() {
+        let old = r#"{"format":"ami-calculator-export","version":1,"appVersion":"0.3.0",
+            "exportedAt":"2026-11-18T10:00:00Z","data":{"accounts":[{"x":1}],"budgetLimits":[],"portfolios":[]}}"#;
+        assert!(ExportBundle::from_json(old).unwrap().data.portfolios.is_empty());
     }
 
     #[test]

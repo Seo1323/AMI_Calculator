@@ -1,7 +1,6 @@
 <script lang="ts">
 	const paths = {
 		dashboard: 'M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z',
-		budget: 'M21 7H5a2 2 0 0 1 0-4h14v4M3 5v14a2 2 0 0 0 2 2h16V7M17 14h.01',
 		portfolio: 'M21.2 15.9A10 10 0 1 1 8 2.8M22 12A10 10 0 0 0 12 2v10z',
 		rebalance: 'M12 3v18M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0zM8 21h8',
 		settings:
@@ -9,7 +8,6 @@
 		collapse: 'M15 18l-6-6 6-6',
 		plus: 'M12 5v14M5 12h14',
 		trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6',
-		reports: 'M3 3v18h18M7 15v2M11 11v6M15 7v10M19 12v5',
 		eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
 		eyeOff: 'M17.9 17.9A10 10 0 0 1 12 20C5 20 1 12 1 12a18 18 0 0 1 5.1-5.9M9.9 4.2A9 9 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.2 3.2M14.1 14.1a3 3 0 1 1-4.2-4.2M1 1l22 22'
 	};

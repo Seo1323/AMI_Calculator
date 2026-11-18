@@ -7,9 +7,7 @@ use std::sync::{Mutex, MutexGuard};
 use ami_core::CoreError;
 use ami_core::error::ErrorPayload;
 use ami_core::export::ExportBundle;
-use ami_core::budget::{self, AccountBalance, MonthSummary, TransferInput};
-use ami_core::model::{FxRate, Quote, Transaction};
-use chrono::NaiveDate;
+use ami_core::model::{FxRate, Quote};
 use ami_core::money::Currency;
 use ami_core::portfolio::{self, PortfolioView};
 use ami_core::rebalance::{self, Mode, RebalanceInput, RebalanceResult};
@@ -122,57 +120,7 @@ fn fx_set(state: State<'_, AppState>, currency: Currency, rate_pln: Decimal) -> 
 
 #[tauri::command]
 fn dashboard(state: State<'_, AppState>, currency: Currency) -> CmdResult<ami_core::dashboard::Dashboard> {
-    Ok(ami_core::dashboard::build(&state.store(), chrono::Local::now().date_naive(), &currency)?)
-}
-
-// ---------- budget ----------
-
-#[tauri::command]
-fn budget_balances(state: State<'_, AppState>) -> CmdResult<Vec<AccountBalance>> {
-    Ok(budget::account_balances(&state.store())?)
-}
-
-#[tauri::command]
-fn budget_month(state: State<'_, AppState>, month: NaiveDate, currency: Currency) -> CmdResult<MonthSummary> {
-    Ok(budget::month_summary(&state.store(), month, &currency)?)
-}
-
-#[tauri::command]
-fn budget_report(state: State<'_, AppState>, from: NaiveDate, to: NaiveDate, currency: Currency) -> CmdResult<budget::PeriodReport> {
-    Ok(budget::period_report(&state.store(), from, to, &currency)?)
-}
-
-#[tauri::command]
-fn budget_transactions(state: State<'_, AppState>, month: NaiveDate) -> CmdResult<Vec<Transaction>> {
-    let start = budget::month_start(month);
-    Ok(state.store().transactions_between(start, budget::next_month(start))?)
-}
-
-#[tauri::command]
-fn budget_transfer(state: State<'_, AppState>, input: TransferInput) -> CmdResult<()> {
-    budget::create_transfer(&state.store(), &input)?;
-    Ok(())
-}
-
-#[tauri::command]
-fn budget_set_limit(
-    state: State<'_, AppState>,
-    category_id: Uuid,
-    month: NaiveDate,
-    amount: Option<Decimal>,
-    currency: Currency,
-) -> CmdResult<()> {
-    Ok(budget::set_limit(&state.store(), category_id, month, amount, currency)?)
-}
-
-#[tauri::command]
-fn budget_copy_limits(state: State<'_, AppState>, month: NaiveDate) -> CmdResult<usize> {
-    Ok(budget::copy_limits_from_previous(&state.store(), month)?)
-}
-
-#[tauri::command]
-fn budget_seed_categories(state: State<'_, AppState>, polish: bool) -> CmdResult<usize> {
-    Ok(budget::seed_default_categories(&state.store(), polish)?)
+    Ok(ami_core::dashboard::build(&state.store(), &currency)?)
 }
 
 // ---------- settings ----------
@@ -283,14 +231,6 @@ pub fn run() {
             db_save,
             db_delete,
             dashboard,
-            budget_balances,
-            budget_month,
-            budget_report,
-            budget_transactions,
-            budget_transfer,
-            budget_set_limit,
-            budget_copy_limits,
-            budget_seed_categories,
             portfolio_view,
             portfolio_rebalance,
             portfolio_set_targets,

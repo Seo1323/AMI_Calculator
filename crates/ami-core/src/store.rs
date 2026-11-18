@@ -10,7 +10,7 @@
 
 use std::path::Path;
 
-use chrono::{DateTime, Datelike, SecondsFormat, SubsecRound, Utc};
+use chrono::{DateTime, SecondsFormat, SubsecRound, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -50,48 +50,6 @@ macro_rules! meta_accessors {
             &mut self.meta
         }
     };
-}
-
-impl Entity for Account {
-    const TABLE: &'static str = "accounts";
-    meta_accessors!();
-    fn validate(&self) -> Result<()> {
-        require(!self.name.trim().is_empty(), "account name is empty")
-    }
-}
-
-impl Entity for Category {
-    const TABLE: &'static str = "categories";
-    meta_accessors!();
-    fn validate(&self) -> Result<()> {
-        require(!self.name.trim().is_empty(), "category name is empty")?;
-        require(self.parent_id != Some(self.meta.id), "category cannot be its own parent")
-    }
-    fn references(&self) -> Vec<(&'static str, Uuid)> {
-        self.parent_id.map(|id| ("categories", id)).into_iter().collect()
-    }
-}
-
-impl Entity for Transaction {
-    const TABLE: &'static str = "transactions";
-    meta_accessors!();
-    fn references(&self) -> Vec<(&'static str, Uuid)> {
-        let mut refs = vec![("accounts", self.account_id)];
-        refs.extend(self.category_id.map(|id| ("categories", id)));
-        refs
-    }
-}
-
-impl Entity for BudgetLimit {
-    const TABLE: &'static str = "budget_limits";
-    meta_accessors!();
-    fn validate(&self) -> Result<()> {
-        require(self.amount >= rust_decimal::Decimal::ZERO, "budget limit must not be negative")?;
-        require(self.month.day() == 1, "budget month must be the first day of a month")
-    }
-    fn references(&self) -> Vec<(&'static str, Uuid)> {
-        vec![("categories", self.category_id)]
-    }
 }
 
 impl Entity for Instrument {
@@ -142,10 +100,6 @@ impl Entity for Trade {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EntityKind {
-    Account,
-    Category,
-    Transaction,
-    BudgetLimit,
     Instrument,
     Portfolio,
     AllocationTarget,
@@ -155,10 +109,6 @@ pub enum EntityKind {
 macro_rules! with_entity {
     ($kind:expr, $T:ident => $body:expr) => {
         match $kind {
-            EntityKind::Account => { type $T = Account; $body }
-            EntityKind::Category => { type $T = Category; $body }
-            EntityKind::Transaction => { type $T = Transaction; $body }
-            EntityKind::BudgetLimit => { type $T = BudgetLimit; $body }
             EntityKind::Instrument => { type $T = Instrument; $body }
             EntityKind::Portfolio => { type $T = Portfolio; $body }
             EntityKind::AllocationTarget => { type $T = AllocationTarget; $body }
@@ -167,12 +117,10 @@ macro_rules! with_entity {
     };
 }
 
-/// All entity tables, parents before children.
+/// All entity tables, parents before children. The old budget tables (accounts,
+/// categories, transactions, budget_limits) stay in existing databases, unused,
+/// so an update never deletes anyone's data.
 const TABLES: &[&str] = &[
-    "accounts",
-    "categories",
-    "transactions",
-    "budget_limits",
     "instruments",
     "portfolios",
     "allocation_targets",
@@ -482,9 +430,6 @@ impl Store {
         if kind == EntityKind::Trade {
             return self.delete_trade(id);
         }
-        if kind == EntityKind::Transaction {
-            return crate::budget::delete_transaction(self, id);
-        }
         with_entity!(kind, T => self.delete::<T>(id))
     }
 
@@ -540,15 +485,6 @@ impl Store {
 
     // ----- portfolio helpers -----
 
-    /// Live transactions with `from <= date < to`, oldest first (uses the date index).
-    pub fn transactions_between(&self, from: chrono::NaiveDate, to: chrono::NaiveDate) -> Result<Vec<Transaction>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT data FROM transactions WHERE deleted_at IS NULL AND date >= ?1 AND date < ?2 ORDER BY date, created_at",
-        )?;
-        let rows = stmt.query_map([from.to_string(), to.to_string()], |r| r.get::<_, String>(0))?;
-        rows.map(|d| Ok(serde_json::from_str(&d?)?)).collect()
-    }
-
     pub fn trades_of(&self, portfolio_id: Uuid) -> Result<Vec<Trade>> {
         Ok(self.list::<Trade>()?.into_iter().filter(|t| t.portfolio_id == portfolio_id).collect())
     }
@@ -602,10 +538,6 @@ impl Store {
     pub fn export_data(&self) -> Result<DataSet> {
         let c = &self.conn;
         Ok(DataSet {
-            accounts: read_all(c, true)?,
-            categories: read_all(c, true)?,
-            transactions: read_all(c, true)?,
-            budget_limits: read_all(c, true)?,
             instruments: read_all(c, true)?,
             portfolios: read_all(c, true)?,
             targets: read_all(c, true)?,
@@ -628,10 +560,6 @@ impl Store {
             }
         }
         let mut stats = ImportStats::default();
-        import_list(&tx, &data.accounts, &mut stats)?;
-        import_list(&tx, &data.categories, &mut stats)?;
-        import_list(&tx, &data.transactions, &mut stats)?;
-        import_list(&tx, &data.budget_limits, &mut stats)?;
         import_list(&tx, &data.instruments, &mut stats)?;
         import_list(&tx, &data.portfolios, &mut stats)?;
         import_list(&tx, &data.targets, &mut stats)?;
@@ -665,67 +593,79 @@ mod tests {
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
 
-    fn account(name: &str) -> Account {
-        Account {
+    fn portfolio(name: &str) -> Portfolio {
+        Portfolio {
             meta: Meta::new(),
             name: name.into(),
-            kind: AccountKind::Checking,
-            currency: Currency::new("PLN").unwrap(),
-            opening_balance: dec!(100.10),
-            archived: false,
-            color: None,
+            base_currency: Currency::new("PLN").unwrap(),
+            tolerance_percent: dec!(5.5),
         }
     }
 
-    fn tx(account_id: Uuid, amount: rust_decimal::Decimal) -> Transaction {
-        Transaction {
+    fn instrument() -> Instrument {
+        Instrument {
             meta: Meta::new(),
-            account_id,
+            symbol: "VWCE.DE".into(),
+            name: "Vanguard FTSE All-World".into(),
+            kind: InstrumentKind::Etf,
+            currency: Currency::new("EUR").unwrap(),
+            quote_source: QuoteSource::Yahoo,
+            fractional: false,
+        }
+    }
+
+    fn trade(portfolio_id: Uuid, instrument_id: Uuid, quantity: rust_decimal::Decimal) -> Trade {
+        Trade {
+            meta: Meta::new(),
+            portfolio_id,
+            instrument_id,
             date: NaiveDate::from_ymd_opt(2026, 11, 18).unwrap(),
-            amount,
-            category_id: None,
-            transfer_pair_id: None,
-            note: String::new(),
+            side: TradeSide::Buy,
+            quantity,
+            price: dec!(100.10),
+            fee: dec!(1),
         }
     }
 
     #[test]
     fn save_get_list_delete() {
         let s = Store::open_in_memory().unwrap();
-        let a = s.save(account("Konto")).unwrap();
-        let got: Account = s.get(a.meta.id).unwrap().unwrap();
-        assert_eq!(got.opening_balance, dec!(100.10));
-        assert_eq!(s.list::<Account>().unwrap().len(), 1);
+        let p = s.save(portfolio("IKE")).unwrap();
+        let got: Portfolio = s.get(p.meta.id).unwrap().unwrap();
+        assert_eq!(got.tolerance_percent, dec!(5.5));
+        assert_eq!(s.list::<Portfolio>().unwrap().len(), 1);
 
-        assert!(s.delete::<Account>(a.meta.id).unwrap());
-        assert!(s.get::<Account>(a.meta.id).unwrap().is_none());
-        assert!(s.list::<Account>().unwrap().is_empty());
-        assert!(!s.delete::<Account>(a.meta.id).unwrap());
+        assert!(s.delete::<Portfolio>(p.meta.id).unwrap());
+        assert!(s.get::<Portfolio>(p.meta.id).unwrap().is_none());
+        assert!(s.list::<Portfolio>().unwrap().is_empty());
+        assert!(!s.delete::<Portfolio>(p.meta.id).unwrap());
     }
 
     #[test]
     fn update_keeps_created_at() {
         let s = Store::open_in_memory().unwrap();
-        let a = s.save(account("A")).unwrap();
+        let a = s.save(portfolio("A")).unwrap();
         let mut b = a.clone();
         b.name = "B".into();
         b.meta.created_at = Utc::now() + chrono::Duration::days(1);
         let b = s.save(b).unwrap();
         assert_eq!(b.meta.created_at, a.meta.created_at);
         assert!(b.meta.updated_at >= a.meta.updated_at);
-        assert_eq!(s.list::<Account>().unwrap()[0].name, "B");
+        assert_eq!(s.list::<Portfolio>().unwrap()[0].name, "B");
     }
 
     #[test]
     fn validation_and_references() {
         let s = Store::open_in_memory().unwrap();
-        assert!(matches!(s.save(account("  ")), Err(CoreError::Validation(_))));
-        let orphan = tx(Uuid::now_v7(), dec!(-10));
+        assert!(matches!(s.save(portfolio("  ")), Err(CoreError::Validation(_))));
+        let orphan = trade(Uuid::now_v7(), Uuid::now_v7(), dec!(1));
         assert!(matches!(s.save(orphan), Err(CoreError::MissingReference { .. })));
-        let a = s.save(account("A")).unwrap();
-        s.save(tx(a.meta.id, dec!(-10))).unwrap();
-        s.delete::<Account>(a.meta.id).unwrap();
-        assert!(matches!(s.save(tx(a.meta.id, dec!(-1))), Err(CoreError::MissingReference { .. })));
+        let p = s.save(portfolio("A")).unwrap();
+        let i = s.save(instrument()).unwrap();
+        s.save(trade(p.meta.id, i.meta.id, dec!(1))).unwrap();
+        assert!(matches!(s.save(trade(p.meta.id, i.meta.id, dec!(0))), Err(CoreError::Validation(_))));
+        s.delete::<Portfolio>(p.meta.id).unwrap();
+        assert!(matches!(s.save(trade(p.meta.id, i.meta.id, dec!(1))), Err(CoreError::MissingReference { .. })));
     }
 
     #[test]
@@ -733,19 +673,19 @@ mod tests {
         let s = Store::open_in_memory().unwrap();
         let v = s
             .save_json(
-                EntityKind::Account,
-                serde_json::json!({ "name": "Gotówka", "kind": "cash", "currency": "pln", "openingBalance": "50.5" }),
+                EntityKind::Portfolio,
+                serde_json::json!({ "name": "IKE", "baseCurrency": "pln", "tolerancePercent": "5.5" }),
             )
             .unwrap();
-        assert_eq!(v["currency"], "PLN");
-        assert_eq!(v["openingBalance"], "50.5");
+        assert_eq!(v["baseCurrency"], "PLN");
+        assert_eq!(v["tolerancePercent"], "5.5");
         assert!(v["id"].is_string());
-        assert_eq!(s.list_json(EntityKind::Account).unwrap().len(), 1);
+        assert_eq!(s.list_json(EntityKind::Portfolio).unwrap().len(), 1);
 
-        let bad = s.save_json(EntityKind::Account, serde_json::json!({ "name": "X" }));
+        let bad = s.save_json(EntityKind::Portfolio, serde_json::json!({ "name": "X" }));
         assert!(matches!(bad, Err(CoreError::Validation(_))));
         let id: Uuid = v["id"].as_str().unwrap().parse().unwrap();
-        assert!(s.delete_json(EntityKind::Account, id).unwrap());
+        assert!(s.delete_json(EntityKind::Portfolio, id).unwrap());
     }
 
     #[test]
@@ -759,27 +699,28 @@ mod tests {
     #[test]
     fn export_import_replace() {
         let src = Store::open_in_memory().unwrap();
-        let a = src.save(account("A")).unwrap();
-        src.save(tx(a.meta.id, dec!(-12.34))).unwrap();
+        let p = src.save(portfolio("A")).unwrap();
+        let i = src.save(instrument()).unwrap();
+        src.save(trade(p.meta.id, i.meta.id, dec!(12.34))).unwrap();
         src.set_setting(UI_SETTINGS_KEY, &serde_json::json!({ "locale": "en" })).unwrap();
         let data = src.export_data().unwrap();
 
         let mut dst = Store::open_in_memory().unwrap();
-        dst.save(account("local only")).unwrap();
+        dst.save(portfolio("local only")).unwrap();
         let stats = dst.import_data(&data, ImportMode::Replace).unwrap();
-        assert_eq!(stats, ImportStats { inserted: 2, updated: 0, skipped: 0 });
-        let accounts = dst.list::<Account>().unwrap();
-        assert_eq!(accounts.len(), 1);
-        assert_eq!(accounts[0].name, "A");
-        assert_eq!(dst.list::<Transaction>().unwrap()[0].amount, dec!(-12.34));
+        assert_eq!(stats, ImportStats { inserted: 3, updated: 0, skipped: 0 });
+        let portfolios = dst.list::<Portfolio>().unwrap();
+        assert_eq!(portfolios.len(), 1);
+        assert_eq!(portfolios[0].name, "A");
+        assert_eq!(dst.list::<Trade>().unwrap()[0].quantity, dec!(12.34));
         assert_eq!(dst.get_setting(UI_SETTINGS_KEY).unwrap().unwrap()["locale"], "en");
     }
 
     #[test]
     fn import_merge_newer_wins() {
         let mut s = Store::open_in_memory().unwrap();
-        let a = s.save(account("old")).unwrap();
-        let local_only = s.save(account("local")).unwrap();
+        let a = s.save(portfolio("old")).unwrap();
+        let local_only = s.save(portfolio("local")).unwrap();
 
         let mut newer = a.clone();
         newer.name = "new".into();
@@ -787,12 +728,12 @@ mod tests {
         let mut older = local_only.clone();
         older.name = "stale".into();
         older.meta.updated_at = local_only.meta.updated_at - chrono::Duration::seconds(10);
-        let fresh = account("fresh");
+        let fresh = portfolio("fresh");
 
-        let data = DataSet { accounts: vec![newer, older, fresh], ..Default::default() };
+        let data = DataSet { portfolios: vec![newer, older, fresh], ..Default::default() };
         let stats = s.import_data(&data, ImportMode::Merge).unwrap();
         assert_eq!(stats, ImportStats { inserted: 1, updated: 1, skipped: 1 });
-        let mut names: Vec<_> = s.list::<Account>().unwrap().into_iter().map(|a| a.name).collect();
+        let mut names: Vec<_> = s.list::<Portfolio>().unwrap().into_iter().map(|a| a.name).collect();
         names.sort();
         assert_eq!(names, ["fresh", "local", "new"]);
     }
@@ -803,14 +744,14 @@ mod tests {
         let path = dir.path().join("ami.db");
         {
             let s = Store::open(&path).unwrap();
-            s.save(account("persisted")).unwrap();
+            s.save(portfolio("persisted")).unwrap();
             s.backup_to(&dir.path().join("backup.db")).unwrap();
         }
         let s = Store::open(&path).unwrap();
         assert_eq!(s.schema_version().unwrap(), MIGRATIONS.len() as i64);
-        assert_eq!(s.list::<Account>().unwrap()[0].name, "persisted");
+        assert_eq!(s.list::<Portfolio>().unwrap()[0].name, "persisted");
         let b = Store::open(&dir.path().join("backup.db")).unwrap();
-        assert_eq!(b.list::<Account>().unwrap().len(), 1);
+        assert_eq!(b.list::<Portfolio>().unwrap().len(), 1);
     }
 
     #[test]

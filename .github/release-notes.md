@@ -1,14 +1,17 @@
+## Co nowego w 0.4
+- **Sam kalkulator portfela**: budżet domowy został usunięty z aplikacji. Zostały Pulpit, Portfele, Rebalansowanie i Ustawienia.
+- **Twoje dane są bezpieczne**: aktualizacja niczego nie kasuje, a stare pliki `.ami` nadal się importują (dawne dane budżetu są pomijane).
+- **Pulpit**: wartość i zysk wszystkich portfeli oraz karty portfeli z alokacją obecną i docelową.
+- **Android**: poprawiony zapis i odczyt plików `.ami` oraz CSV (kopia zapasowa, eksport, import).
+- **Skróty klawiszowe**: Alt+1…4 (sekcje), Alt+H (ukryj kwoty), Alt+B (menu).
+
 ## Co nowego w 0.3
-- **Raporty**: przychody i wydatki miesiąc po miesiącu (wykres i tabela), stopa oszczędności, średnie wydatki, podział na kategorie, eksport do CSV.
 - **Nowy pasek boczny**: płynne zwijanie, przesuwające się podświetlenie aktywnej sekcji, przejścia między stronami (wyłączysz je opcją „Ogranicz animacje”).
 - **Tryb prywatny**: ukrywa wszystkie kwoty jednym kliknięciem (Alt+H).
-- **Skróty klawiszowe**: Alt+1…6 (sekcje), Alt+B (menu).
 - **Pulpit do ułożenia**: włączanie, wyłączanie i kolejność sekcji w Ustawieniach.
 
 ## Co nowego w 0.2
-- **Pulpit** (0.2.1): wartość netto, budżet bieżącego miesiąca z wykresem wydatków, karty portfeli z alokacją obecną i docelową.
 - **Portfele**: instrumenty (GPW, ETF-y, akcje, krypto), transakcje kupna i sprzedaży, średnia cena zakupu, zysk/strata, alokacja docelowa i rebalansowanie jednym kliknięciem.
-- **Budżet**: konta, kategorie, wydatki, przychody, przelewy (także walutowe), miesięczne limity i podsumowanie miesiąca z przekazaniem nadwyżki do portfela.
 - **Kursy online**: NBP (waluty), Yahoo Finance (GPW i giełdy zagraniczne), CoinGecko (krypto), odświeżanie automatyczne.
 - **Kopia zapasowa**: wszystkie dane w jednym pliku `.ami` (np. na pendrive).
 
