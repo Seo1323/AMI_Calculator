@@ -79,7 +79,7 @@ Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podp
 
 ## 6. Do zrobienia (w tej kolejności)
 
-1. **Ikona aplikacji**: wszystkie platformy mają domyślną ikonę Tauri. Zrobić własną i `npm run tauri icon`.
+1. **Ikona aplikacji**: zrobiona (waga na niebieskim tle, źródło `assets/icon.svg`, odtworzenie: `rsvg-convert -w 1024 -h 1024 assets/icon.svg -o /tmp/i.png && npm run tauri icon /tmp/i.png`, potem usuń `src-tauri/icons/ios`). Sprawdzić w kolejnym wydaniu, że APK i instalatory ją pokazują.
 2. **Edycja istniejących rekordów**: transakcje giełdowe da się dodać i usunąć, ale nie edytować. Do tego zmiana nazwy i tolerancji portfela.
 3. **Android (etap 6)**: przycisk „wstecz”, bezpieczne marginesy, wygląd na małym ekranie, test na emulatorze lub telefonie (w tym eksport/import `.ami` i CSV), odświeżanie kursów w tle.
 4. **Windows**: instalator był tylko budowany w CI, nigdy uruchomiony. Poprosić o test na prawdziwym Windowsie. SmartScreen pokaże ostrzeżenie (brak płatnego certyfikatu).
