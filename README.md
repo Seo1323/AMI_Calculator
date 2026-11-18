@@ -37,6 +37,6 @@ Windows (exe/msi), Linux (AppImage/deb/rpm) i Android (arm64 APK) do szkicu Rele
 | 2 | Portfele, instrumenty, transakcje, alokacja, rebalansowanie portfela | ✅ |
 | 3 | Budżet: konta, kategorie, transakcje, przelewy, limity, podsumowanie miesiąca | ✅ |
 | 4 | Kursy online: NBP (waluty), Yahoo Finance (GPW, ETF, akcje), CoinGecko (krypto) | ✅ |
-| 5 | Dashboard, raporty, wykresy, więcej personalizacji | ⏳ |
+| 5 | Pulpit, raporty, wykresy, personalizacja, animacje, skróty klawiszowe | ✅ |
 | 6 | Dopracowanie Linuksa, build na Androida | ⏳ |
 | Później | Synchronizacja, import z banków | 💭 |

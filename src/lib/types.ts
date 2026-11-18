@@ -168,3 +168,28 @@ export interface Dashboard {
 	month: MonthSummary;
 	portfolios: PortfolioTile[];
 }
+
+// ---------- Reports ----------
+
+export interface MonthPoint {
+	month: string;
+	income: string;
+	expense: string;
+	net: string;
+}
+
+export interface PeriodReport {
+	currency: string;
+	from: string;
+	to: string;
+	months: MonthPoint[];
+	income: string;
+	expense: string;
+	net: string;
+	avgExpense: string;
+	savingsRate: string | null;
+	categories: CategoryLine[];
+	uncategorizedExpense: string;
+	uncategorizedIncome: string;
+	missingRates: string[];
+}

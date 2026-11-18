@@ -212,6 +212,98 @@ pub fn month_summary(store: &Store, month: NaiveDate, currency: &Currency) -> Re
     })
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonthPoint {
+    pub month: NaiveDate,
+    pub income: Decimal,
+    pub expense: Decimal,
+    pub net: Decimal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeriodReport {
+    pub currency: Currency,
+    pub from: NaiveDate,
+    /// First day of the last month included.
+    pub to: NaiveDate,
+    pub months: Vec<MonthPoint>,
+    pub income: Decimal,
+    pub expense: Decimal,
+    pub net: Decimal,
+    /// Average monthly expense over the period.
+    pub avg_expense: Decimal,
+    /// Share of income kept (net / income), in percent; None without income.
+    pub savings_rate: Option<Decimal>,
+    /// Totals per top-level category over the whole period (limits = sum of monthly limits).
+    pub categories: Vec<CategoryLine>,
+    pub uncategorized_expense: Decimal,
+    pub uncategorized_income: Decimal,
+    pub missing_rates: Vec<String>,
+}
+
+/// Month-by-month totals for `[from_month, to_month]` (both inclusive, any day in the month).
+pub fn period_report(store: &Store, from_month: NaiveDate, to_month: NaiveDate, currency: &Currency) -> Result<PeriodReport> {
+    let from = month_start(from_month.min(to_month));
+    let to = month_start(from_month.max(to_month));
+    let mut months = Vec::new();
+    let mut totals: HashMap<Uuid, CategoryLine> = HashMap::new();
+    let mut order: Vec<Uuid> = Vec::new();
+    let (mut unc_e, mut unc_i) = (Decimal::ZERO, Decimal::ZERO);
+    let mut missing: Vec<String> = Vec::new();
+    let mut m = from;
+    // Hard cap so a typo like year 1026 cannot spin for ages.
+    while m <= to && months.len() < 240 {
+        let s = month_summary(store, m, currency)?;
+        months.push(MonthPoint { month: m, income: s.income, expense: s.expense, net: s.net });
+        for line in s.categories {
+            let id = line.category.meta.id;
+            match totals.get_mut(&id) {
+                Some(t) => {
+                    t.amount += line.amount;
+                    t.limit = match (t.limit, line.limit) {
+                        (Some(a), Some(b)) => Some(a + b),
+                        (a, b) => a.or(b),
+                    };
+                }
+                None => {
+                    order.push(id);
+                    totals.insert(id, line);
+                }
+            }
+        }
+        unc_e += s.uncategorized_expense;
+        unc_i += s.uncategorized_income;
+        for c in s.missing_rates {
+            if !missing.contains(&c) {
+                missing.push(c);
+            }
+        }
+        m = next_month(m);
+    }
+    let income: Decimal = months.iter().map(|p| p.income).sum();
+    let expense: Decimal = months.iter().map(|p| p.expense).sum();
+    let mut categories: Vec<CategoryLine> = order.into_iter().filter_map(|id| totals.remove(&id)).collect();
+    categories.sort_by(|a, b| b.amount.cmp(&a.amount).then_with(|| a.category.name.cmp(&b.category.name)));
+    let n = Decimal::from(months.len().max(1) as u64);
+    Ok(PeriodReport {
+        currency: currency.clone(),
+        from,
+        to,
+        income,
+        expense,
+        net: income - expense,
+        avg_expense: (expense / n).round_dp(2),
+        savings_rate: (income > Decimal::ZERO).then(|| ((income - expense) / income * Decimal::ONE_HUNDRED).round_dp(1)),
+        months,
+        categories,
+        uncategorized_expense: unc_e,
+        uncategorized_income: unc_i,
+        missing_rates: missing,
+    })
+}
+
 /// Sets (or clears, with `None`) a category's limit for one month.
 pub fn set_limit(store: &Store, category_id: Uuid, month: NaiveDate, amount: Option<Decimal>, currency: Currency) -> Result<()> {
     let month = month_start(month);
@@ -406,6 +498,32 @@ mod tests {
         let m = month_summary(&s, d(2026, 11, 1), &pln()).unwrap();
         assert_eq!(m.expense, dec!(513.50));
         assert!(m.missing_rates.is_empty());
+    }
+
+    #[test]
+    fn period_report_sums_months() {
+        let s = Store::open_in_memory().unwrap();
+        let a = account(&s, "Konto", "PLN", dec!(0));
+        let food = category(&s, "Jedzenie", CategoryKind::Expense, None);
+        let salary = category(&s, "Pensja", CategoryKind::Income, None);
+        for (m, inc, exp) in [(9, dec!(5000), dec!(-1000)), (10, dec!(5000), dec!(-2000)), (11, dec!(6000), dec!(-1500))] {
+            tx(&s, &a, d(2026, m, 1), inc, Some(&salary));
+            tx(&s, &a, d(2026, m, 10), exp, Some(&food));
+        }
+        set_limit(&s, food.meta.id, d(2026, 10, 1), Some(dec!(1800)), pln()).unwrap();
+        set_limit(&s, food.meta.id, d(2026, 11, 1), Some(dec!(1800)), pln()).unwrap();
+
+        let r = period_report(&s, d(2026, 11, 30), d(2026, 9, 5), &pln()).unwrap();
+        assert_eq!(r.from, d(2026, 9, 1));
+        assert_eq!(r.months.len(), 3);
+        assert_eq!(r.months[1].expense, dec!(2000));
+        assert_eq!(r.income, dec!(16000));
+        assert_eq!(r.expense, dec!(4500));
+        assert_eq!(r.avg_expense, dec!(1500));
+        assert_eq!(r.savings_rate, Some(dec!(71.9)));
+        let food_line = r.categories.iter().find(|c| c.category.name == "Jedzenie").unwrap();
+        assert_eq!(food_line.amount, dec!(4500));
+        assert_eq!(food_line.limit, Some(dec!(3600)));
     }
 
     #[test]

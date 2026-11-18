@@ -2,7 +2,15 @@
 	import { onMount } from 'svelte';
 	import { save, open, confirm } from '@tauri-apps/plugin-dialog';
 	import { t, fmtDate, errorText } from '$lib/i18n/index.svelte';
-	import { settings, ACCENTS, resetSettings, replaceSettings, flushSettings } from '$lib/settings.svelte';
+	import {
+		settings,
+		ACCENTS,
+		resetSettings,
+		replaceSettings,
+		flushSettings,
+		widgetList,
+		setWidgetList
+	} from '$lib/settings.svelte';
 	import { invoke, isTauri, type DataLocation, type ImportMode, type ImportReport } from '$lib/tauri';
 
 	const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'];
@@ -19,6 +27,20 @@
 	});
 
 	const filters = [{ name: 'AMI_Calculator', extensions: ['ami'] }];
+
+	const widgets = $derived(widgetList());
+	function moveWidget(i: number, dir: -1 | 1) {
+		const list = widgetList();
+		const j = i + dir;
+		if (j < 0 || j >= list.length) return;
+		[list[i], list[j]] = [list[j], list[i]];
+		setWidgetList(list);
+	}
+	function toggleWidget(i: number) {
+		const list = widgetList();
+		list[i].visible = !list[i].visible;
+		setWidgetList(list);
+	}
 
 	async function doExport() {
 		messages = [];
@@ -177,8 +199,48 @@
 				<option value="/budget">{t('nav.budget')}</option>
 				<option value="/portfolio">{t('nav.portfolio')}</option>
 				<option value="/rebalance">{t('nav.rebalance')}</option>
+				<option value="/reports">{t('nav.reports')}</option>
 			</select>
 		</label>
+	</section>
+
+	<section class="card stack">
+		<h2>{t('settings.dashboard')}</h2>
+		<p class="muted">{t('settings.dashboard.hint')}</p>
+		<ul class="widgets">
+			{#each widgets as w, i (w.id)}
+				<li>
+					<label class="check">
+						<input type="checkbox" checked={w.visible} onchange={() => toggleWidget(i)} />
+						{t(`widget.${w.id}`)}
+					</label>
+					<span class="moves">
+						<button class="btn ghost" disabled={i === 0} aria-label={t('settings.moveUp')} onclick={() => moveWidget(i, -1)}>↑</button>
+						<button class="btn ghost" disabled={i === widgets.length - 1} aria-label={t('settings.moveDown')} onclick={() => moveWidget(i, 1)}>↓</button>
+					</span>
+				</li>
+			{/each}
+		</ul>
+	</section>
+
+	<section class="card stack">
+		<h2>{t('settings.privacy')}</h2>
+		<label class="check">
+			<input type="checkbox" bind:checked={settings.hideAmounts} />
+			{t('settings.hideAmounts')}
+		</label>
+	</section>
+
+	<section class="card stack">
+		<h2>{t('settings.shortcuts')}</h2>
+		<dl class="keys">
+			<dt><kbd>Alt</kbd> + <kbd>1</kbd>…<kbd>6</kbd></dt>
+			<dd>{t('shortcut.sections')}</dd>
+			<dt><kbd>Alt</kbd> + <kbd>H</kbd></dt>
+			<dd>{t('shortcut.hide')}</dd>
+			<dt><kbd>Alt</kbd> + <kbd>B</kbd></dt>
+			<dd>{t('shortcut.sidebar')}</dd>
+		</dl>
 	</section>
 
 	<section class="card stack">
@@ -277,6 +339,38 @@
 	}
 	input[type='range'] {
 		max-width: 20rem;
+	}
+	.widgets {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		max-width: 28rem;
+	}
+	.widgets li {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		border-bottom: 1px solid var(--border);
+		padding: 0.2rem 0;
+	}
+	.keys {
+		display: grid;
+		grid-template-columns: max-content 1fr;
+		gap: 0.4rem 1rem;
+		margin: 0;
+		align-items: center;
+	}
+	.keys dd {
+		margin: 0;
+	}
+	kbd {
+		font: inherit;
+		font-size: 0.8rem;
+		padding: 0.1rem 0.4rem;
+		border: 1px solid var(--border);
+		border-bottom-width: 2px;
+		border-radius: 4px;
+		background: var(--surface-2);
 	}
 	.location {
 		margin: 0;

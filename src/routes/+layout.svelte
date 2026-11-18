@@ -2,7 +2,8 @@
 	import '../app.css';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
+	import { fade } from 'svelte/transition';
 	import { settings, saveSettings, hydrateSettings } from '$lib/settings.svelte';
 	import { t, type MessageKey } from '$lib/i18n/index.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -11,8 +12,11 @@
 	let { children } = $props();
 
 	const media = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+	const motionQuery = typeof window !== 'undefined' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 	let systemDark = $state(media?.matches ?? false);
+	let systemReducedMotion = $state(motionQuery?.matches ?? false);
 	let ready = $state(false);
+	const animate = $derived(!settings.reduceMotion && !systemReducedMotion);
 
 	// (Re)start automatic quote downloads once settings are loaded and whenever they change.
 	$effect(() => {
@@ -21,14 +25,47 @@
 		if (ready) startAutoRefresh();
 	});
 
+	type IconName = 'dashboard' | 'budget' | 'portfolio' | 'rebalance' | 'reports' | 'settings';
+	const nav: { href: string; key: MessageKey; icon: IconName }[] = [
+		{ href: '/', key: 'nav.dashboard', icon: 'dashboard' },
+		{ href: '/budget', key: 'nav.budget', icon: 'budget' },
+		{ href: '/portfolio', key: 'nav.portfolio', icon: 'portfolio' },
+		{ href: '/rebalance', key: 'nav.rebalance', icon: 'rebalance' },
+		{ href: '/reports', key: 'nav.reports', icon: 'reports' },
+		{ href: '/settings', key: 'nav.settings', icon: 'settings' }
+	];
+
+	const isActive = (href: string) => (href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href));
+
+	function onKey(e: KeyboardEvent) {
+		// Alt+1..6 jumps between sections; Alt+H hides amounts; Alt+B toggles the sidebar.
+		if (!e.altKey || e.ctrlKey || e.metaKey) return;
+		const n = Number(e.key);
+		if (n >= 1 && n <= nav.length) {
+			e.preventDefault();
+			goto(nav[n - 1].href);
+		} else if (e.key.toLowerCase() === 'h') {
+			e.preventDefault();
+			settings.hideAmounts = !settings.hideAmounts;
+		} else if (e.key.toLowerCase() === 'b') {
+			e.preventDefault();
+			settings.sidebarCollapsed = !settings.sidebarCollapsed;
+		}
+	}
+
 	onMount(() => {
-		const onChange = (e: MediaQueryListEvent) => (systemDark = e.matches);
-		media?.addEventListener('change', onChange);
+		const onDark = (e: MediaQueryListEvent) => (systemDark = e.matches);
+		const onMotion = (e: MediaQueryListEvent) => (systemReducedMotion = e.matches);
+		media?.addEventListener('change', onDark);
+		motionQuery?.addEventListener('change', onMotion);
 		hydrateSettings().then(() => {
 			ready = true;
 			if (page.url.pathname === '/' && settings.startPage !== '/') goto(settings.startPage, { replaceState: true });
 		});
-		return () => media?.removeEventListener('change', onChange);
+		return () => {
+			media?.removeEventListener('change', onDark);
+			motionQuery?.removeEventListener('change', onMotion);
+		};
 	});
 
 	$effect(() => {
@@ -40,68 +77,133 @@
 		root.style.setProperty('--font-scale', String(settings.fontScale));
 		root.style.setProperty('--radius', `${settings.radius}px`);
 		root.toggleAttribute('data-reduce-motion', settings.reduceMotion);
+		root.toggleAttribute('data-hide-amounts', settings.hideAmounts);
 		root.lang = settings.locale;
 		saveSettings();
 	});
 
-	const nav: { href: string; key: MessageKey; icon: 'dashboard' | 'budget' | 'portfolio' | 'rebalance' | 'settings' }[] = [
-		{ href: '/', key: 'nav.dashboard', icon: 'dashboard' },
-		{ href: '/budget', key: 'nav.budget', icon: 'budget' },
-		{ href: '/portfolio', key: 'nav.portfolio', icon: 'portfolio' },
-		{ href: '/rebalance', key: 'nav.rebalance', icon: 'rebalance' },
-		{ href: '/settings', key: 'nav.settings', icon: 'settings' }
-	];
+	// ----- Sliding highlight behind the active item -----
+	let linksEl: HTMLElement | undefined = $state();
+	const linkEls: Record<string, HTMLElement> = {};
+	let indicator = $state({ x: 0, y: 0, w: 0, h: 0, visible: false });
 
-	const isActive = (href: string) =>
-		href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href);
+	async function placeIndicator() {
+		await tick();
+		const active = nav.find((n) => isActive(n.href));
+		const el = active ? linkEls[active.href] : undefined;
+		if (!el) {
+			indicator.visible = false;
+			return;
+		}
+		indicator = { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight, visible: true };
+	}
+
+	$effect(() => {
+		void page.url.pathname;
+		void settings.sidebarCollapsed;
+		placeIndicator();
+	});
+
+	$effect(() => {
+		if (!linksEl) return;
+		// Follows width changes while the sidebar animates and on phone/desktop layout switches.
+		const ro = new ResizeObserver(() => placeIndicator());
+		ro.observe(linksEl);
+		return () => ro.disconnect();
+	});
 </script>
 
-<div class="shell" class:collapsed={settings.sidebarCollapsed}>
+<svelte:window onkeydown={onKey} />
+
+<div class="shell" class:collapsed={settings.sidebarCollapsed} class:animate>
 	<nav class="sidebar" aria-label="main">
 		<div class="brand">
 			<span class="logo" aria-hidden="true">⚖</span>
 			<span class="label">{t('app.name')}</span>
 		</div>
-		{#each nav as item (item.href)}
-			<a href={item.href} class:active={isActive(item.href)} title={t(item.key)}>
-				<Icon name={item.icon} />
-				<span class="label">{t(item.key)}</span>
-			</a>
-		{/each}
-		<button
-			class="btn ghost collapse"
-			title={t('nav.collapse')}
-			aria-label={t('nav.collapse')}
-			onclick={() => (settings.sidebarCollapsed = !settings.sidebarCollapsed)}
-		>
-			<span class="chev"><Icon name="collapse" /></span>
-		</button>
+
+		<div class="links" bind:this={linksEl}>
+			<span
+				class="indicator"
+				class:visible={indicator.visible}
+				style:transform={`translate(${indicator.x}px, ${indicator.y}px)`}
+				style:width={`${indicator.w}px`}
+				style:height={`${indicator.h}px`}
+				aria-hidden="true"
+			></span>
+			{#each nav as item, i (item.href)}
+				<a
+					href={item.href}
+					class:active={isActive(item.href)}
+					title={`${t(item.key)} (Alt+${i + 1})`}
+					bind:this={linkEls[item.href]}
+					aria-current={isActive(item.href) ? 'page' : undefined}
+				>
+					<span class="icon"><Icon name={item.icon} /></span>
+					<span class="label">{t(item.key)}</span>
+				</a>
+			{/each}
+		</div>
+
+		<div class="bottom">
+			<button
+				class="btn ghost tool"
+				title={`${t('nav.hideAmounts')} (Alt+H)`}
+				aria-label={t('nav.hideAmounts')}
+				aria-pressed={settings.hideAmounts}
+				onclick={() => (settings.hideAmounts = !settings.hideAmounts)}
+			>
+				<Icon name={settings.hideAmounts ? 'eyeOff' : 'eye'} />
+				<span class="label">{t('nav.hideAmounts')}</span>
+			</button>
+			<button
+				class="btn ghost tool"
+				title={`${t('nav.collapse')} (Alt+B)`}
+				aria-label={t('nav.collapse')}
+				aria-expanded={!settings.sidebarCollapsed}
+				onclick={() => (settings.sidebarCollapsed = !settings.sidebarCollapsed)}
+			>
+				<span class="chev"><Icon name="collapse" /></span>
+				<span class="label">{t('nav.collapse')}</span>
+			</button>
+		</div>
 	</nav>
 
 	<main>
-		{@render children()}
+		{#key page.url.pathname}
+			<div class="page" in:fade={{ duration: animate ? 160 : 0 }}>
+				{@render children()}
+			</div>
+		{/key}
 	</main>
 </div>
 
 <style>
 	.shell {
-		display: grid;
-		grid-template-columns: 220px 1fr;
+		--sidebar-w: 220px;
+		--ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+		display: flex;
 		min-height: 100vh;
 	}
 	.shell.collapsed {
-		grid-template-columns: 64px 1fr;
+		--sidebar-w: 64px;
 	}
 	.sidebar {
 		position: sticky;
 		top: 0;
 		height: 100vh;
+		flex: none;
+		width: var(--sidebar-w);
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
 		padding: var(--space) 0.6rem;
 		background: var(--surface);
 		border-right: 1px solid var(--border);
+		overflow: hidden;
+	}
+	.animate .sidebar {
+		transition: width 0.28s var(--ease);
 	}
 	.brand {
 		display: flex;
@@ -110,14 +212,51 @@
 		font-weight: 700;
 		font-size: 1.15rem;
 		padding: 0.3rem 0.6rem calc(var(--space) * 1.2);
+		white-space: nowrap;
 	}
 	.logo {
 		color: var(--accent);
 		font-size: 1.4rem;
 		width: 24px;
+		flex: none;
 		text-align: center;
 	}
-	.sidebar a {
+	.animate .logo {
+		transition: transform 0.4s var(--ease);
+	}
+	.brand:hover .logo {
+		transform: rotate(-12deg);
+	}
+
+	.links {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.indicator {
+		position: absolute;
+		left: 0;
+		top: 0;
+		border-radius: calc(var(--radius) * 0.7);
+		background: var(--accent-soft);
+		opacity: 0;
+		pointer-events: none;
+	}
+	.indicator.visible {
+		opacity: 1;
+	}
+	.animate .indicator {
+		transition:
+			transform 0.3s var(--ease),
+			width 0.28s var(--ease),
+			height 0.28s var(--ease),
+			opacity 0.2s;
+	}
+
+	.sidebar a,
+	.tool {
+		position: relative;
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
@@ -127,43 +266,98 @@
 		text-decoration: none;
 		white-space: nowrap;
 	}
-	.sidebar a:hover {
+	.animate .sidebar a,
+	.animate .tool {
+		transition:
+			color 0.15s,
+			background 0.15s;
+	}
+	.sidebar a:hover,
+	.tool:hover {
 		background: var(--surface-2);
 		color: var(--text);
 	}
 	.sidebar a.active {
-		background: var(--accent-soft);
 		color: var(--accent-text);
 		font-weight: 600;
+		background: transparent;
 	}
-	.collapse {
+	.icon {
+		display: inline-flex;
+		flex: none;
+	}
+	.animate .sidebar a:hover .icon {
+		transform: translateX(2px);
+	}
+	.animate .icon {
+		transition: transform 0.2s var(--ease);
+	}
+	.animate .sidebar a:active .icon {
+		transform: scale(0.9);
+	}
+
+	.label {
+		display: inline-block;
+		opacity: 1;
+		transform: translateX(0);
+		max-width: 12rem;
+	}
+	.animate .label {
+		transition:
+			opacity 0.2s 0.06s,
+			transform 0.28s var(--ease),
+			max-width 0.28s var(--ease);
+	}
+	.collapsed .label {
+		opacity: 0;
+		transform: translateX(-6px);
+		max-width: 0;
+		pointer-events: none;
+	}
+	.animate.collapsed .label {
+		transition:
+			opacity 0.12s,
+			transform 0.2s var(--ease),
+			max-width 0.28s var(--ease);
+	}
+
+	.bottom {
 		margin-top: auto;
-		align-self: flex-end;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
 	}
-	.collapsed .collapse {
-		align-self: center;
+	.tool {
+		border: none;
+		background: transparent;
+		width: 100%;
+		justify-content: flex-start;
+		font-size: 0.9rem;
+	}
+	.chev {
+		display: inline-flex;
+		flex: none;
+	}
+	.animate .chev {
+		transition: transform 0.3s var(--ease);
 	}
 	.collapsed .chev {
 		transform: rotate(180deg);
 	}
-	.chev {
-		display: inline-flex;
-	}
-	.collapsed .label {
-		display: none;
-	}
+
 	main {
-		padding: calc(var(--space) * 1.5);
+		flex: 1;
 		min-width: 0;
+		padding: calc(var(--space) * 1.5);
 		max-width: 1400px;
-		width: 100%;
 	}
 
 	/* Phones: bottom navigation bar */
 	@media (max-width: 720px) {
 		.shell,
 		.shell.collapsed {
-			grid-template-columns: 1fr;
+			--sidebar-w: 100%;
+			display: block;
 		}
 		.sidebar {
 			position: fixed;
@@ -173,30 +367,36 @@
 			right: 0;
 			height: auto;
 			z-index: 10;
-			flex-direction: row;
-			justify-content: space-around;
 			padding: 0.3rem 0.3rem calc(0.3rem + env(safe-area-inset-bottom));
 			border-right: none;
 			border-top: 1px solid var(--border);
 		}
+		.animate .sidebar {
+			transition: none;
+		}
 		.brand,
-		.collapse {
+		.bottom {
 			display: none;
+		}
+		.links {
+			flex-direction: row;
+			justify-content: space-around;
 		}
 		.sidebar a {
 			flex-direction: column;
 			gap: 0.15rem;
 			font-size: 0.7rem;
-			padding: 0.35rem 0.4rem;
+			padding: 0.35rem 0.3rem;
 			flex: 1;
 			min-width: 0;
 		}
 		.sidebar a .label,
 		.collapsed .sidebar a .label {
-			display: block;
+			opacity: 1;
+			transform: none;
+			max-width: 100%;
 			overflow: hidden;
 			text-overflow: ellipsis;
-			max-width: 100%;
 		}
 		main {
 			padding: 1rem 1rem 5.5rem;

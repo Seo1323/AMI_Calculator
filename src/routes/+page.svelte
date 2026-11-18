@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { t, fmtMoney, fmtNumber, numberLocale, errorText } from '$lib/i18n/index.svelte';
-	import { settings } from '$lib/settings.svelte';
+	import { settings, widgetList } from '$lib/settings.svelte';
 	import { invoke, isTauri } from '$lib/tauri';
 	import { quotes } from '$lib/quotes.svelte';
 	import AllocationBar from '$lib/components/AllocationBar.svelte';
@@ -36,6 +36,7 @@
 		return new Map(ordered.map(([id], i) => [id, i]));
 	});
 	const colorOf = (id: string) => slots.get(id) ?? 8;
+	const widgets = $derived(widgetList().filter((w) => w.visible));
 	const empty = $derived(data !== null && data.portfolios.length === 0 && Number(data.accountsTotal) === 0 && Number(data.month.expense) === 0);
 </script>
 
@@ -62,8 +63,11 @@
 			<div class="notice warn">{t('dashboard.missingRates', { list: data.missingRates.join(', ') })}</div>
 		{/if}
 
+		<div class="grid">
+			{#each widgets as w (w.id)}
+				{#if w.id === 'netWorth'}
 		<!-- Net worth -->
-		<section class="card hero">
+		<section class="card hero wide">
 			<div>
 				<span class="muted">{t('dashboard.netWorth')}</span>
 				<div class="hero-num">{fmtMoney(data.netWorth, data.currency)}</div>
@@ -81,7 +85,7 @@
 			</dl>
 		</section>
 
-		<div class="grid">
+				{:else if w.id === 'month'}
 			<!-- Month -->
 			<section class="card stack">
 				<div class="section-head">
@@ -112,6 +116,7 @@
 				{/if}
 			</section>
 
+				{:else if w.id === 'portfolios'}
 			<!-- Portfolios -->
 			<section class="card stack">
 				<div class="section-head">
@@ -155,6 +160,8 @@
 					</a>
 				{/each}
 			</section>
+				{/if}
+			{/each}
 		</div>
 	{/if}
 </div>
@@ -210,9 +217,17 @@
 		font-weight: 600;
 		font-variant-numeric: tabular-nums;
 	}
+	.wide {
+		grid-column: 1 / -1;
+	}
+	@media (max-width: 980px) {
+		.grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
+	}
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: var(--space);
 		align-items: start;
 	}

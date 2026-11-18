@@ -25,6 +25,7 @@ export function fmtNumber(value: string | number, maxDigits = 2): string {
 }
 
 export function fmtMoney(value: string | number, currency = settings.baseCurrency): string {
+	if (settings.hideAmounts) return `••••• ${currency}`;
 	const n = typeof value === 'number' ? value : Number(value);
 	if (!Number.isFinite(n)) return String(value);
 	try {

@@ -138,6 +138,11 @@ fn budget_month(state: State<'_, AppState>, month: NaiveDate, currency: Currency
 }
 
 #[tauri::command]
+fn budget_report(state: State<'_, AppState>, from: NaiveDate, to: NaiveDate, currency: Currency) -> CmdResult<budget::PeriodReport> {
+    Ok(budget::period_report(&state.store(), from, to, &currency)?)
+}
+
+#[tauri::command]
 fn budget_transactions(state: State<'_, AppState>, month: NaiveDate) -> CmdResult<Vec<Transaction>> {
     let start = budget::month_start(month);
     Ok(state.store().transactions_between(start, budget::next_month(start))?)
@@ -253,6 +258,13 @@ fn data_location(state: State<'_, AppState>) -> CmdResult<DataLocation> {
     })
 }
 
+/// Writes a text file chosen by the user in a save dialog (e.g. a CSV report).
+#[tauri::command]
+fn save_text_file(path: PathBuf, contents: String) -> CmdResult<()> {
+    fs::write(&path, contents).map_err(CoreError::from)?;
+    Ok(())
+}
+
 #[tauri::command]
 fn app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
@@ -278,6 +290,7 @@ pub fn run() {
             dashboard,
             budget_balances,
             budget_month,
+            budget_report,
             budget_transactions,
             budget_transfer,
             budget_set_limit,
@@ -296,6 +309,7 @@ pub fn run() {
             export_bundle,
             import_bundle,
             data_location,
+            save_text_file,
             app_version
         ])
         .run(tauri::generate_context!())

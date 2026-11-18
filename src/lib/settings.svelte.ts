@@ -4,7 +4,7 @@ export type Locale = 'pl' | 'en';
 export type Theme = 'system' | 'light' | 'dark';
 export type Density = 'compact' | 'comfortable' | 'spacious';
 export type NumberLocale = 'auto' | 'pl-PL' | 'en-US' | 'en-GB' | 'de-DE';
-export type StartPage = '/' | '/budget' | '/portfolio' | '/rebalance';
+export type StartPage = '/' | '/budget' | '/portfolio' | '/rebalance' | '/reports';
 
 export interface Settings {
 	locale: Locale;
@@ -20,6 +20,8 @@ export interface Settings {
 	sidebarCollapsed: boolean;
 	autoRefreshQuotes: boolean;
 	refreshMinutes: number;
+	hideAmounts: boolean;
+	dashboardWidgets: string;
 }
 
 export const ACCENTS = ['#2f6fed', '#0f9d76', '#c2410c', '#9333ea', '#db2777', '#0891b2', '#ca8a04', '#475569'];
@@ -37,7 +39,10 @@ export const DEFAULTS: Settings = {
 	reduceMotion: false,
 	sidebarCollapsed: false,
 	autoRefreshQuotes: true,
-	refreshMinutes: 30
+	refreshMinutes: 30,
+	hideAmounts: false,
+	/** Comma-separated widget ids in display order; a leading "-" hides one. */
+	dashboardWidgets: 'netWorth,month,portfolios'
 };
 
 const KEY = 'ami.settings.v1';
@@ -116,4 +121,23 @@ export function resetSettings() {
 
 export function snapshotSettings(): Settings {
 	return $state.snapshot(settings) as Settings;
+}
+
+export const DASHBOARD_WIDGETS = ['netWorth', 'month', 'portfolios'] as const;
+export type WidgetId = (typeof DASHBOARD_WIDGETS)[number];
+
+/** Dashboard widgets in display order; unknown ids are dropped, missing ones appended. */
+export function widgetList(): { id: WidgetId; visible: boolean }[] {
+	const parsed = settings.dashboardWidgets
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean)
+		.map((s) => ({ id: s.replace(/^-/, '') as WidgetId, visible: !s.startsWith('-') }))
+		.filter((w, i, all) => DASHBOARD_WIDGETS.includes(w.id) && all.findIndex((x) => x.id === w.id) === i);
+	for (const id of DASHBOARD_WIDGETS) if (!parsed.some((w) => w.id === id)) parsed.push({ id, visible: true });
+	return parsed;
+}
+
+export function setWidgetList(list: { id: WidgetId; visible: boolean }[]) {
+	settings.dashboardWidgets = list.map((w) => (w.visible ? w.id : `-${w.id}`)).join(',');
 }
