@@ -21,8 +21,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" --draft --prerelease --title "AMI_Calculator $TAG" --notes-file .github/release-notes.md
-          echo "id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name==\"$TAG\") | .id")" >> "$GITHUB_OUTPUT"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+            -f tag_name="$TAG" -f name="AMI_Calculator $TAG" -F body=@.github/release-notes.md \
+            -F draft=true -F prerelease=true --jq .id)
+          test -n "$id" || { echo "release id is empty"; exit 1; }
+          echo "Created draft release $id"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
 
   desktop:
     needs: create-release
@@ -50,6 +54,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           releaseId: ${{ needs.create-release.outputs.id }}
+          tagName: ${{ github.ref_name }}
 
   android:
     needs: create-release
@@ -96,9 +101,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+          RELEASE_ID: ${{ needs.create-release.outputs.id }}
         run: |
           apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -1)
           test -n "$apk" || { echo "no APK found"; exit 1; }
           out="AMI_Calculator_${TAG#v}_arm64.apk"
           cp "$apk" "$out"
-          gh release upload "$TAG" "$out" --clobber
+          gh api -X POST -H "Content-Type: application/vnd.android.package-archive" \
+            "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=$out" \
+            --input "$out" --jq .browser_download_url
