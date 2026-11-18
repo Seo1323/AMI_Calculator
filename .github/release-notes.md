@@ -1,3 +1,9 @@
+## Co nowego w 0.2
+- **Portfele**: instrumenty (GPW, ETF-y, akcje, krypto), transakcje kupna i sprzedaży, średnia cena zakupu, zysk/strata, alokacja docelowa i rebalansowanie jednym kliknięciem.
+- **Budżet**: konta, kategorie, wydatki, przychody, przelewy (także walutowe), miesięczne limity i podsumowanie miesiąca z przekazaniem nadwyżki do portfela.
+- **Kursy online**: NBP (waluty), Yahoo Finance (GPW i giełdy zagraniczne), CoinGecko (krypto), odświeżanie automatyczne.
+- **Kopia zapasowa**: wszystkie dane w jednym pliku `.ami` (np. na pendrive).
+
 ## Instalacja
 
 **Windows**: pobierz `AMI_Calculator_*_x64-setup.exe` i uruchom.
