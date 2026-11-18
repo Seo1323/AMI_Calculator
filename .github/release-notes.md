@@ -1,4 +1,5 @@
 ## Co nowego w 0.2
+- **Pulpit** (0.2.1): wartość netto, budżet bieżącego miesiąca z wykresem wydatków, karty portfeli z alokacją obecną i docelową.
 - **Portfele**: instrumenty (GPW, ETF-y, akcje, krypto), transakcje kupna i sprzedaży, średnia cena zakupu, zysk/strata, alokacja docelowa i rebalansowanie jednym kliknięciem.
 - **Budżet**: konta, kategorie, wydatki, przychody, przelewy (także walutowe), miesięczne limity i podsumowanie miesiąca z przekazaniem nadwyżki do portfela.
 - **Kursy online**: NBP (waluty), Yahoo Finance (GPW i giełdy zagraniczne), CoinGecko (krypto), odświeżanie automatyczne.
