@@ -24,6 +24,9 @@ pub struct DataSet {
     pub portfolios: Vec<Portfolio>,
     pub targets: Vec<AllocationTarget>,
     pub trades: Vec<Trade>,
+    /// Latest known prices (manual ones are user data, so they travel too).
+    pub quotes: Vec<Quote>,
+    pub fx_rates: Vec<FxRate>,
     /// UI settings, stored as opaque JSON owned by the frontend.
     pub settings: serde_json::Value,
 }

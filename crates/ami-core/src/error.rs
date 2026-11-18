@@ -31,6 +31,10 @@ pub enum CoreError {
     NotFound,
     #[error("database version {0} is newer than this app supports")]
     DatabaseTooNew(i64),
+    #[error("sell on {date} exceeds the quantity held")]
+    Oversold { date: String },
+    #[error("missing price for {0}")]
+    MissingPrice(String),
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
     #[error("JSON error: {0}")]
@@ -55,6 +59,8 @@ impl CoreError {
             CoreError::MissingReference { .. } => "missingReference",
             CoreError::NotFound => "notFound",
             CoreError::DatabaseTooNew(_) => "databaseTooNew",
+            CoreError::Oversold { .. } => "oversold",
+            CoreError::MissingPrice(_) => "missingPrice",
             CoreError::Db(_) => "database",
             CoreError::Json(_) => "json",
             CoreError::Io(_) => "io",

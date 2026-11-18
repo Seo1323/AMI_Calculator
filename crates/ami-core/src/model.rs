@@ -203,7 +203,26 @@ pub struct Trade {
 #[serde(rename_all = "camelCase")]
 pub struct Quote {
     pub instrument_id: Uuid,
+    /// Price per unit in `currency`.
     pub price: Decimal,
     pub currency: Currency,
+    /// "manual", "stooq", "coingecko", ...
+    #[serde(default = "manual")]
+    pub source: String,
     pub fetched_at: DateTime<Utc>,
+}
+
+/// Exchange rate: how many PLN one unit of `currency` is worth (NBP convention).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FxRate {
+    pub currency: Currency,
+    pub rate_pln: Decimal,
+    #[serde(default = "manual")]
+    pub source: String,
+    pub fetched_at: DateTime<Utc>,
+}
+
+fn manual() -> String {
+    "manual".into()
 }

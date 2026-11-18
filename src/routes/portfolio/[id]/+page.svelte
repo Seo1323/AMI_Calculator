@@ -1,0 +1,419 @@
+<script lang="ts">
+	import { page } from '$app/state';
+	import { confirm } from '@tauri-apps/plugin-dialog';
+	import { t, fmtMoney, fmtNumber, errorText } from '$lib/i18n/index.svelte';
+	import { db } from '$lib/db';
+	import { invoke, isTauri, type Mode, type RebalanceResult } from '$lib/tauri';
+	import Icon from '$lib/components/Icon.svelte';
+	import RebalanceResultView from '$lib/components/RebalanceResultView.svelte';
+	import { toDecimal, today, type Instrument, type PortfolioView, type Trade } from '$lib/types';
+
+	const id = $derived(page.params.id ?? '');
+
+	let view = $state<PortfolioView | null>(null);
+	let instruments: Instrument[] = $state([]);
+	let trades: Trade[] = $state([]);
+	let error = $state('');
+
+	// Target editing
+	let editing = $state(false);
+	let draftTargets: { instrumentId: string; percent: string }[] = $state([]);
+	let addInstrument = $state('');
+
+	// New trade
+	const emptyTrade = () => ({ date: today(), instrumentId: '', side: 'buy' as Trade['side'], quantity: '', price: '', fee: '0' });
+	let tradeForm = $state(emptyTrade());
+
+	// Rebalance
+	let mode: Mode = $state('buyOnly');
+	let contribution = $state('0');
+	let result = $state<RebalanceResult | null>(null);
+
+	const currency = $derived(view?.portfolio.baseCurrency ?? 'PLN');
+	const bySymbol = $derived(Object.fromEntries(instruments.map((i) => [i.id, i])));
+	const symbol = (instrumentId: string) => bySymbol[instrumentId]?.symbol ?? '?';
+	const draftSum = $derived(draftTargets.reduce((s, x) => s + (Number(toDecimal(x.percent)) || 0), 0));
+
+	async function run(fn: () => Promise<unknown>) {
+		error = '';
+		try {
+			if (!isTauri()) throw { code: 'notInTauri' };
+			await fn();
+		} catch (e) {
+			error = errorText(e);
+		}
+	}
+
+	async function load() {
+		view = await invoke<PortfolioView>('portfolio_view', { id });
+		instruments = (await db.list<Instrument>('instrument')).sort((a, b) => a.symbol.localeCompare(b.symbol));
+		trades = (await db.list<Trade>('trade'))
+			.filter((x) => x.portfolioId === id)
+			.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+		if (!tradeForm.instrumentId && instruments.length) tradeForm.instrumentId = instruments[0].id;
+	}
+
+	$effect(() => {
+		if (id) run(load);
+	});
+
+	function startEditing() {
+		draftTargets = (view?.positions ?? [])
+			.filter((p) => Number(p.targetPercent) > 0)
+			.map((p) => ({ instrumentId: p.instrument.id, percent: p.targetPercent }));
+		editing = true;
+	}
+
+	const saveTargets = () =>
+		run(async () => {
+			await invoke('portfolio_set_targets', {
+				id,
+				targets: draftTargets
+					.filter((x) => Number(toDecimal(x.percent)) > 0)
+					.map((x) => ({ instrumentId: x.instrumentId, targetPercent: toDecimal(x.percent) }))
+			});
+			editing = false;
+			result = null;
+			await load();
+		});
+
+	const addTrade = () =>
+		run(async () => {
+			await db.save<Trade>('trade', {
+				portfolioId: id,
+				instrumentId: tradeForm.instrumentId,
+				date: tradeForm.date,
+				side: tradeForm.side,
+				quantity: toDecimal(tradeForm.quantity),
+				price: toDecimal(tradeForm.price),
+				fee: toDecimal(tradeForm.fee)
+			});
+			tradeForm = { ...emptyTrade(), instrumentId: tradeForm.instrumentId };
+			result = null;
+			await load();
+		});
+
+	const deleteTrade = (tr: Trade) =>
+		run(async () => {
+			if (!(await confirm(`${tr.date} ${symbol(tr.instrumentId)} ${tr.quantity}?`, { kind: 'warning' }))) return;
+			await db.remove('trade', tr.id);
+			result = null;
+			await load();
+		});
+
+	const calculate = () =>
+		run(async () => {
+			result = await invoke<RebalanceResult>('portfolio_rebalance', { id, contribution: toDecimal(contribution), mode });
+		});
+
+	const tradeTotal = $derived(
+		(Number(toDecimal(tradeForm.quantity)) || 0) * (Number(toDecimal(tradeForm.price)) || 0) +
+			(tradeForm.side === 'buy' ? 1 : -1) * (Number(toDecimal(tradeForm.fee)) || 0)
+	);
+</script>
+
+<div class="stack">
+	<a href="/portfolio" class="back">{t('pf.back')}</a>
+
+	{#if error}<div class="notice error">{error}</div>{/if}
+
+	{#if view}
+		<header class="head">
+			<div>
+				<h1>{view.portfolio.name}</h1>
+				<div class="big">{fmtMoney(view.totalValue, currency)}</div>
+			</div>
+			<div class="kpis">
+				<div>
+					<span class="muted">{t('portfolio.gain')}</span>
+					<strong class:pos={Number(view.totalGain) > 0} class:neg={Number(view.totalGain) < 0}>
+						{fmtMoney(view.totalGain, currency)}
+					</strong>
+				</div>
+				{#if view.maxDeviation !== null}
+					<div>
+						<span class="muted">{t('rebalance.deviation')}</span>
+						<strong class:warn-text={view.needsRebalance}>{fmtNumber(view.maxDeviation)} p.p.</strong>
+					</div>
+				{/if}
+			</div>
+		</header>
+
+		{#if view.missingPrices.length}
+			<div class="notice warn">{t('pf.missingPrices', { list: view.missingPrices.join(', ') })}</div>
+		{/if}
+		{#if view.missingRates.length}
+			<div class="notice warn">{t('pf.missingRates', { list: view.missingRates.join(', ') })}</div>
+		{/if}
+
+		<!-- Positions & targets -->
+		<section class="card stack">
+			<div class="section-head">
+				<h2>{t('pf.positions')}</h2>
+				{#if !editing}
+					<button class="btn" onclick={startEditing}>{t('pf.editTargets')}</button>
+				{/if}
+			</div>
+
+			{#if editing}
+				<div class="stack">
+					{#each draftTargets as dt, i (dt.instrumentId)}
+						<div class="row target-row">
+							<span class="sym">{symbol(dt.instrumentId)}</span>
+							<input class="short n" inputmode="decimal" bind:value={dt.percent} aria-label={t('pf.target')} />
+							<span>%</span>
+							<button
+								class="btn ghost"
+								aria-label={t('common.remove')}
+								onclick={() => draftTargets.splice(i, 1)}><Icon name="trash" size={16} /></button
+							>
+						</div>
+					{/each}
+					<div class="row">
+						<select bind:value={addInstrument} aria-label={t('pf.addToTargets')}>
+							<option value="">{t('pf.addToTargets')}</option>
+							{#each instruments.filter((i) => !draftTargets.some((d) => d.instrumentId === i.id)) as i (i.id)}
+								<option value={i.id}>{i.symbol} · {i.name}</option>
+							{/each}
+						</select>
+						<button
+							class="btn"
+							disabled={!addInstrument}
+							onclick={() => {
+								draftTargets.push({ instrumentId: addInstrument, percent: '' });
+								addInstrument = '';
+							}}><Icon name="plus" size={16} />{t('common.add')}</button
+						>
+					</div>
+					<div class:neg={Math.abs(draftSum - 100) > 0.01}>{t('rebalance.sum', { sum: fmtNumber(draftSum) })}</div>
+					<div class="row">
+						<button class="btn primary" onclick={saveTargets}>{t('pf.saveTargets')}</button>
+						<button class="btn" onclick={() => (editing = false)}>{t('common.cancel')}</button>
+					</div>
+				</div>
+			{:else if view.positions.length === 0}
+				<p class="muted">{t('pf.noPositions')}</p>
+			{:else}
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th>{t('instruments.symbol')}</th>
+								<th class="num">{t('pf.quantity')}</th>
+								<th class="num">{t('pf.avgCost')}</th>
+								<th class="num">{t('pf.price')}</th>
+								<th class="num">{t('pf.value')}</th>
+								<th class="num">{t('pf.gain')}</th>
+								<th class="num">{t('pf.share')}</th>
+								<th class="num">{t('pf.target')}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each view.positions as p (p.instrument.id)}
+								{@const dev = p.currentPercent === null ? 0 : Number(p.currentPercent) - Number(p.targetPercent)}
+								<tr>
+									<td class="instr"><strong>{p.instrument.symbol}</strong><span class="muted">{p.instrument.name}</span></td>
+									<td class="num">{fmtNumber(p.quantity, 8)}</td>
+									<td class="num">{p.avgCost === null ? '—' : fmtMoney(p.avgCost, p.instrument.currency)}</td>
+									<td class="num">{p.price === null ? '—' : fmtMoney(p.price, p.instrument.currency)}</td>
+									<td class="num">{p.value === null ? '—' : fmtMoney(p.value, currency)}</td>
+									<td class="num" class:pos={Number(p.gain) > 0} class:neg={Number(p.gain) < 0}>
+										{p.gain === null ? '—' : fmtMoney(p.gain, currency)}
+									</td>
+									<td class="num">{p.currentPercent === null ? '—' : `${fmtNumber(p.currentPercent)}%`}</td>
+									<td class="num" class:warn-text={Math.abs(dev) > Number(view.portfolio.tolerancePercent)}>
+										{fmtNumber(p.targetPercent)}%
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+				{#if Math.abs(Number(view.targetsSum) - 100) > 0.01}
+					<div class="notice warn">{t('pf.targetsSum', { sum: fmtNumber(view.targetsSum) })}</div>
+				{/if}
+			{/if}
+		</section>
+
+		<!-- Rebalance -->
+		<section class="card stack">
+			<h2>{t('pf.rebalance')}</h2>
+			<p class="muted small">{t('pf.rebalanceHint')}</p>
+			<div class="row">
+				<label class="field">
+					{t('rebalance.mode')}
+					<select bind:value={mode}>
+						<option value="buyOnly">{t('rebalance.mode.buyOnly')}</option>
+						<option value="full">{t('rebalance.mode.full')}</option>
+					</select>
+				</label>
+				<label class="field">
+					{t('rebalance.contribution')} ({currency})
+					<input inputmode="decimal" bind:value={contribution} />
+				</label>
+				<button class="btn primary" onclick={calculate}>{t('common.calculate')}</button>
+			</div>
+		</section>
+		{#if result}
+			<RebalanceResultView {result} {currency} label={symbol} />
+		{/if}
+
+		<!-- Trades -->
+		<section class="card stack">
+			<h2>{t('trades.title')}</h2>
+			{#if instruments.length === 0}
+				<p class="muted">{t('trades.needInstrument')}</p>
+			{:else}
+				<div class="row">
+					<label class="field">
+						{t('trades.date')}
+						<input type="date" bind:value={tradeForm.date} />
+					</label>
+					<label class="field">
+						{t('trades.instrument')}
+						<select bind:value={tradeForm.instrumentId}>
+							{#each instruments as i (i.id)}<option value={i.id}>{i.symbol}</option>{/each}
+						</select>
+					</label>
+					<label class="field">
+						{t('trades.side')}
+						<select bind:value={tradeForm.side}>
+							<option value="buy">{t('trades.buy')}</option>
+							<option value="sell">{t('trades.sell')}</option>
+						</select>
+					</label>
+					<label class="field">
+						{t('trades.quantity')}
+						<input class="short" inputmode="decimal" bind:value={tradeForm.quantity} />
+					</label>
+					<label class="field">
+						{t('trades.price')} ({bySymbol[tradeForm.instrumentId]?.currency ?? ''})
+						<input class="short" inputmode="decimal" bind:value={tradeForm.price} />
+					</label>
+					<label class="field">
+						{t('trades.fee')}
+						<input class="short" inputmode="decimal" bind:value={tradeForm.fee} />
+					</label>
+					<button
+						class="btn primary"
+						disabled={!tradeForm.instrumentId || !tradeForm.quantity.trim() || !tradeForm.price.trim()}
+						onclick={addTrade}>{t('trades.add')}</button
+					>
+				</div>
+				{#if tradeTotal}
+					<div class="muted small">
+						{t('trades.total')}: {fmtMoney(tradeTotal, bySymbol[tradeForm.instrumentId]?.currency)}
+					</div>
+				{/if}
+			{/if}
+
+			{#if trades.length === 0}
+				<p class="muted">{t('trades.empty')}</p>
+			{:else}
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th>{t('trades.date')}</th>
+								<th>{t('trades.instrument')}</th>
+								<th>{t('trades.side')}</th>
+								<th class="num">{t('trades.quantity')}</th>
+								<th class="num">{t('trades.price')}</th>
+								<th class="num">{t('trades.fee')}</th>
+								<th class="num">{t('trades.total')}</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each trades as tr (tr.id)}
+								{@const cur = bySymbol[tr.instrumentId]?.currency}
+								<tr>
+									<td>{tr.date}</td>
+									<td>{symbol(tr.instrumentId)}</td>
+									<td class={tr.side === 'buy' ? 'pos' : 'neg'}>{t(`trades.${tr.side}`)}</td>
+									<td class="num">{fmtNumber(tr.quantity, 8)}</td>
+									<td class="num">{fmtMoney(tr.price, cur)}</td>
+									<td class="num">{fmtMoney(tr.fee, cur)}</td>
+									<td class="num">{fmtMoney(Number(tr.quantity) * Number(tr.price), cur)}</td>
+									<td>
+										<button class="btn ghost" aria-label={t('common.delete')} onclick={() => deleteTrade(tr)}
+											><Icon name="trash" size={16} /></button
+										>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{/if}
+		</section>
+	{/if}
+</div>
+
+<style>
+	p {
+		margin: 0;
+	}
+	.back {
+		text-decoration: none;
+		width: fit-content;
+	}
+	.small {
+		font-size: 0.85rem;
+	}
+	.head {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		align-items: end;
+		gap: var(--space);
+	}
+	.big {
+		font-size: 2rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.kpis {
+		display: flex;
+		gap: calc(var(--space) * 2);
+	}
+	.kpis div {
+		display: flex;
+		flex-direction: column;
+		font-variant-numeric: tabular-nums;
+	}
+	.kpis span {
+		font-size: 0.8rem;
+	}
+	.section-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: var(--space);
+	}
+	.warn-text {
+		color: var(--warning);
+		font-weight: 600;
+	}
+	.short {
+		width: 7rem;
+	}
+	.n {
+		text-align: right;
+	}
+	.target-row {
+		align-items: center;
+	}
+	.instr {
+		white-space: normal;
+		min-width: 9rem;
+	}
+	.instr span {
+		display: block;
+		font-size: 0.8rem;
+	}
+	.sym {
+		min-width: 8rem;
+		font-weight: 600;
+	}
+</style>

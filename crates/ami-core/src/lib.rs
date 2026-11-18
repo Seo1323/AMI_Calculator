@@ -8,6 +8,7 @@ pub mod export;
 pub mod fx;
 pub mod model;
 pub mod money;
+pub mod portfolio;
 pub mod rebalance;
 pub mod store;
 

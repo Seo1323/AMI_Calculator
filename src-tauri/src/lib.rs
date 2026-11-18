@@ -5,7 +5,11 @@ use std::sync::{Mutex, MutexGuard};
 use ami_core::CoreError;
 use ami_core::error::ErrorPayload;
 use ami_core::export::ExportBundle;
-use ami_core::rebalance::{self, RebalanceInput, RebalanceResult};
+use ami_core::model::{FxRate, Quote};
+use ami_core::money::Currency;
+use ami_core::portfolio::{self, PortfolioView};
+use ami_core::rebalance::{self, Mode, RebalanceInput, RebalanceResult};
+use rust_decimal::Decimal;
 use ami_core::store::{EntityKind, ImportMode, ImportStats, Store, UI_SETTINGS_KEY};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -53,6 +57,53 @@ fn db_save(state: State<'_, AppState>, kind: EntityKind, value: Value) -> CmdRes
 #[tauri::command]
 fn db_delete(state: State<'_, AppState>, kind: EntityKind, id: Uuid) -> CmdResult<bool> {
     Ok(state.store().delete_json(kind, id)?)
+}
+
+// ---------- portfolios ----------
+
+#[tauri::command]
+fn portfolio_view(state: State<'_, AppState>, id: Uuid) -> CmdResult<PortfolioView> {
+    Ok(portfolio::view(&state.store(), id)?)
+}
+
+#[tauri::command]
+fn portfolio_rebalance(state: State<'_, AppState>, id: Uuid, contribution: Decimal, mode: Mode) -> CmdResult<RebalanceResult> {
+    Ok(portfolio::rebalance(&state.store(), id, contribution, mode)?)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TargetInput {
+    instrument_id: Uuid,
+    target_percent: Decimal,
+}
+
+#[tauri::command]
+fn portfolio_set_targets(state: State<'_, AppState>, id: Uuid, targets: Vec<TargetInput>) -> CmdResult<()> {
+    let pairs: Vec<(Uuid, Decimal)> = targets.iter().map(|t| (t.instrument_id, t.target_percent)).collect();
+    Ok(state.store().set_targets(id, &pairs)?)
+}
+
+#[tauri::command]
+fn quote_set(state: State<'_, AppState>, instrument_id: Uuid, price: Decimal, currency: Currency) -> CmdResult<()> {
+    let quote = Quote { instrument_id, price, currency, source: "manual".into(), fetched_at: Utc::now() };
+    Ok(state.store().set_quote(&quote)?)
+}
+
+#[tauri::command]
+fn quote_list(state: State<'_, AppState>) -> CmdResult<Vec<Quote>> {
+    Ok(state.store().quotes()?)
+}
+
+#[tauri::command]
+fn fx_list(state: State<'_, AppState>) -> CmdResult<Vec<FxRate>> {
+    Ok(state.store().fx_rates()?)
+}
+
+#[tauri::command]
+fn fx_set(state: State<'_, AppState>, currency: Currency, rate_pln: Decimal) -> CmdResult<()> {
+    let rate = FxRate { currency, rate_pln, source: "manual".into(), fetched_at: Utc::now() };
+    Ok(state.store().set_fx_rate(&rate)?)
 }
 
 // ---------- settings ----------
@@ -160,6 +211,13 @@ pub fn run() {
             db_list,
             db_save,
             db_delete,
+            portfolio_view,
+            portfolio_rebalance,
+            portfolio_set_targets,
+            quote_set,
+            quote_list,
+            fx_list,
+            fx_set,
             settings_load,
             settings_save,
             export_bundle,

@@ -38,6 +38,7 @@ version = "0.1.2"
 dependencies = [
  "ami-core",
  "chrono",
+ "rust_decimal",
  "serde",
  "serde_json",
  "tauri",

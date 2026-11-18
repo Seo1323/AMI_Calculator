@@ -242,6 +242,17 @@ CREATE TABLE trades (
     date          TEXT GENERATED ALWAYS AS (json_extract(data, '$.date')) VIRTUAL
 );
 CREATE INDEX trades_portfolio_date ON trades (portfolio_id, date);
+"#, r#"
+CREATE TABLE quotes (
+    instrument_id TEXT PRIMARY KEY,
+    data          TEXT NOT NULL CHECK (json_valid(data)),
+    fetched_at    TEXT NOT NULL
+);
+CREATE TABLE fx_rates (
+    currency   TEXT PRIMARY KEY,
+    data       TEXT NOT NULL CHECK (json_valid(data)),
+    fetched_at TEXT NOT NULL
+);
 "#];
 
 /// Fixed-width UTC timestamps so string comparison equals time comparison.
@@ -286,6 +297,38 @@ fn set_setting(conn: &Connection, key: &str, value: &Value) -> Result<()> {
         params![key, serde_json::to_string(value)?, ts(Utc::now())],
     )?;
     Ok(())
+}
+
+fn write_quote(conn: &Connection, q: &Quote) -> Result<()> {
+    conn.execute(
+        "INSERT INTO quotes (instrument_id, data, fetched_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT (instrument_id) DO UPDATE SET data = excluded.data, fetched_at = excluded.fetched_at",
+        params![q.instrument_id.to_string(), serde_json::to_string(q)?, ts(q.fetched_at)],
+    )?;
+    Ok(())
+}
+
+fn write_fx(conn: &Connection, r: &FxRate) -> Result<()> {
+    conn.execute(
+        "INSERT INTO fx_rates (currency, data, fetched_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT (currency) DO UPDATE SET data = excluded.data, fetched_at = excluded.fetched_at",
+        params![r.currency.code(), serde_json::to_string(r)?, ts(r.fetched_at)],
+    )?;
+    Ok(())
+}
+
+fn read_json_table<T: DeserializeOwned>(conn: &Connection, table: &str) -> Result<Vec<T>> {
+    let mut stmt = conn.prepare(&format!("SELECT data FROM {table} ORDER BY 1"))?;
+    let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+    rows.map(|d| Ok(serde_json::from_str(&d?)?)).collect()
+}
+
+/// Keeps the newer of the local and incoming value (by `fetched_at`).
+fn merge_cached(conn: &Connection, table: &str, key_col: &str, key: &str, fetched_at: DateTime<Utc>) -> Result<bool> {
+    let local: Option<String> = conn
+        .query_row(&format!("SELECT fetched_at FROM {table} WHERE {key_col} = ?1"), [key], |r| r.get(0))
+        .optional()?;
+    Ok(local.is_none_or(|l| l < ts(fetched_at)))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -425,6 +468,10 @@ impl Store {
         let now = serde_json::to_value(Utc::now())?;
         obj.entry("createdAt").or_insert_with(|| now.clone());
         obj.entry("updatedAt").or_insert(now);
+        if kind == EntityKind::Trade {
+            let trade: Trade = serde_json::from_value(value).map_err(|e| CoreError::Validation(e.to_string()))?;
+            return Ok(serde_json::to_value(self.save_trade(trade)?)?);
+        }
         with_entity!(kind, T => {
             let item: T = serde_json::from_value(value).map_err(|e| CoreError::Validation(e.to_string()))?;
             Ok(serde_json::to_value(self.save(item)?)?)
@@ -432,7 +479,95 @@ impl Store {
     }
 
     pub fn delete_json(&self, kind: EntityKind, id: Uuid) -> Result<bool> {
+        if kind == EntityKind::Trade {
+            return self.delete_trade(id);
+        }
         with_entity!(kind, T => self.delete::<T>(id))
+    }
+
+    /// Saves a trade only if the portfolio history stays valid (no overselling).
+    pub fn save_trade(&self, trade: Trade) -> Result<Trade> {
+        let mut history: Vec<Trade> =
+            self.trades_of(trade.portfolio_id)?.into_iter().filter(|t| t.meta.id != trade.meta.id).collect();
+        history.push(trade.clone());
+        crate::portfolio::holdings(&history)?;
+        self.save(trade)
+    }
+
+    /// Deletes a trade only if the remaining history stays valid.
+    pub fn delete_trade(&self, id: Uuid) -> Result<bool> {
+        let Some(trade) = self.get::<Trade>(id)? else { return Ok(false) };
+        let rest: Vec<Trade> = self.trades_of(trade.portfolio_id)?.into_iter().filter(|t| t.meta.id != id).collect();
+        crate::portfolio::holdings(&rest)?;
+        self.delete::<Trade>(id)
+    }
+
+    // ----- prices and exchange rates -----
+
+    pub fn set_quote(&self, quote: &Quote) -> Result<()> {
+        require(quote.price > rust_decimal::Decimal::ZERO, "price must be positive")?;
+        if !self.exists("instruments", quote.instrument_id)? {
+            return Err(CoreError::MissingReference { table: "instruments".into(), id: quote.instrument_id.to_string() });
+        }
+        write_quote(&self.conn, quote)
+    }
+
+    pub fn quotes(&self) -> Result<Vec<Quote>> {
+        read_json_table(&self.conn, "quotes")
+    }
+
+    pub fn set_fx_rate(&self, rate: &FxRate) -> Result<()> {
+        require(rate.rate_pln > rust_decimal::Decimal::ZERO, "exchange rate must be positive")?;
+        require(rate.currency.code() != "PLN", "PLN is the reference currency")?;
+        write_fx(&self.conn, rate)
+    }
+
+    pub fn fx_rates(&self) -> Result<Vec<FxRate>> {
+        read_json_table(&self.conn, "fx_rates")
+    }
+
+    /// All known rates as a PLN-based conversion table.
+    pub fn fx_table(&self) -> Result<crate::fx::FxTable> {
+        let mut table = crate::fx::FxTable::new(crate::money::Currency::new("PLN")?);
+        for r in self.fx_rates()? {
+            table.set(r.currency, r.rate_pln);
+        }
+        Ok(table)
+    }
+
+    // ----- portfolio helpers -----
+
+    pub fn trades_of(&self, portfolio_id: Uuid) -> Result<Vec<Trade>> {
+        Ok(self.list::<Trade>()?.into_iter().filter(|t| t.portfolio_id == portfolio_id).collect())
+    }
+
+    pub fn targets_of(&self, portfolio_id: Uuid) -> Result<Vec<AllocationTarget>> {
+        Ok(self.list::<AllocationTarget>()?.into_iter().filter(|t| t.portfolio_id == portfolio_id).collect())
+    }
+
+    /// Replaces a portfolio's target allocation with the given (instrument, percent) list.
+    pub fn set_targets(&self, portfolio_id: Uuid, targets: &[(Uuid, rust_decimal::Decimal)]) -> Result<()> {
+        if self.get::<Portfolio>(portfolio_id)?.is_none() {
+            return Err(CoreError::NotFound);
+        }
+        let existing = self.targets_of(portfolio_id)?;
+        for t in &existing {
+            if !targets.iter().any(|(id, _)| *id == t.instrument_id) {
+                self.delete::<AllocationTarget>(t.meta.id)?;
+            }
+        }
+        for &(instrument_id, target_percent) in targets {
+            match existing.iter().find(|t| t.instrument_id == instrument_id) {
+                Some(t) if t.target_percent == target_percent => {}
+                Some(t) => {
+                    self.save(AllocationTarget { target_percent, ..t.clone() })?;
+                }
+                None => {
+                    self.save(AllocationTarget { meta: Meta::new(), portfolio_id, instrument_id, target_percent })?;
+                }
+            }
+        }
+        Ok(())
     }
 
     // ----- settings -----
@@ -463,6 +598,8 @@ impl Store {
             portfolios: read_all(c, true)?,
             targets: read_all(c, true)?,
             trades: read_all(c, true)?,
+            quotes: read_json_table(c, "quotes")?,
+            fx_rates: read_json_table(c, "fx_rates")?,
             settings: self.get_setting(UI_SETTINGS_KEY)?.unwrap_or(Value::Null),
         })
     }
@@ -471,7 +608,7 @@ impl Store {
     pub fn import_data(&mut self, data: &DataSet, mode: ImportMode) -> Result<ImportStats> {
         let tx = self.conn.transaction()?;
         if mode == ImportMode::Replace {
-            for table in TABLES.iter().rev() {
+            for table in TABLES.iter().rev().chain(&["quotes", "fx_rates"]) {
                 tx.execute(&format!("DELETE FROM {table}"), [])?;
             }
             if !data.settings.is_null() {
@@ -487,6 +624,16 @@ impl Store {
         import_list(&tx, &data.portfolios, &mut stats)?;
         import_list(&tx, &data.targets, &mut stats)?;
         import_list(&tx, &data.trades, &mut stats)?;
+        for q in &data.quotes {
+            if merge_cached(&tx, "quotes", "instrument_id", &q.instrument_id.to_string(), q.fetched_at)? {
+                write_quote(&tx, q)?;
+            }
+        }
+        for r in &data.fx_rates {
+            if merge_cached(&tx, "fx_rates", "currency", r.currency.code(), r.fetched_at)? {
+                write_fx(&tx, r)?;
+            }
+        }
         tx.commit()?;
         Ok(stats)
     }
