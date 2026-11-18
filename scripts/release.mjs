@@ -34,6 +34,7 @@ try {
 
 git('add', '-A');
 git('commit', '-m', `Release v${version}`);
-git('tag', `v${version}`);
-git('push', '--follow-tags');
+git('tag', '-a', `v${version}`, '-m', `AMI_Calculator v${version}`);
+git('push');
+git('push', 'origin', `v${version}`);
 console.log(`\nv${version} pushed. Installers will appear in a draft release on GitHub in ~20 minutes.`);
