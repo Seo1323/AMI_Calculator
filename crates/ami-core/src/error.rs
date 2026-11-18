@@ -19,7 +19,7 @@ pub enum CoreError {
     NegativeContribution,
     #[error("portfolio value after contribution must be positive")]
     EmptyPortfolio,
-    #[error("not a Balans export file")]
+    #[error("not an AMI_Calculator export file")]
     NotAnExport,
     #[error("export file version {0} is newer than this app supports")]
     UnsupportedVersion(u32),

@@ -1,5 +1,5 @@
 const pl = {
-	'app.name': 'Balans',
+	'app.name': 'AMI_Calculator',
 	'nav.dashboard': 'Pulpit',
 	'nav.budget': 'Budżet',
 	'nav.portfolio': 'Portfel',
@@ -15,7 +15,7 @@ const pl = {
 	'common.notInTauri': 'Ta funkcja działa tylko w aplikacji desktopowej (uruchom przez „npm run tauri dev”).',
 
 	'dashboard.title': 'Pulpit',
-	'dashboard.welcome': 'Witaj w Balansie',
+	'dashboard.welcome': 'Witaj w AMI_Calculator',
 	'dashboard.intro': 'Budżet domowy i kalkulator rebalansowania portfela w jednym miejscu. Zacznij od kalkulatora albo dopasuj wygląd w ustawieniach.',
 	'dashboard.netWorth': 'Wartość netto',
 	'dashboard.monthBudget': 'Budżet w tym miesiącu',
@@ -76,7 +76,7 @@ const pl = {
 	'settings.behavior': 'Zachowanie',
 	'settings.startPage': 'Ekran startowy',
 	'settings.data': 'Dane i kopia zapasowa',
-	'settings.data.hint': 'Zapisz wszystko do jednego pliku .balans, np. na pendrive, i wczytaj go na innym komputerze.',
+	'settings.data.hint': 'Zapisz wszystko do jednego pliku .ami, np. na pendrive, i wczytaj go na innym komputerze.',
 	'settings.export': 'Eksportuj do pliku…',
 	'settings.import': 'Importuj z pliku…',
 	'settings.exported': 'Zapisano: {path}',
@@ -91,7 +91,7 @@ const pl = {
 	'error.invalidPosition': 'Nieprawidłowe dane pozycji: {detail}',
 	'error.negativeContribution': 'W trybie „tylko dokupowanie” wpłata nie może być ujemna.',
 	'error.emptyPortfolio': 'Wartość portfela po operacji musi być dodatnia.',
-	'error.notAnExport': 'To nie jest plik kopii Balansu.',
+	'error.notAnExport': 'To nie jest plik kopii AMI_Calculator.',
 	'error.unsupportedVersion': 'Plik pochodzi z nowszej wersji aplikacji.',
 	'error.notInTauri': 'Ta funkcja działa tylko w aplikacji desktopowej (uruchom przez „npm run tauri dev”).',
 	'error.unknown': 'Wystąpił błąd: {detail}'

@@ -13,7 +13,7 @@
 		fractional: boolean;
 	}
 
-	const DRAFT_KEY = 'balans.rebalance.draft.v1';
+	const DRAFT_KEY = 'ami.rebalance.draft.v1';
 	let nextKey = 1;
 	const row = (id = '', quantity = '0', price = '', targetPercent = '', fractional = false): Row => ({
 		key: nextKey++,

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/balans-core", "src-tauri"]
+members = ["crates/ami-core", "src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
@@ -9,7 +9,7 @@ authors = ["Seo1323"]
 publish = false
 
 [workspace.dependencies]
-balans-core = { path = "crates/balans-core" }
+ami-core = { path = "crates/ami-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

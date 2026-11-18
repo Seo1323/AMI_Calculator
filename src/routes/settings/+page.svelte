@@ -14,14 +14,14 @@
 		if (isTauri()) version = await invoke<string>('app_version');
 	});
 
-	const filters = [{ name: 'Balans', extensions: ['balans'] }];
+	const filters = [{ name: 'AMI_Calculator', extensions: ['ami'] }];
 
 	async function doExport() {
 		message = error = '';
 		try {
 			if (!isTauri()) throw { code: 'notInTauri' };
 			const date = new Date().toISOString().slice(0, 10);
-			const path = await save({ defaultPath: `balans-${date}.balans`, filters });
+			const path = await save({ defaultPath: `ami-calculator-${date}.ami`, filters });
 			if (!path) return;
 			await invoke('export_bundle', { path, settings: snapshotSettings() });
 			message = t('settings.exported', { path });

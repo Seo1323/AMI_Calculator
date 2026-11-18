@@ -1,7 +1,7 @@
 import type pl from './pl';
 
 const en: Record<keyof typeof pl, string> = {
-	'app.name': 'Balans',
+	'app.name': 'AMI_Calculator',
 	'nav.dashboard': 'Dashboard',
 	'nav.budget': 'Budget',
 	'nav.portfolio': 'Portfolio',
@@ -17,7 +17,7 @@ const en: Record<keyof typeof pl, string> = {
 	'common.notInTauri': 'This works only in the desktop app (run it with "npm run tauri dev").',
 
 	'dashboard.title': 'Dashboard',
-	'dashboard.welcome': 'Welcome to Balans',
+	'dashboard.welcome': 'Welcome to AMI_Calculator',
 	'dashboard.intro': 'Household budget and portfolio rebalancing calculator in one place. Start with the calculator or tune the look in settings.',
 	'dashboard.netWorth': 'Net worth',
 	'dashboard.monthBudget': 'Budget this month',
@@ -78,7 +78,7 @@ const en: Record<keyof typeof pl, string> = {
 	'settings.behavior': 'Behaviour',
 	'settings.startPage': 'Start page',
 	'settings.data': 'Data and backup',
-	'settings.data.hint': 'Save everything to a single .balans file, e.g. on a USB stick, and load it on another computer.',
+	'settings.data.hint': 'Save everything to a single .ami file, e.g. on a USB stick, and load it on another computer.',
 	'settings.export': 'Export to file…',
 	'settings.import': 'Import from file…',
 	'settings.exported': 'Saved: {path}',
@@ -93,7 +93,7 @@ const en: Record<keyof typeof pl, string> = {
 	'error.invalidPosition': 'Invalid position data: {detail}',
 	'error.negativeContribution': 'In buy-only mode the deposit cannot be negative.',
 	'error.emptyPortfolio': 'Portfolio value after the operation must be positive.',
-	'error.notAnExport': 'This is not a Balans backup file.',
+	'error.notAnExport': 'This is not an AMI_Calculator backup file.',
 	'error.unsupportedVersion': 'The file comes from a newer app version.',
 	'error.notInTauri': 'This works only in the desktop app (run it with "npm run tauri dev").',
 	'error.unknown': 'Something went wrong: {detail}'

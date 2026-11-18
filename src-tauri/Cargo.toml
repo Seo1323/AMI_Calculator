@@ -1,6 +1,6 @@
 [package]
-name = "balans"
-description = "Balans - budżet i rebalansowanie portfela"
+name = "ami-calculator"
+description = "AMI_Calculator - budżet i rebalansowanie portfela"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -8,14 +8,14 @@ publish.workspace = true
 
 [lib]
 # The `_lib` suffix avoids a bin/lib name clash on Windows (rust-lang/cargo#8519)
-name = "balans_lib"
+name = "ami_calculator_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-balans-core.workspace = true
+ami-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = [] }

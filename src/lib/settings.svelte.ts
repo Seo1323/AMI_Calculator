@@ -34,7 +34,7 @@ export const DEFAULTS: Settings = {
 	sidebarCollapsed: false
 };
 
-const KEY = 'balans.settings.v1';
+const KEY = 'ami.settings.v1';
 
 function sanitize(raw: unknown): Partial<Settings> {
 	if (!raw || typeof raw !== 'object') return {};

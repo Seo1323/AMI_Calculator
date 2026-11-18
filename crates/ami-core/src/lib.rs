@@ -1,4 +1,4 @@
-//! Core logic of Balans, independent of the UI and of Tauri.
+//! Core logic of AMI_Calculator, independent of the UI and of Tauri.
 //!
 //! Everything money-related uses [`rust_decimal::Decimal`]; floats are never
 //! used for amounts.

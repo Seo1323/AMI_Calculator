@@ -1,16 +1,16 @@
-# Balans
+# AMI_Calculator
 
 Budżet domowy i kalkulator rebalansowania portfela inwestycyjnego.
 Windows (priorytet), Linux, później Android. Język: polski / English.
 
 ## Stack
-- **Tauri 2**: cała logika w Ruście (`crates/balans-core`), UI w **Svelte 5 + TypeScript**
+- **Tauri 2**: cała logika w Ruście (`crates/ami-core`), UI w **Svelte 5 + TypeScript**
 - kwoty jako `rust_decimal` (bez floatów)
-- dane lokalnie (SQLite, w przygotowaniu), kopia w jednym pliku `.balans` (JSON), np. na pendrive
+- dane lokalnie (SQLite, w przygotowaniu), kopia w jednym pliku `.ami` (JSON), np. na pendrive
 
 ## Struktura
 ```
-crates/balans-core/   logika: waluty, kursy, model danych, rebalansowanie, eksport
+crates/ami-core/   logika: waluty, kursy, model danych, rebalansowanie, eksport
 src-tauri/            aplikacja Tauri (komendy wywoływane z UI)
 src/                  frontend SvelteKit (SPA)
 ```

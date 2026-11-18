@@ -1,4 +1,4 @@
-//! Portable backup format: a single `.balans` file (pretty-printed JSON)
+//! Portable backup format: a single `.ami` file (pretty-printed JSON)
 //! that can be copied to a USB stick and imported on another machine.
 
 use std::path::Path;
@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use crate::error::{CoreError, Result};
 use crate::model::*;
 
-pub const FORMAT_ID: &str = "balans-export";
+pub const FORMAT_ID: &str = "ami-calculator-export";
 pub const FORMAT_VERSION: u32 = 1;
-pub const FILE_EXTENSION: &str = "balans";
+pub const FILE_EXTENSION: &str = "ami";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -67,7 +67,7 @@ impl ExportBundle {
 
     /// Writes atomically: to a temp file next to the target, then renames.
     pub fn write_file(&self, path: &Path) -> Result<()> {
-        let tmp = path.with_extension("balans.tmp");
+        let tmp = path.with_extension("ami.tmp");
         std::fs::write(&tmp, self.to_json()?)?;
         std::fs::rename(&tmp, path)?;
         Ok(())
@@ -107,7 +107,7 @@ mod tests {
     fn rejects_foreign_and_future_files() {
         assert!(matches!(ExportBundle::from_json("{}"), Err(CoreError::NotAnExport)));
         assert!(matches!(ExportBundle::from_json("nope"), Err(CoreError::NotAnExport)));
-        let future = r#"{"format":"balans-export","version":999}"#;
+        let future = r#"{"format":"ami-calculator-export","version":999}"#;
         assert!(matches!(ExportBundle::from_json(future), Err(CoreError::UnsupportedVersion(999))));
     }
 }
