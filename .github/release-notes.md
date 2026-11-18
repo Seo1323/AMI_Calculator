@@ -1,3 +1,9 @@
+## Co nowego w 0.4.1
+- **Własna ikona aplikacji** (waga) na wszystkich platformach.
+- **Edycja**: transakcje giełdowe (ołówek w tabeli) oraz nazwa i tolerancja portfela. Zmiana, po której wyszłaby sprzedaż niekupionych akcji, jest odrzucana.
+- **Różne rozmiary ekranu**: menu zwija się do ikon w średnich oknach, mniej ważne kolumny tabel chowają się na telefonie, pola formularzy zajmują całą szerokość, większe przyciski na ekranach dotykowych, poprawione marginesy na Androidzie.
+- **Poprawka**: pulpit na wąskim ekranie zajmuje całą szerokość.
+
 ## Co nowego w 0.4
 - **Sam kalkulator portfela**: budżet domowy został usunięty z aplikacji. Zostały Pulpit, Portfele, Rebalansowanie i Ustawienia.
 - **Twoje dane są bezpieczne**: aktualizacja niczego nie kasuje, a stare pliki `.ami` nadal się importują (dawne dane budżetu są pomijane).
