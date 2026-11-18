@@ -1,0 +1,223 @@
+:root {
+	--accent: #2f6fed;
+	--font-scale: 1;
+	--radius: 10px;
+	--space: 1rem;
+
+	--bg: #f5f6f8;
+	--surface: #ffffff;
+	--surface-2: #eef0f4;
+	--border: #dde1e8;
+	--text: #161a22;
+	--text-muted: #5d6677;
+	--positive: #0f8a5f;
+	--negative: #c8322a;
+	--warning: #b26b00;
+	--shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 2px 8px rgb(0 0 0 / 0.04);
+
+	--accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+	--accent-text: color-mix(in srgb, var(--accent) 75%, var(--text));
+
+	color-scheme: light;
+	font-family: Inter, 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+	font-size: calc(15px * var(--font-scale));
+	line-height: 1.5;
+	color: var(--text);
+	background: var(--bg);
+	-webkit-font-smoothing: antialiased;
+}
+
+:root[data-theme='dark'] {
+	--bg: #0f1115;
+	--surface: #181b22;
+	--surface-2: #21252e;
+	--border: #2d323d;
+	--text: #e7e9ee;
+	--text-muted: #9aa3b2;
+	--positive: #3ecf8e;
+	--negative: #ff6b61;
+	--warning: #f0a83a;
+	--shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+	--accent-text: color-mix(in srgb, var(--accent) 70%, white);
+	color-scheme: dark;
+}
+
+:root[data-density='compact'] {
+	--space: 0.6rem;
+}
+:root[data-density='spacious'] {
+	--space: 1.4rem;
+}
+
+:root[data-reduce-motion] *,
+:root[data-reduce-motion] *::before,
+:root[data-reduce-motion] *::after {
+	transition: none !important;
+	animation: none !important;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--text);
+}
+
+h1,
+h2,
+h3 {
+	margin: 0;
+	line-height: 1.25;
+}
+h1 {
+	font-size: 1.6rem;
+}
+h2 {
+	font-size: 1.15rem;
+}
+
+a {
+	color: var(--accent-text);
+}
+
+.card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: calc(var(--space) * 1.25);
+	box-shadow: var(--shadow);
+}
+
+.stack {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space);
+}
+
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: calc(var(--space) * 0.75);
+	align-items: end;
+}
+
+.muted {
+	color: var(--text-muted);
+}
+
+.pos {
+	color: var(--positive);
+}
+.neg {
+	color: var(--negative);
+}
+
+label.field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	font-size: 0.85rem;
+	color: var(--text-muted);
+}
+
+input,
+select,
+button {
+	font: inherit;
+	color: inherit;
+}
+
+input[type='text'],
+input[type='number'],
+input:not([type]),
+select {
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	border-radius: calc(var(--radius) * 0.7);
+	padding: calc(var(--space) * 0.4) calc(var(--space) * 0.6);
+	min-width: 0;
+	color: var(--text);
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+input[type='checkbox'],
+input[type='range'] {
+	accent-color: var(--accent);
+}
+
+.btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	border: 1px solid var(--border);
+	background: var(--surface-2);
+	border-radius: calc(var(--radius) * 0.7);
+	padding: calc(var(--space) * 0.45) calc(var(--space) * 0.9);
+	cursor: pointer;
+	transition: background 0.15s, border-color 0.15s;
+}
+.btn:hover {
+	border-color: var(--accent);
+}
+.btn.primary {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: white;
+}
+.btn.primary:hover {
+	filter: brightness(1.08);
+}
+.btn.ghost {
+	background: transparent;
+	border-color: transparent;
+}
+
+.table-wrap {
+	overflow-x: auto;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+	font-variant-numeric: tabular-nums;
+}
+th,
+td {
+	text-align: left;
+	padding: calc(var(--space) * 0.45) calc(var(--space) * 0.5);
+	border-bottom: 1px solid var(--border);
+	white-space: nowrap;
+}
+th {
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+td.num,
+th.num {
+	text-align: right;
+}
+
+.notice {
+	border-radius: calc(var(--radius) * 0.7);
+	padding: calc(var(--space) * 0.6) calc(var(--space) * 0.9);
+	background: var(--accent-soft);
+}
+.notice.error {
+	background: color-mix(in srgb, var(--negative) 14%, transparent);
+	color: var(--negative);
+}
+.notice.warn {
+	background: color-mix(in srgb, var(--warning) 16%, transparent);
+}
