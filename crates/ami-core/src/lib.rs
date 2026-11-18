@@ -4,6 +4,7 @@
 //! used for amounts.
 
 pub mod budget;
+pub mod dashboard;
 pub mod error;
 pub mod export;
 pub mod fx;

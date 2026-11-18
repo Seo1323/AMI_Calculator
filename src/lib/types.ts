@@ -138,3 +138,33 @@ export function monthKey(d: Date, offset = 0): string {
 	const m = new Date(d.getFullYear(), d.getMonth() + offset, 1);
 	return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}-01`;
 }
+
+// ---------- Dashboard ----------
+
+export interface AllocationSlice {
+	instrumentId: string;
+	symbol: string;
+	currentPercent: string;
+	targetPercent: string;
+}
+
+export interface PortfolioTile {
+	id: string;
+	name: string;
+	value: string | null;
+	gain: string | null;
+	maxDeviation: string | null;
+	needsRebalance: boolean;
+	complete: boolean;
+	allocation: AllocationSlice[];
+}
+
+export interface Dashboard {
+	currency: string;
+	accountsTotal: string;
+	portfoliosTotal: string;
+	netWorth: string;
+	missingRates: string[];
+	month: MonthSummary;
+	portfolios: PortfolioTile[];
+}

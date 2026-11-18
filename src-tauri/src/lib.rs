@@ -118,6 +118,13 @@ fn fx_set(state: State<'_, AppState>, currency: Currency, rate_pln: Decimal) -> 
     Ok(state.store().set_fx_rate(&rate)?)
 }
 
+// ---------- dashboard ----------
+
+#[tauri::command]
+fn dashboard(state: State<'_, AppState>, currency: Currency) -> CmdResult<ami_core::dashboard::Dashboard> {
+    Ok(ami_core::dashboard::build(&state.store(), chrono::Local::now().date_naive(), &currency)?)
+}
+
 // ---------- budget ----------
 
 #[tauri::command]
@@ -268,6 +275,7 @@ pub fn run() {
             db_list,
             db_save,
             db_delete,
+            dashboard,
             budget_balances,
             budget_month,
             budget_transactions,
