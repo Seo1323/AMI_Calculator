@@ -26,8 +26,8 @@ cargo test --workspace   # testy logiki
 ```
 
 ## Wydania
-Tag `v*` (np. `git tag v0.1.0 && git push --tags`) buduje instalatory
-Windows (NSIS/MSI) i Linux (AppImage/deb) w szkicu Release na GitHubie.
+`npm run release 0.2.0` podbija wersję, tworzy tag i wypycha go. GitHub buduje instalatory
+Windows (exe/msi), Linux (AppImage/deb/rpm) i Android (arm64 APK) do szkicu Release.
 
 ## Plan
 | Etap | Zakres | Status |
