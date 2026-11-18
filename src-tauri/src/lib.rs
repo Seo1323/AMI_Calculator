@@ -1,3 +1,5 @@
+mod fetch;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
@@ -90,6 +92,14 @@ fn portfolio_set_targets(state: State<'_, AppState>, id: Uuid, targets: Vec<Targ
 fn quote_set(state: State<'_, AppState>, instrument_id: Uuid, price: Decimal, currency: Currency) -> CmdResult<()> {
     let quote = Quote { instrument_id, price, currency, source: "manual".into(), fetched_at: Utc::now() };
     Ok(state.store().set_quote(&quote)?)
+}
+
+/// Downloads NBP rates and quotes for all instruments with an online source.
+#[tauri::command]
+async fn quotes_refresh(state: State<'_, AppState>) -> CmdResult<fetch::RefreshReport> {
+    let plan = fetch::plan(&state.store())?;
+    let data = fetch::download(plan).await;
+    Ok(fetch::save(&state.store(), data)?)
 }
 
 #[tauri::command]
@@ -270,6 +280,7 @@ pub fn run() {
             portfolio_set_targets,
             quote_set,
             quote_list,
+            quotes_refresh,
             fx_list,
             fx_set,
             settings_load,

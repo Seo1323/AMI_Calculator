@@ -5,6 +5,8 @@
 	import { db } from '$lib/db';
 	import { invoke, isTauri, type Mode, type RebalanceResult } from '$lib/tauri';
 	import Icon from '$lib/components/Icon.svelte';
+	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
+	import { quotes as quoteState } from '$lib/quotes.svelte';
 	import RebalanceResultView from '$lib/components/RebalanceResultView.svelte';
 	import { toDecimal, today, type Instrument, type PortfolioView, type Trade } from '$lib/types';
 
@@ -54,6 +56,7 @@
 	}
 
 	$effect(() => {
+		void quoteState.version; // reload after every quote refresh
 		if (id) run(load);
 	});
 
@@ -114,6 +117,7 @@
 
 <div class="stack">
 	<a href="/portfolio" class="back">{t('pf.back')}</a>
+	<RefreshQuotes />
 
 	{#if error}<div class="notice error">{error}</div>{/if}
 

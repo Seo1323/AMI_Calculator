@@ -35,6 +35,8 @@ pub enum CoreError {
     Oversold { date: String },
     #[error("missing price for {0}")]
     MissingPrice(String),
+    #[error("{0}")]
+    Provider(String),
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
     #[error("JSON error: {0}")]
@@ -61,6 +63,7 @@ impl CoreError {
             CoreError::DatabaseTooNew(_) => "databaseTooNew",
             CoreError::Oversold { .. } => "oversold",
             CoreError::MissingPrice(_) => "missingPrice",
+            CoreError::Provider(_) => "provider",
             CoreError::Db(_) => "database",
             CoreError::Json(_) => "json",
             CoreError::Io(_) => "io",

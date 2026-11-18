@@ -6,6 +6,8 @@
 	import { db } from '$lib/db';
 	import { invoke, isTauri } from '$lib/tauri';
 	import Icon from '$lib/components/Icon.svelte';
+	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
+	import { quotes as quoteState } from '$lib/quotes.svelte';
 	import {
 		CURRENCIES,
 		INSTRUMENT_KINDS,
@@ -37,7 +39,7 @@
 		name: '',
 		kind: 'etf' as Instrument['kind'],
 		currency: 'PLN',
-		quoteSource: 'manual' as Instrument['quoteSource'],
+		quoteSource: 'yahoo' as Instrument['quoteSource'],
 		fractional: false
 	});
 	let newPortfolio = $state(emptyPortfolio());
@@ -66,6 +68,15 @@
 	}
 
 	onMount(() => run(load));
+
+	// Reload after every quote refresh (manual or automatic).
+	let seenVersion = quoteState.version;
+	$effect(() => {
+		if (quoteState.version !== seenVersion) {
+			seenVersion = quoteState.version;
+			run(load);
+		}
+	});
 
 	const createPortfolio = () =>
 		run(async () => {
@@ -121,6 +132,7 @@
 
 <div class="stack">
 	<h1>{t('portfolio.title')}</h1>
+	<RefreshQuotes />
 
 	{#if error}<div class="notice error">{error}</div>{/if}
 
@@ -232,7 +244,11 @@
 		<div class="row">
 			<label class="field">
 				{t('instruments.symbol')}
-				<input class="mid" bind:value={instrumentForm.symbol} placeholder="VWCE.DE, ETFBW20TR, bitcoin" />
+				<input
+					class="mid"
+					bind:value={instrumentForm.symbol}
+					placeholder={instrumentForm.quoteSource === 'coinGecko' ? 'bitcoin' : 'PKN.WA, VWCE.DE'}
+				/>
 			</label>
 			<label class="field grow">
 				{t('instruments.name')}
@@ -246,6 +262,8 @@
 						if (instrumentForm.kind === 'crypto') {
 							instrumentForm.fractional = true;
 							instrumentForm.quoteSource = 'coinGecko';
+						} else if (instrumentForm.quoteSource === 'coinGecko') {
+							instrumentForm.quoteSource = 'yahoo';
 						}
 					}}
 				>
@@ -269,6 +287,7 @@
 				{t('instruments.fractional')}
 			</label>
 		</div>
+		<p class="muted small">{t(`instruments.symbolHint.${instrumentForm.quoteSource}`)}</p>
 		<div class="row">
 			<button
 				class="btn primary"

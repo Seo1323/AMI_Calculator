@@ -6,16 +6,26 @@
 	import { settings, saveSettings, hydrateSettings } from '$lib/settings.svelte';
 	import { t, type MessageKey } from '$lib/i18n/index.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { startAutoRefresh } from '$lib/quotes.svelte';
 
 	let { children } = $props();
 
 	const media = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 	let systemDark = $state(media?.matches ?? false);
+	let ready = $state(false);
+
+	// (Re)start automatic quote downloads once settings are loaded and whenever they change.
+	$effect(() => {
+		void settings.autoRefreshQuotes;
+		void settings.refreshMinutes;
+		if (ready) startAutoRefresh();
+	});
 
 	onMount(() => {
 		const onChange = (e: MediaQueryListEvent) => (systemDark = e.matches);
 		media?.addEventListener('change', onChange);
 		hydrateSettings().then(() => {
+			ready = true;
 			if (page.url.pathname === '/' && settings.startPage !== '/') goto(settings.startPage, { replaceState: true });
 		});
 		return () => media?.removeEventListener('change', onChange);

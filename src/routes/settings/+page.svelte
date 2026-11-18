@@ -154,6 +154,21 @@
 	</section>
 
 	<section class="card stack">
+		<h2>{t('settings.quotes')}</h2>
+		<p class="muted">{t('settings.quotesHint')}</p>
+		<label class="check">
+			<input type="checkbox" bind:checked={settings.autoRefreshQuotes} />
+			{t('settings.autoRefresh')}
+		</label>
+		<label class="field">
+			{t('settings.refreshMinutes')}
+			<select bind:value={settings.refreshMinutes} disabled={!settings.autoRefreshQuotes}>
+				{#each [5, 15, 30, 60, 180] as m (m)}<option value={m}>{m}</option>{/each}
+			</select>
+		</label>
+	</section>
+
+	<section class="card stack">
 		<h2>{t('settings.behavior')}</h2>
 		<label class="field">
 			{t('settings.startPage')}

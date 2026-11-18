@@ -2,11 +2,11 @@
 import type { Meta } from '$lib/db';
 
 export type InstrumentKind = 'stock' | 'etf' | 'bond' | 'crypto' | 'cash' | 'other';
-export type QuoteSource = 'stooq' | 'coinGecko' | 'manual';
+export type QuoteSource = 'yahoo' | 'coinGecko' | 'manual';
 export type TradeSide = 'buy' | 'sell';
 
 export const INSTRUMENT_KINDS: InstrumentKind[] = ['etf', 'stock', 'bond', 'crypto', 'cash', 'other'];
-export const QUOTE_SOURCES: QuoteSource[] = ['manual', 'stooq', 'coinGecko'];
+export const QUOTE_SOURCES: QuoteSource[] = ['yahoo', 'coinGecko', 'manual'];
 export const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'];
 
 export interface Instrument extends Meta {

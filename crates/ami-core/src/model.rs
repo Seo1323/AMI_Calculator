@@ -132,8 +132,10 @@ pub enum InstrumentKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum QuoteSource {
-    /// GPW and foreign exchanges.
-    Stooq,
+    /// Yahoo Finance: WSE (`PKN.WA`) and foreign exchanges (`VWCE.DE`, `AAPL`).
+    /// Older data files used "stooq", which no longer serves automated requests.
+    #[serde(alias = "stooq")]
+    Yahoo,
     /// Crypto.
     CoinGecko,
     /// User enters the price.
@@ -206,7 +208,7 @@ pub struct Quote {
     /// Price per unit in `currency`.
     pub price: Decimal,
     pub currency: Currency,
-    /// "manual", "stooq", "coingecko", ...
+    /// "manual", "yahoo", "coingecko", ...
     #[serde(default = "manual")]
     pub source: String,
     pub fetched_at: DateTime<Utc>,

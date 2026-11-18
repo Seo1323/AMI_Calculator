@@ -10,6 +10,7 @@ pub mod fx;
 pub mod model;
 pub mod money;
 pub mod portfolio;
+pub mod providers;
 pub mod rebalance;
 pub mod store;
 

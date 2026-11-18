@@ -18,6 +18,8 @@ export interface Settings {
 	startPage: StartPage;
 	reduceMotion: boolean;
 	sidebarCollapsed: boolean;
+	autoRefreshQuotes: boolean;
+	refreshMinutes: number;
 }
 
 export const ACCENTS = ['#2f6fed', '#0f9d76', '#c2410c', '#9333ea', '#db2777', '#0891b2', '#ca8a04', '#475569'];
@@ -33,7 +35,9 @@ export const DEFAULTS: Settings = {
 	baseCurrency: 'PLN',
 	startPage: '/',
 	reduceMotion: false,
-	sidebarCollapsed: false
+	sidebarCollapsed: false,
+	autoRefreshQuotes: true,
+	refreshMinutes: 30
 };
 
 const KEY = 'ami.settings.v1';
