@@ -108,6 +108,7 @@ const pl = {
 	'pf.rebalance': 'Rebalansowanie portfela',
 	'pf.rebalanceHint': 'Na podstawie obecnych pozycji, cen i alokacji docelowej.',
 	'trades.title': 'Transakcje',
+	'trades.editing': 'Edycja transakcji',
 	'trades.date': 'Data',
 	'trades.instrument': 'Instrument',
 	'trades.side': 'Typ',

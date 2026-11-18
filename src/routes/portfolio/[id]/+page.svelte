@@ -8,7 +8,7 @@
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import { quotes as quoteState } from '$lib/quotes.svelte';
 	import RebalanceResultView from '$lib/components/RebalanceResultView.svelte';
-	import { toDecimal, today, type Instrument, type PortfolioView, type Trade } from '$lib/types';
+	import { toDecimal, today, type Instrument, type Portfolio, type PortfolioView, type Trade } from '$lib/types';
 
 	const id = $derived(page.params.id ?? '');
 
@@ -25,6 +25,11 @@
 	// New trade
 	const emptyTrade = () => ({ date: today(), instrumentId: '', side: 'buy' as Trade['side'], quantity: '', price: '', fee: '0' });
 	let tradeForm = $state(emptyTrade());
+	let editingTradeId = $state<string | null>(null);
+
+	// Portfolio name / tolerance
+	let editingDetails = $state(false);
+	let detailsForm = $state({ name: '', tolerance: '' });
 
 	// Rebalance
 	let mode: Mode = $state('buyOnly');
@@ -80,9 +85,39 @@
 			await load();
 		});
 
+	function startEditTrade(tr: Trade) {
+		editingTradeId = tr.id;
+		tradeForm = { date: tr.date, instrumentId: tr.instrumentId, side: tr.side, quantity: tr.quantity, price: tr.price, fee: tr.fee };
+	}
+
+	function cancelEditTrade() {
+		editingTradeId = null;
+		tradeForm = { ...emptyTrade(), instrumentId: tradeForm.instrumentId };
+	}
+
+	function startEditDetails() {
+		if (!view) return;
+		detailsForm = { name: view.portfolio.name, tolerance: view.portfolio.tolerancePercent };
+		editingDetails = true;
+	}
+
+	const saveDetails = () =>
+		run(async () => {
+			if (!view) return;
+			await db.save<Portfolio>('portfolio', {
+				...view.portfolio,
+				name: detailsForm.name.trim(),
+				tolerancePercent: toDecimal(detailsForm.tolerance)
+			});
+			editingDetails = false;
+			result = null;
+			await load();
+		});
+
 	const addTrade = () =>
 		run(async () => {
 			await db.save<Trade>('trade', {
+				...(editingTradeId ? { id: editingTradeId } : {}),
 				portfolioId: id,
 				instrumentId: tradeForm.instrumentId,
 				date: tradeForm.date,
@@ -92,6 +127,7 @@
 				fee: toDecimal(tradeForm.fee)
 			});
 			tradeForm = { ...emptyTrade(), instrumentId: tradeForm.instrumentId };
+			editingTradeId = null;
 			result = null;
 			await load();
 		});
@@ -100,6 +136,7 @@
 		run(async () => {
 			if (!(await confirm(`${tr.date} ${symbol(tr.instrumentId)} ${tr.quantity}?`, { kind: 'warning' }))) return;
 			await db.remove('trade', tr.id);
+			if (editingTradeId === tr.id) cancelEditTrade();
 			result = null;
 			await load();
 		});
@@ -124,7 +161,28 @@
 	{#if view}
 		<header class="head">
 			<div>
-				<h1>{view.portfolio.name}</h1>
+				{#if editingDetails}
+					<div class="row">
+						<label class="field">
+							{t('portfolio.name')}
+							<input bind:value={detailsForm.name} />
+						</label>
+						<label class="field">
+							{t('portfolio.tolerance')}
+							<input class="short" inputmode="decimal" bind:value={detailsForm.tolerance} />
+						</label>
+						<button class="btn primary" disabled={!detailsForm.name.trim()} onclick={saveDetails}>{t('common.save')}</button>
+						<button class="btn" onclick={() => (editingDetails = false)}>{t('common.cancel')}</button>
+					</div>
+				{:else}
+					<h1>
+						{view.portfolio.name}
+						<button class="btn ghost" aria-label={t('common.edit')} title={t('common.edit')} onclick={startEditDetails}
+							><Icon name="edit" size={16} /></button
+						>
+					</h1>
+					<div class="muted small">{t('portfolio.tolerance')}: {fmtNumber(view.portfolio.tolerancePercent)}</div>
+				{/if}
 				<div class="big">{fmtMoney(view.totalValue, currency)}</div>
 			</div>
 			<div class="kpis">
@@ -264,7 +322,7 @@
 
 		<!-- Trades -->
 		<section class="card stack">
-			<h2>{t('trades.title')}</h2>
+			<h2>{editingTradeId ? t('trades.editing') : t('trades.title')}</h2>
 			{#if instruments.length === 0}
 				<p class="muted">{t('trades.needInstrument')}</p>
 			{:else}
@@ -301,8 +359,11 @@
 					<button
 						class="btn primary"
 						disabled={!tradeForm.instrumentId || !tradeForm.quantity.trim() || !tradeForm.price.trim()}
-						onclick={addTrade}>{t('trades.add')}</button
+						onclick={addTrade}>{editingTradeId ? t('common.save') : t('trades.add')}</button
 					>
+					{#if editingTradeId}
+						<button class="btn" onclick={cancelEditTrade}>{t('common.cancel')}</button>
+					{/if}
 				</div>
 				{#if tradeTotal}
 					<div class="muted small">
@@ -339,7 +400,10 @@
 									<td class="num">{fmtMoney(tr.price, cur)}</td>
 									<td class="num">{fmtMoney(tr.fee, cur)}</td>
 									<td class="num">{fmtMoney(Number(tr.quantity) * Number(tr.price), cur)}</td>
-									<td>
+									<td class="actions">
+										<button class="btn ghost" aria-label={t('common.edit')} title={t('common.edit')} onclick={() => startEditTrade(tr)}
+											><Icon name="edit" size={16} /></button
+										>
 										<button class="btn ghost" aria-label={t('common.delete')} onclick={() => deleteTrade(tr)}
 											><Icon name="trash" size={16} /></button
 										>
@@ -415,6 +479,12 @@
 	.instr span {
 		display: block;
 		font-size: 0.8rem;
+	}
+	.actions {
+		white-space: nowrap;
+	}
+	h1 .btn {
+		vertical-align: middle;
 	}
 	.sym {
 		min-width: 8rem;

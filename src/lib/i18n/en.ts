@@ -110,6 +110,7 @@ const en: Record<keyof typeof pl, string> = {
 	'pf.rebalance': 'Rebalance portfolio',
 	'pf.rebalanceHint': 'Based on current positions, prices and target allocation.',
 	'trades.title': 'Trades',
+	'trades.editing': 'Edit trade',
 	'trades.date': 'Date',
 	'trades.instrument': 'Instrument',
 	'trades.side': 'Type',

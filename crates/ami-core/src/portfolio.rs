@@ -374,6 +374,28 @@ mod tests {
     }
 
     #[test]
+    fn editing_a_trade_keeps_history_valid() {
+        let f = fixture();
+        let pid = f.portfolio.meta.id;
+        let mut sell = trade(f.etf.meta.id, 2, TradeSide::Sell, dec!(5), dec!(100));
+        sell.portfolio_id = pid;
+        let sell = f.store.save_trade(sell).unwrap();
+        let buy = f.store.trades_of(pid).unwrap().into_iter().find(|t| t.side == TradeSide::Buy).unwrap();
+
+        // Same id: an update, not a new record.
+        let mut edited = sell.clone();
+        edited.quantity = dec!(10);
+        f.store.save_trade(edited).unwrap();
+        assert_eq!(f.store.trades_of(pid).unwrap().len(), 2);
+
+        // Shrinking the buy below the sell would oversell.
+        let mut shrunk = buy.clone();
+        shrunk.quantity = dec!(9);
+        assert!(matches!(f.store.save_trade(shrunk), Err(CoreError::Oversold { .. })));
+        assert_eq!(f.store.get::<Trade>(buy.meta.id).unwrap().unwrap().quantity, buy.quantity);
+    }
+
+    #[test]
     fn set_targets_replaces_allocation() {
         let f = fixture();
         f.store.set_targets(f.portfolio.meta.id, &[(f.etf.meta.id, dec!(100))]).unwrap();
