@@ -77,3 +77,64 @@ export function today(): string {
 	const d = new Date();
 	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+// ---------- Budget ----------
+
+export type AccountKind = 'cash' | 'checking' | 'savings' | 'creditCard' | 'brokerage' | 'other';
+export const ACCOUNT_KINDS: AccountKind[] = ['checking', 'savings', 'cash', 'creditCard', 'brokerage', 'other'];
+export type CategoryKind = 'income' | 'expense';
+
+export interface Account extends Meta {
+	name: string;
+	kind: AccountKind;
+	currency: string;
+	openingBalance: string;
+	archived: boolean;
+	color: string | null;
+}
+
+export interface Category extends Meta {
+	name: string;
+	kind: CategoryKind;
+	parentId: string | null;
+	color: string | null;
+	icon: string | null;
+}
+
+export interface Transaction extends Meta {
+	accountId: string;
+	date: string;
+	amount: string;
+	categoryId: string | null;
+	transferPairId: string | null;
+	note: string;
+}
+
+export interface AccountBalance {
+	account: Account;
+	balance: string;
+}
+
+export interface CategoryLine {
+	category: Category;
+	amount: string;
+	limit: string | null;
+}
+
+export interface MonthSummary {
+	month: string;
+	currency: string;
+	income: string;
+	expense: string;
+	net: string;
+	uncategorizedExpense: string;
+	uncategorizedIncome: string;
+	categories: CategoryLine[];
+	missingRates: string[];
+}
+
+/** "YYYY-MM-01" for the month containing `d`, shifted by `offset` months. */
+export function monthKey(d: Date, offset = 0): string {
+	const m = new Date(d.getFullYear(), d.getMonth() + offset, 1);
+	return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, '0')}-01`;
+}

@@ -26,7 +26,7 @@
 
 	// Rebalance
 	let mode: Mode = $state('buyOnly');
-	let contribution = $state('0');
+	let contribution = $state(page.url.searchParams.get('contribution') ?? '0');
 	let result = $state<RebalanceResult | null>(null);
 
 	const currency = $derived(view?.portfolio.baseCurrency ?? 'PLN');

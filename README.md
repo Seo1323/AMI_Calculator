@@ -35,7 +35,7 @@ Windows (exe/msi), Linux (AppImage/deb/rpm) i Android (arm64 APK) do szkicu Rele
 | 0 | Szkielet, CI, motywy, i18n, ustawienia | ✅ |
 | 1 | Rust core: model danych, waluty, SQLite, eksport/import, testy | ✅ |
 | 2 | Portfele, instrumenty, transakcje, alokacja, rebalansowanie portfela | ✅ |
-| 3 | Moduł budżetowy | ⏳ |
+| 3 | Budżet: konta, kategorie, transakcje, przelewy, limity, podsumowanie miesiąca | ✅ |
 | 4 | Kursy online: NBP (waluty), Stooq (GPW, ETF), CoinGecko (krypto) | ⏳ |
 | 5 | Dashboard, raporty, wykresy, więcej personalizacji | ⏳ |
 | 6 | Dopracowanie Linuksa, build na Androida | ⏳ |

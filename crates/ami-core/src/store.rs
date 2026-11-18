@@ -482,6 +482,9 @@ impl Store {
         if kind == EntityKind::Trade {
             return self.delete_trade(id);
         }
+        if kind == EntityKind::Transaction {
+            return crate::budget::delete_transaction(self, id);
+        }
         with_entity!(kind, T => self.delete::<T>(id))
     }
 
@@ -536,6 +539,15 @@ impl Store {
     }
 
     // ----- portfolio helpers -----
+
+    /// Live transactions with `from <= date < to`, oldest first (uses the date index).
+    pub fn transactions_between(&self, from: chrono::NaiveDate, to: chrono::NaiveDate) -> Result<Vec<Transaction>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT data FROM transactions WHERE deleted_at IS NULL AND date >= ?1 AND date < ?2 ORDER BY date, created_at",
+        )?;
+        let rows = stmt.query_map([from.to_string(), to.to_string()], |r| r.get::<_, String>(0))?;
+        rows.map(|d| Ok(serde_json::from_str(&d?)?)).collect()
+    }
 
     pub fn trades_of(&self, portfolio_id: Uuid) -> Result<Vec<Trade>> {
         Ok(self.list::<Trade>()?.into_iter().filter(|t| t.portfolio_id == portfolio_id).collect())
