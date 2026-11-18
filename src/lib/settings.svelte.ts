@@ -55,8 +55,7 @@ function load(): Settings {
 	} catch {
 		/* storage unavailable */
 	}
-	const lang = typeof navigator !== 'undefined' ? navigator.language : 'pl';
-	return { ...DEFAULTS, locale: lang.startsWith('pl') ? 'pl' : 'en' };
+	return { ...DEFAULTS };
 }
 
 // The SQLite store is the source of truth; localStorage is only a cache so the
