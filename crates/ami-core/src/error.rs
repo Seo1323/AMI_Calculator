@@ -23,6 +23,16 @@ pub enum CoreError {
     NotAnExport,
     #[error("export file version {0} is newer than this app supports")]
     UnsupportedVersion(u32),
+    #[error("invalid data: {0}")]
+    Validation(String),
+    #[error("referenced {table} record {id} does not exist")]
+    MissingReference { table: String, id: String },
+    #[error("record not found")]
+    NotFound,
+    #[error("database version {0} is newer than this app supports")]
+    DatabaseTooNew(i64),
+    #[error("database error: {0}")]
+    Db(#[from] rusqlite::Error),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("I/O error: {0}")]
@@ -41,6 +51,11 @@ impl CoreError {
             CoreError::EmptyPortfolio => "emptyPortfolio",
             CoreError::NotAnExport => "notAnExport",
             CoreError::UnsupportedVersion(_) => "unsupportedVersion",
+            CoreError::Validation(_) => "validation",
+            CoreError::MissingReference { .. } => "missingReference",
+            CoreError::NotFound => "notFound",
+            CoreError::DatabaseTooNew(_) => "databaseTooNew",
+            CoreError::Db(_) => "database",
             CoreError::Json(_) => "json",
             CoreError::Io(_) => "io",
         }

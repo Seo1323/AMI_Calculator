@@ -1,44 +1,55 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { save, open } from '@tauri-apps/plugin-dialog';
+	import { save, open, confirm } from '@tauri-apps/plugin-dialog';
 	import { t, fmtDate, errorText } from '$lib/i18n/index.svelte';
-	import { settings, ACCENTS, resetSettings, replaceSettings, snapshotSettings } from '$lib/settings.svelte';
-	import { invoke, isTauri, type ExportBundle } from '$lib/tauri';
+	import { settings, ACCENTS, resetSettings, replaceSettings, flushSettings } from '$lib/settings.svelte';
+	import { invoke, isTauri, type DataLocation, type ImportMode, type ImportReport } from '$lib/tauri';
 
 	const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'];
 	let version = $state('');
-	let message = $state('');
+	let location: DataLocation | null = $state(null);
+	let importMode: ImportMode = $state('replace');
+	let messages: string[] = $state([]);
 	let error = $state('');
 
 	onMount(async () => {
-		if (isTauri()) version = await invoke<string>('app_version');
+		if (!isTauri()) return;
+		version = await invoke<string>('app_version');
+		location = await invoke<DataLocation>('data_location');
 	});
 
 	const filters = [{ name: 'AMI_Calculator', extensions: ['ami'] }];
 
 	async function doExport() {
-		message = error = '';
+		messages = [];
+		error = '';
 		try {
 			if (!isTauri()) throw { code: 'notInTauri' };
 			const date = new Date().toISOString().slice(0, 10);
 			const path = await save({ defaultPath: `ami-calculator-${date}.ami`, filters });
 			if (!path) return;
-			await invoke('export_bundle', { path, settings: snapshotSettings() });
-			message = t('settings.exported', { path });
+			await flushSettings();
+			await invoke('export_bundle', { path });
+			messages = [t('settings.exported', { path })];
 		} catch (e) {
 			error = errorText(e);
 		}
 	}
 
 	async function doImport() {
-		message = error = '';
+		messages = [];
+		error = '';
 		try {
 			if (!isTauri()) throw { code: 'notInTauri' };
 			const path = await open({ multiple: false, directory: false, filters });
 			if (!path) return;
-			const bundle = await invoke<ExportBundle>('import_bundle', { path });
-			replaceSettings(bundle.data.settings);
-			message = t('settings.imported', { date: fmtDate(bundle.exportedAt) });
+			if (importMode === 'replace' && !(await confirm(t('settings.importConfirm'), { kind: 'warning' }))) return;
+			const report = await invoke<ImportReport>('import_bundle', { path, mode: importMode });
+			if (report.settings) replaceSettings(report.settings);
+			messages = [
+				t('settings.imported', { date: fmtDate(report.exportedAt), ...report.stats }),
+				t('settings.backupSaved', { path: report.backup })
+			];
 		} catch (e) {
 			error = errorText(e);
 		}
@@ -160,10 +171,25 @@
 		<p class="muted">{t('settings.data.hint')}</p>
 		<div class="row">
 			<button class="btn primary" onclick={doExport}>{t('settings.export')}</button>
+			<label class="field">
+				{t('settings.importMode')}
+				<select bind:value={importMode}>
+					<option value="replace">{t('settings.importMode.replace')}</option>
+					<option value="merge">{t('settings.importMode.merge')}</option>
+				</select>
+			</label>
 			<button class="btn" onclick={doImport}>{t('settings.import')}</button>
 		</div>
-		{#if message}<div class="notice">{message}</div>{/if}
+		{#each messages as m (m)}<div class="notice">{m}</div>{/each}
 		{#if error}<div class="notice error">{error}</div>{/if}
+		{#if location}
+			<dl class="location">
+				<dt>{t('settings.location.db')}</dt>
+				<dd><code>{location.database}</code></dd>
+				<dt>{t('settings.location.backups')}</dt>
+				<dd><code>{location.backups}</code></dd>
+			</dl>
+		{/if}
 	</section>
 
 	<section class="card stack">
@@ -236,5 +262,16 @@
 	}
 	input[type='range'] {
 		max-width: 20rem;
+	}
+	.location {
+		margin: 0;
+		font-size: 0.85rem;
+	}
+	.location dt {
+		color: var(--text-muted);
+	}
+	.location dd {
+		margin: 0 0 0.5rem;
+		overflow-wrap: anywhere;
 	}
 </style>

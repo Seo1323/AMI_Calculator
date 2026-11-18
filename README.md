@@ -6,7 +6,7 @@ Windows (priorytet), Linux, później Android. Język: polski / English.
 ## Stack
 - **Tauri 2**: cała logika w Ruście (`crates/ami-core`), UI w **Svelte 5 + TypeScript**
 - kwoty jako `rust_decimal` (bez floatów)
-- dane lokalnie (SQLite, w przygotowaniu), kopia w jednym pliku `.ami` (JSON), np. na pendrive
+- dane lokalnie w SQLite (`ami.db` w katalogu danych aplikacji), kopia w jednym pliku `.ami` (JSON), np. na pendrive
 
 ## Struktura
 ```
@@ -33,7 +33,7 @@ Windows (exe/msi), Linux (AppImage/deb/rpm) i Android (arm64 APK) do szkicu Rele
 | Etap | Zakres | Status |
 |---|---|---|
 | 0 | Szkielet, CI, motywy, i18n, ustawienia | ✅ |
-| 1 | Rust core: model danych, waluty, SQLite, testy | 🚧 |
+| 1 | Rust core: model danych, waluty, SQLite, eksport/import, testy | ✅ |
 | 2 | Portfele i rebalansowanie (kalkulator ✅) | 🚧 |
 | 3 | Moduł budżetowy | ⏳ |
 | 4 | Kursy online: NBP (waluty), Stooq (GPW, ETF), CoinGecko (krypto) | ⏳ |

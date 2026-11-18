@@ -50,10 +50,17 @@ export interface RebalanceResult {
 	positions: PositionResult[];
 }
 
-export interface ExportBundle {
-	format: string;
-	version: number;
-	appVersion: string;
+export type ImportMode = 'replace' | 'merge';
+
+export interface ImportReport {
 	exportedAt: string;
-	data: { settings: unknown } & Record<string, unknown>;
+	stats: { inserted: number; updated: number; skipped: number };
+	settings: unknown | null;
+	backup: string;
+}
+
+export interface DataLocation {
+	database: string;
+	backups: string;
+	schemaVersion: number;
 }

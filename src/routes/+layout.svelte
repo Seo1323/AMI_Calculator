@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { settings, saveSettings } from '$lib/settings.svelte';
+	import { settings, saveSettings, hydrateSettings } from '$lib/settings.svelte';
 	import { t, type MessageKey } from '$lib/i18n/index.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 
@@ -15,7 +15,9 @@
 	onMount(() => {
 		const onChange = (e: MediaQueryListEvent) => (systemDark = e.matches);
 		media?.addEventListener('change', onChange);
-		if (page.url.pathname === '/' && settings.startPage !== '/') goto(settings.startPage, { replaceState: true });
+		hydrateSettings().then(() => {
+			if (page.url.pathname === '/' && settings.startPage !== '/') goto(settings.startPage, { replaceState: true });
+		});
 		return () => media?.removeEventListener('change', onChange);
 	});
 

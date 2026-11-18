@@ -1,3 +1,5 @@
+import { invoke, isTauri } from '$lib/tauri';
+
 export type Locale = 'pl' | 'en';
 export type Theme = 'system' | 'light' | 'dark';
 export type Density = 'compact' | 'comfortable' | 'spacious';
@@ -57,15 +59,48 @@ function load(): Settings {
 	return { ...DEFAULTS, locale: lang.startsWith('pl') ? 'pl' : 'en' };
 }
 
-// TODO(etap 1): persist in the SQLite store instead of localStorage.
+// The SQLite store is the source of truth; localStorage is only a cache so the
+// first paint already has the right theme and language.
 export const settings: Settings = $state(load());
 
+let hydrated = false;
+let pending: ReturnType<typeof setTimeout> | undefined;
+
+/** Loads settings from the database (call once at startup). */
+export async function hydrateSettings() {
+	if (isTauri()) {
+		try {
+			const stored = await invoke<unknown>('settings_load');
+			if (stored) replaceSettings(stored);
+		} catch (e) {
+			console.error('settings_load failed', e);
+		}
+	}
+	hydrated = true;
+	saveSettings();
+}
+
 export function saveSettings() {
+	const snapshot = $state.snapshot(settings);
 	try {
-		localStorage.setItem(KEY, JSON.stringify($state.snapshot(settings)));
+		localStorage.setItem(KEY, JSON.stringify(snapshot));
 	} catch {
 		/* storage unavailable */
 	}
+	if (!hydrated || !isTauri()) return;
+	clearTimeout(pending);
+	pending = setTimeout(() => {
+		pending = undefined;
+		invoke('settings_save', { value: snapshot }).catch((e) => console.error('settings_save failed', e));
+	}, 300);
+}
+
+/** Writes pending changes immediately (e.g. before an export). */
+export async function flushSettings() {
+	if (!isTauri()) return;
+	clearTimeout(pending);
+	pending = undefined;
+	await invoke('settings_save', { value: $state.snapshot(settings) });
 }
 
 export function replaceSettings(next: unknown) {

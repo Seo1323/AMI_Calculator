@@ -9,5 +9,6 @@ pub mod fx;
 pub mod model;
 pub mod money;
 pub mod rebalance;
+pub mod store;
 
 pub use error::{CoreError, Result};
