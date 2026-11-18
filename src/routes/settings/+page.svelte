@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { save, open, confirm } from '@tauri-apps/plugin-dialog';
+	import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 	import { t, fmtDate, errorText } from '$lib/i18n/index.svelte';
 	import {
 		settings,
@@ -51,7 +52,7 @@
 			const path = await save({ defaultPath: `ami-calculator-${date}.ami`, filters });
 			if (!path) return;
 			await flushSettings();
-			await invoke('export_bundle', { path });
+			await writeTextFile(path, await invoke<string>('export_json'));
 			messages = [t('settings.exported', { path })];
 		} catch (e) {
 			error = errorText(e);
@@ -66,7 +67,8 @@
 			const path = await open({ multiple: false, directory: false, filters });
 			if (!path) return;
 			if (importMode === 'replace' && !(await confirm(t('settings.importConfirm'), { kind: 'warning' }))) return;
-			const report = await invoke<ImportReport>('import_bundle', { path, mode: importMode });
+			const contents = await readTextFile(path);
+			const report = await invoke<ImportReport>('import_json', { contents, mode: importMode });
 			if (report.settings) replaceSettings(report.settings);
 			messages = [
 				t('settings.imported', { date: fmtDate(report.exportedAt), ...report.stats }),

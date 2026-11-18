@@ -189,12 +189,12 @@ fn settings_save(state: State<'_, AppState>, value: Value) -> CmdResult<()> {
 
 // ---------- backup file (.ami) ----------
 
-/// Writes everything to a portable `.ami` file (e.g. onto a USB stick).
+/// Contents of a portable `.ami` backup. The UI writes it with the fs plugin, which
+/// understands both desktop paths and Android `content://` URIs from the save dialog.
 #[tauri::command]
-fn export_bundle(state: State<'_, AppState>, path: PathBuf) -> CmdResult<()> {
+fn export_json(state: State<'_, AppState>) -> CmdResult<String> {
     let data = state.store().export_data()?;
-    ExportBundle::new(env!("CARGO_PKG_VERSION"), data).write_file(&path)?;
-    Ok(())
+    Ok(ExportBundle::new(env!("CARGO_PKG_VERSION"), data).to_json()?)
 }
 
 #[derive(Serialize)]
@@ -208,9 +208,10 @@ struct ImportReport {
     backup: PathBuf,
 }
 
+/// Imports backup contents read by the UI (see `export_json`).
 #[tauri::command]
-fn import_bundle(state: State<'_, AppState>, path: PathBuf, mode: ImportMode) -> CmdResult<ImportReport> {
-    let bundle = ExportBundle::read_file(&path)?;
+fn import_json(state: State<'_, AppState>, contents: String, mode: ImportMode) -> CmdResult<ImportReport> {
+    let bundle = ExportBundle::from_json(&contents)?;
     let mut store = state.store();
     let backup = backup_now(&store, &state.data_dir, "before-import")?;
     let stats = store.import_data(&bundle.data, mode)?;
@@ -258,13 +259,6 @@ fn data_location(state: State<'_, AppState>) -> CmdResult<DataLocation> {
     })
 }
 
-/// Writes a text file chosen by the user in a save dialog (e.g. a CSV report).
-#[tauri::command]
-fn save_text_file(path: PathBuf, contents: String) -> CmdResult<()> {
-    fs::write(&path, contents).map_err(CoreError::from)?;
-    Ok(())
-}
-
 #[tauri::command]
 fn app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
@@ -275,6 +269,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
@@ -306,10 +301,9 @@ pub fn run() {
             fx_set,
             settings_load,
             settings_save,
-            export_bundle,
-            import_bundle,
+            export_json,
+            import_json,
             data_location,
-            save_text_file,
             app_version
         ])
         .run(tauri::generate_context!())

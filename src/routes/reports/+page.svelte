@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { save } from '@tauri-apps/plugin-dialog';
+	import { writeTextFile } from '@tauri-apps/plugin-fs';
 	import { t, fmtMoney, fmtNumber, numberLocale, errorText } from '$lib/i18n/index.svelte';
 	import { settings } from '$lib/settings.svelte';
 	import { invoke, isTauri } from '$lib/tauri';
@@ -62,7 +63,7 @@
 				...report.categories.map((c) => [q(c.category.name), c.amount, c.limit ?? ''].join(';'))
 			];
 			// BOM so Excel opens Polish characters correctly; ";" works with comma-decimal locales.
-			await invoke('save_text_file', { path, contents: '﻿' + rows.join('\r\n') });
+			await writeTextFile(path, '\ufeff' + rows.join('\r\n'));
 			info = t('reports.exported', { path });
 		} catch (e) {
 			error = errorText(e);
