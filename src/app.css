@@ -241,3 +241,44 @@ th.num {
 .notice.warn {
 	background: color-mix(in srgb, var(--warning) 16%, transparent);
 }
+
+/* ---------- Small screens and touch ---------- */
+/* .hide-sm / .hide-xs mark secondary table columns, hidden on small windows / phones */
+@media (max-width: 820px) {
+	.hide-sm {
+		display: none;
+	}
+}
+@media (max-width: 640px) {
+	h1 {
+		font-size: 1.35rem;
+	}
+	th,
+	td {
+		padding-inline: calc(var(--space) * 0.35);
+	}
+}
+@media (max-width: 480px) {
+	.card {
+		padding: var(--space);
+	}
+	.hide-xs {
+		display: none;
+	}
+	.row > label.field {
+		flex: 1 1 100%;
+	}
+	.row > label.field input,
+	.row > label.field select {
+		width: 100%;
+	}
+}
+@media (pointer: coarse) {
+	.btn,
+	select,
+	input[type='text'],
+	input[type='number'],
+	input:not([type]) {
+		min-height: 44px;
+	}
+}

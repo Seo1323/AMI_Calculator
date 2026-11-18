@@ -16,6 +16,10 @@
 	let systemDark = $state(media?.matches ?? false);
 	let systemReducedMotion = $state(motionQuery?.matches ?? false);
 	let ready = $state(false);
+	// Medium windows collapse the sidebar to icons so the content keeps its room.
+	const narrowQuery = typeof window !== 'undefined' ? window.matchMedia('(max-width: 900px)') : null;
+	let narrow = $state(narrowQuery?.matches ?? false);
+	const collapsed = $derived(settings.sidebarCollapsed || narrow);
 	const animate = $derived(!settings.reduceMotion && !systemReducedMotion);
 
 	// (Re)start automatic quote downloads once settings are loaded and whenever they change.
@@ -54,6 +58,8 @@
 	onMount(() => {
 		const onDark = (e: MediaQueryListEvent) => (systemDark = e.matches);
 		const onMotion = (e: MediaQueryListEvent) => (systemReducedMotion = e.matches);
+		const onNarrow = (e: MediaQueryListEvent) => (narrow = e.matches);
+		narrowQuery?.addEventListener('change', onNarrow);
 		media?.addEventListener('change', onDark);
 		motionQuery?.addEventListener('change', onMotion);
 		hydrateSettings().then(() => {
@@ -61,6 +67,7 @@
 			if (page.url.pathname === '/' && settings.startPage !== '/') goto(settings.startPage, { replaceState: true });
 		});
 		return () => {
+			narrowQuery?.removeEventListener('change', onNarrow);
 			media?.removeEventListener('change', onDark);
 			motionQuery?.removeEventListener('change', onMotion);
 		};
@@ -98,7 +105,7 @@
 
 	$effect(() => {
 		void page.url.pathname;
-		void settings.sidebarCollapsed;
+		void collapsed;
 		placeIndicator();
 	});
 
@@ -113,7 +120,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<div class="shell" class:collapsed={settings.sidebarCollapsed} class:animate>
+<div class="shell" class:collapsed class:animate>
 	<nav class="sidebar" aria-label="main">
 		<div class="brand">
 			<span class="logo" aria-hidden="true">⚖</span>
@@ -158,7 +165,7 @@
 				class="btn ghost tool"
 				title={`${t('nav.collapse')} (Alt+B)`}
 				aria-label={t('nav.collapse')}
-				aria-expanded={!settings.sidebarCollapsed}
+				aria-expanded={!collapsed}
 				onclick={() => (settings.sidebarCollapsed = !settings.sidebarCollapsed)}
 			>
 				<span class="chev"><Icon name="collapse" /></span>
@@ -397,7 +404,8 @@
 			text-overflow: ellipsis;
 		}
 		main {
-			padding: 1rem 1rem 5.5rem;
+			padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(5.5rem + env(safe-area-inset-bottom))
+				calc(1rem + env(safe-area-inset-left));
 		}
 	}
 </style>

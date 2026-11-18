@@ -145,7 +145,7 @@
 		gap: var(--space);
 	}
 	.hero-num {
-		font-size: 2.4rem;
+		font-size: clamp(1.8rem, 8vw, 2.4rem);
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
 		line-height: 1.15;
@@ -169,16 +169,16 @@
 	.wide {
 		grid-column: 1 / -1;
 	}
-	@media (max-width: 980px) {
-		.grid {
-			grid-template-columns: minmax(0, 1fr);
-		}
-	}
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: var(--space);
 		align-items: start;
+	}
+	@media (max-width: 980px) {
+		.grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 	.pf {
 		display: flex;

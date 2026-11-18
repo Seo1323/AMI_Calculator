@@ -262,11 +262,11 @@
 							<tr>
 								<th>{t('instruments.symbol')}</th>
 								<th class="num">{t('pf.quantity')}</th>
-								<th class="num">{t('pf.avgCost')}</th>
-								<th class="num">{t('pf.price')}</th>
+								<th class="num hide-sm">{t('pf.avgCost')}</th>
+								<th class="num hide-xs">{t('pf.price')}</th>
 								<th class="num">{t('pf.value')}</th>
-								<th class="num">{t('pf.gain')}</th>
-								<th class="num">{t('pf.share')}</th>
+								<th class="num hide-xs">{t('pf.gain')}</th>
+								<th class="num hide-sm">{t('pf.share')}</th>
 								<th class="num">{t('pf.target')}</th>
 							</tr>
 						</thead>
@@ -276,13 +276,13 @@
 								<tr>
 									<td class="instr"><strong>{p.instrument.symbol}</strong><span class="muted">{p.instrument.name}</span></td>
 									<td class="num">{fmtNumber(p.quantity, 8)}</td>
-									<td class="num">{p.avgCost === null ? '—' : fmtMoney(p.avgCost, p.instrument.currency)}</td>
-									<td class="num">{p.price === null ? '—' : fmtMoney(p.price, p.instrument.currency)}</td>
+									<td class="num hide-sm">{p.avgCost === null ? '—' : fmtMoney(p.avgCost, p.instrument.currency)}</td>
+									<td class="num hide-xs">{p.price === null ? '—' : fmtMoney(p.price, p.instrument.currency)}</td>
 									<td class="num">{p.value === null ? '—' : fmtMoney(p.value, currency)}</td>
-									<td class="num" class:pos={Number(p.gain) > 0} class:neg={Number(p.gain) < 0}>
+									<td class="num hide-xs" class:pos={Number(p.gain) > 0} class:neg={Number(p.gain) < 0}>
 										{p.gain === null ? '—' : fmtMoney(p.gain, currency)}
 									</td>
-									<td class="num">{p.currentPercent === null ? '—' : `${fmtNumber(p.currentPercent)}%`}</td>
+									<td class="num hide-sm">{p.currentPercent === null ? '—' : `${fmtNumber(p.currentPercent)}%`}</td>
 									<td class="num" class:warn-text={Math.abs(dev) > Number(view.portfolio.tolerancePercent)}>
 										{fmtNumber(p.targetPercent)}%
 									</td>
@@ -383,8 +383,8 @@
 								<th>{t('trades.instrument')}</th>
 								<th>{t('trades.side')}</th>
 								<th class="num">{t('trades.quantity')}</th>
-								<th class="num">{t('trades.price')}</th>
-								<th class="num">{t('trades.fee')}</th>
+								<th class="num hide-sm">{t('trades.price')}</th>
+								<th class="num hide-sm">{t('trades.fee')}</th>
 								<th class="num">{t('trades.total')}</th>
 								<th></th>
 							</tr>
@@ -397,8 +397,8 @@
 									<td>{symbol(tr.instrumentId)}</td>
 									<td class={tr.side === 'buy' ? 'pos' : 'neg'}>{t(`trades.${tr.side}`)}</td>
 									<td class="num">{fmtNumber(tr.quantity, 8)}</td>
-									<td class="num">{fmtMoney(tr.price, cur)}</td>
-									<td class="num">{fmtMoney(tr.fee, cur)}</td>
+									<td class="num hide-sm">{fmtMoney(tr.price, cur)}</td>
+									<td class="num hide-sm">{fmtMoney(tr.fee, cur)}</td>
 									<td class="num">{fmtMoney(Number(tr.quantity) * Number(tr.price), cur)}</td>
 									<td class="actions">
 										<button class="btn ghost" aria-label={t('common.edit')} title={t('common.edit')} onclick={() => startEditTrade(tr)}
@@ -437,7 +437,7 @@
 		gap: var(--space);
 	}
 	.big {
-		font-size: 2rem;
+		font-size: clamp(1.6rem, 7vw, 2rem);
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
 	}
