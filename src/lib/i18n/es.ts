@@ -17,7 +17,7 @@ const es: Record<keyof typeof pl, string> = {
 	'common.notInTauri': 'Esta función solo está en la aplicación de escritorio (ejecútala con «npm run tauri dev»).',
 
 	'dashboard.title': 'Panel',
-	'dashboard.welcome': 'Bienvenido a AMI_Calculator',
+	'dashboard.welcome': 'Te damos la bienvenida a AMI_Calculator',
 	'dashboard.intro': 'Calculadora de reequilibrio de carteras. Empieza añadiendo una cartera o ajusta el aspecto en los ajustes.',
 	'dashboard.allocation': 'Desviación de la asignación',
 

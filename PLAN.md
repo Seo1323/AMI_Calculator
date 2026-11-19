@@ -92,6 +92,6 @@ Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podp
 
 - Pisze po polsku, odpowiedzi po polsku.
 - Maksimum personalizacji, motyw jasny i ciemny, UI dopasowany do różnych ekranów.
-- Języki: polski, angielski, niemiecki, hiszpański, francuski, ukraiński (decyzja właściciela, 2026-11-19; wcześniej tylko pl i en). Każdy nowy tekst trzeba dodać we **wszystkich sześciu** plikach `src/lib/i18n/*.ts` naraz (typ `Record<keyof typeof pl, string>` tego pilnuje). Tłumaczenia de/es/fr/uk zrobił Claude i nie sprawdził ich native speaker.
+- Języki: polski, angielski, niemiecki, hiszpański, francuski, ukraiński (decyzja właściciela, 2026-11-19; wcześniej tylko pl i en). Każdy nowy tekst trzeba dodać we **wszystkich sześciu** plikach `src/lib/i18n/*.ts` naraz (typ `Record<keyof typeof pl, string>` tego pilnuje). Formy wobec użytkownika mają być neutralne płciowo (tryb rozkazujący, „Witaj”, w hiszpańskim „Te damos la bienvenida”, bez form typu „Bienvenido/a”, „connecté(e)”, „zalogowany/a”). Tłumaczenia de/es/fr/uk zrobił Claude i nie sprawdził ich native speaker.
 - Repozytorium prywatne, dostęp tylko dla zaproszonych osób. Commity idą z adresu noreply GitHuba (konfiguracja lokalna repo), prywatnego e-maila nie wpisujemy.
 - Dał szeroką swobodę w prowadzeniu planu i budowaniu lokalnie. Zawsze potwierdzaj z nim rzeczy nieodwracalne (usuwanie wydań, nowy klucz Androida, upublicznianie repo).
