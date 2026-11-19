@@ -1,3 +1,12 @@
+## Co nowego w 0.4.4
+- **Wybór z list zamiast wpisywania**: po wybraniu rodzaju (ETF, akcje, obligacje, krypto, gotówka, lokata) wybierasz konkretny instrument z listy z wyszukiwaniem (ETF-y, 32 akcje z GPW i zagranicy, kryptowaluty, waluty, serie obligacji). Zawsze możesz też wpisać własny instrument.
+- **Obligacje skarbowe**: po wybraniu serii (OTS, ROR, DOR, TOS, COI, ROS, EDO, ROD) aplikacja sama podpowiada oprocentowanie pierwszego okresu, kapitalizację i cenę 100 zł z aktualnej oferty Ministerstwa Finansów (obligacjeskarbowe.pl; bez internetu użyje zapisanej oferty z listopada 2026). Wszystko możesz zmienić. Aplikacja liczy datę wykupu (1. dzień miesiąca), symbol (np. EDO1136) i ile zostało do wykupu.
+- **Lokata bankowa**: nowy rodzaj z terminem, datą startu, kapitalizacją i ręcznym oprocentowaniem.
+- **Oprocentowanie przy ETF-ach, akcjach i krypto**: stopa zwrotu z ostatnich 12 miesięcy i (dla ETF-ów) dywidenda, pobierane razem z kursem.
+- **Dodawanie pozycji w jednym kroku**: przy dodawaniu instrumentu wybierasz portfel, ilość (liczbę obligacji albo kwotę), cenę i datę. Cena akcji, ETF-ów i krypto uzupełnia się sama z bieżącego kursu i można ją zmienić.
+- **Skala interfejsu** 50–200% z gotowymi ustawieniami (Ustawienia → Wygląd), niezależna od rozmiaru tekstu.
+- **Do wiedzenia**: oprocentowanie obligacji z oferty dotyczy pierwszego okresu (kolejne zależą od inflacji lub stopy NBP) i nie zmienia wartości portfela, tylko jest zapisywane i pokazywane. Cena z kursu jest ceną bieżącą, więc przy wcześniejszej dacie zakupu popraw ją ręcznie. Tłumaczenia nowych tekstów nie były jeszcze sprawdzone przez osobę znającą język.
+
 ## Co nowego w 0.4.3
 - **Nowe języki**: niemiecki, hiszpański, francuski i ukraiński (Ustawienia → Język i formaty). Tłumaczenia nie były jeszcze sprawdzone przez osobę znającą język, więc daj znać o błędach.
 - **Różne rozmiary ekranu i skale**: menu zwija się do ikon w średnich oknach, treść jest wyśrodkowana na dużych monitorach, a na 4K przy skali 100% tekst jest większy. Kalkulator rebalansowania na telefonie pokazuje pozycje jako karty. Zwijanie menu i chowanie kolumn uwzględnia też ustawiony rozmiar tekstu.
