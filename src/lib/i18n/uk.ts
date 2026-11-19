@@ -1,7 +1,7 @@
 import type pl from './pl';
 
 const uk: Record<keyof typeof pl, string> = {
-	'app.name': 'AMI_Calculator',
+	'app.name': 'AMI Calculator',
 	'nav.dashboard': 'Головна',
 	'nav.portfolio': 'Портфелі',
 	'nav.rebalance': 'Ребалансування',
@@ -17,7 +17,7 @@ const uk: Record<keyof typeof pl, string> = {
 	'common.notInTauri': 'Ця функція працює лише в настільному застосунку (запустіть його командою «npm run tauri dev»).',
 
 	'dashboard.title': 'Головна',
-	'dashboard.welcome': 'Вітаємо в AMI_Calculator',
+	'dashboard.welcome': 'Вітаємо в AMI Calculator',
 	'dashboard.intro': 'Калькулятор ребалансування портфеля. Почніть із додавання портфеля або налаштуйте вигляд у налаштуваннях.',
 	'dashboard.allocation': 'Відхилення розподілу',
 
@@ -271,12 +271,12 @@ const uk: Record<keyof typeof pl, string> = {
 	'error.invalidPosition': 'Недійсні дані позиції: {detail}',
 	'error.negativeContribution': 'У режимі «лише докупівля» внесок не може бути від’ємним.',
 	'error.emptyPortfolio': 'Вартість портфеля після операції має бути додатною.',
-	'error.notAnExport': 'Це не файл резервної копії AMI_Calculator.',
+	'error.notAnExport': 'Це не файл резервної копії AMI Calculator.',
 	'error.unsupportedVersion': 'Файл походить із новішої версії застосунку.',
 	'error.validation': 'Недійсні дані: {detail}',
 	'error.missingReference': 'Пов’язаного запису не існує.',
 	'error.notFound': 'Запис не знайдено.',
-	'error.databaseTooNew': 'База даних походить із новішої версії застосунку. Оновіть AMI_Calculator.',
+	'error.databaseTooNew': 'База даних походить із новішої версії застосунку. Оновіть AMI Calculator.',
 	'error.database': 'Помилка бази даних: {detail}',
 	'error.io': 'Помилка читання/запису файлу: {detail}',
 	'error.json': 'Пошкоджений файл: {detail}',

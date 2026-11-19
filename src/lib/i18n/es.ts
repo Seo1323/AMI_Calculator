@@ -1,7 +1,7 @@
 import type pl from './pl';
 
 const es: Record<keyof typeof pl, string> = {
-	'app.name': 'AMI_Calculator',
+	'app.name': 'AMI Calculator',
 	'nav.dashboard': 'Panel',
 	'nav.portfolio': 'Carteras',
 	'nav.rebalance': 'Reequilibrio',
@@ -17,7 +17,7 @@ const es: Record<keyof typeof pl, string> = {
 	'common.notInTauri': 'Esta función solo está en la aplicación de escritorio (ejecútala con «npm run tauri dev»).',
 
 	'dashboard.title': 'Panel',
-	'dashboard.welcome': 'Te damos la bienvenida a AMI_Calculator',
+	'dashboard.welcome': 'Te damos la bienvenida a AMI Calculator',
 	'dashboard.intro': 'Calculadora de reequilibrio de carteras. Empieza añadiendo una cartera o ajusta el aspecto en los ajustes.',
 	'dashboard.allocation': 'Desviación de la asignación',
 
@@ -271,12 +271,12 @@ const es: Record<keyof typeof pl, string> = {
 	'error.invalidPosition': 'Datos de posición no válidos: {detail}',
 	'error.negativeContribution': 'En el modo «solo comprar» la aportación no puede ser negativa.',
 	'error.emptyPortfolio': 'El valor de la cartera tras la operación debe ser positivo.',
-	'error.notAnExport': 'Este no es un archivo de copia de AMI_Calculator.',
+	'error.notAnExport': 'Este no es un archivo de copia de AMI Calculator.',
 	'error.unsupportedVersion': 'El archivo procede de una versión más nueva de la app.',
 	'error.validation': 'Datos no válidos: {detail}',
 	'error.missingReference': 'Un registro vinculado no existe.',
 	'error.notFound': 'Registro no encontrado.',
-	'error.databaseTooNew': 'La base de datos procede de una versión más nueva de la app. Actualiza AMI_Calculator.',
+	'error.databaseTooNew': 'La base de datos procede de una versión más nueva de la app. Actualiza AMI Calculator.',
 	'error.database': 'Error de base de datos: {detail}',
 	'error.io': 'Error al leer o escribir el archivo: {detail}',
 	'error.json': 'Archivo dañado: {detail}',

@@ -1,5 +1,5 @@
 const pl = {
-	'app.name': 'AMI_Calculator',
+	'app.name': 'AMI Calculator',
 	'nav.dashboard': 'Pulpit',
 	'nav.portfolio': 'Portfele',
 	'nav.rebalance': 'Rebalansowanie',
@@ -15,7 +15,7 @@ const pl = {
 	'common.notInTauri': 'Ta funkcja działa tylko w aplikacji desktopowej (uruchom przez „npm run tauri dev”).',
 
 	'dashboard.title': 'Pulpit',
-	'dashboard.welcome': 'Witaj w AMI_Calculator',
+	'dashboard.welcome': 'Witaj w AMI Calculator',
 	'dashboard.intro': 'Kalkulator rebalansowania portfela. Zacznij od dodania portfela albo dopasuj wygląd w ustawieniach.',
 	'dashboard.allocation': 'Odchylenie alokacji',
 
@@ -269,12 +269,12 @@ const pl = {
 	'error.invalidPosition': 'Nieprawidłowe dane pozycji: {detail}',
 	'error.negativeContribution': 'W trybie „tylko dokupowanie” wpłata nie może być ujemna.',
 	'error.emptyPortfolio': 'Wartość portfela po operacji musi być dodatnia.',
-	'error.notAnExport': 'To nie jest plik kopii AMI_Calculator.',
+	'error.notAnExport': 'To nie jest plik kopii AMI Calculator.',
 	'error.unsupportedVersion': 'Plik pochodzi z nowszej wersji aplikacji.',
 	'error.validation': 'Nieprawidłowe dane: {detail}',
 	'error.missingReference': 'Powiązany rekord nie istnieje.',
 	'error.notFound': 'Nie znaleziono rekordu.',
-	'error.databaseTooNew': 'Baza danych pochodzi z nowszej wersji aplikacji. Zaktualizuj AMI_Calculator.',
+	'error.databaseTooNew': 'Baza danych pochodzi z nowszej wersji aplikacji. Zaktualizuj AMI Calculator.',
 	'error.database': 'Błąd bazy danych: {detail}',
 	'error.io': 'Błąd zapisu lub odczytu pliku: {detail}',
 	'error.json': 'Uszkodzony plik: {detail}',

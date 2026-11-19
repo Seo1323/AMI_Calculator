@@ -1,7 +1,7 @@
 import type pl from './pl';
 
 const en: Record<keyof typeof pl, string> = {
-	'app.name': 'AMI_Calculator',
+	'app.name': 'AMI Calculator',
 	'nav.dashboard': 'Dashboard',
 	'nav.portfolio': 'Portfolios',
 	'nav.rebalance': 'Rebalancing',
@@ -17,7 +17,7 @@ const en: Record<keyof typeof pl, string> = {
 	'common.notInTauri': 'This works only in the desktop app (run it with "npm run tauri dev").',
 
 	'dashboard.title': 'Dashboard',
-	'dashboard.welcome': 'Welcome to AMI_Calculator',
+	'dashboard.welcome': 'Welcome to AMI Calculator',
 	'dashboard.intro': 'Portfolio rebalancing calculator. Start by adding a portfolio or tune the look in settings.',
 	'dashboard.allocation': 'Allocation drift',
 
@@ -271,12 +271,12 @@ const en: Record<keyof typeof pl, string> = {
 	'error.invalidPosition': 'Invalid position data: {detail}',
 	'error.negativeContribution': 'In buy-only mode the deposit cannot be negative.',
 	'error.emptyPortfolio': 'Portfolio value after the operation must be positive.',
-	'error.notAnExport': 'This is not an AMI_Calculator backup file.',
+	'error.notAnExport': 'This is not an AMI Calculator backup file.',
 	'error.unsupportedVersion': 'The file comes from a newer app version.',
 	'error.validation': 'Invalid data: {detail}',
 	'error.missingReference': 'A linked record does not exist.',
 	'error.notFound': 'Record not found.',
-	'error.databaseTooNew': 'The database comes from a newer app version. Please update AMI_Calculator.',
+	'error.databaseTooNew': 'The database comes from a newer app version. Please update AMI Calculator.',
 	'error.database': 'Database error: {detail}',
 	'error.io': 'File read/write error: {detail}',
 	'error.json': 'Damaged file: {detail}',

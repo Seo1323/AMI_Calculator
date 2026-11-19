@@ -28,7 +28,7 @@
 		location = await invoke<DataLocation>('data_location');
 	});
 
-	const filters = [{ name: 'AMI_Calculator', extensions: ['ami'] }];
+	const filters = [{ name: 'AMI Calculator', extensions: ['ami'] }];
 
 	const widgets = $derived(widgetList());
 	function moveWidget(i: number, dir: -1 | 1) {

@@ -1,7 +1,7 @@
 import type pl from './pl';
 
 const fr: Record<keyof typeof pl, string> = {
-	'app.name': 'AMI_Calculator',
+	'app.name': 'AMI Calculator',
 	'nav.dashboard': 'Tableau de bord',
 	'nav.portfolio': 'Portefeuilles',
 	'nav.rebalance': 'Rééquilibrage',
@@ -17,7 +17,7 @@ const fr: Record<keyof typeof pl, string> = {
 	'common.notInTauri': "Cette fonction n'existe que dans l'application de bureau (lancez-la avec « npm run tauri dev »).",
 
 	'dashboard.title': 'Tableau de bord',
-	'dashboard.welcome': 'Bienvenue dans AMI_Calculator',
+	'dashboard.welcome': 'Bienvenue dans AMI Calculator',
 	'dashboard.intro': "Calculateur de rééquilibrage de portefeuille. Commencez par ajouter un portefeuille ou adaptez l'apparence dans les réglages.",
 	'dashboard.allocation': "Écart d'allocation",
 
@@ -271,12 +271,12 @@ const fr: Record<keyof typeof pl, string> = {
 	'error.invalidPosition': 'Données de position invalides : {detail}',
 	'error.negativeContribution': 'En mode « achats uniquement », le versement ne peut pas être négatif.',
 	'error.emptyPortfolio': "La valeur du portefeuille après l'opération doit être positive.",
-	'error.notAnExport': "Ce n'est pas un fichier de sauvegarde AMI_Calculator.",
+	'error.notAnExport': "Ce n'est pas un fichier de sauvegarde AMI Calculator.",
 	'error.unsupportedVersion': "Le fichier provient d'une version plus récente de l'application.",
 	'error.validation': 'Données invalides : {detail}',
 	'error.missingReference': "Un enregistrement lié n'existe pas.",
 	'error.notFound': 'Enregistrement introuvable.',
-	'error.databaseTooNew': "La base de données provient d'une version plus récente de l'application. Mettez à jour AMI_Calculator.",
+	'error.databaseTooNew': "La base de données provient d'une version plus récente de l'application. Mettez à jour AMI Calculator.",
 	'error.database': 'Erreur de base de données : {detail}',
 	'error.io': 'Erreur de lecture/écriture du fichier : {detail}',
 	'error.json': 'Fichier endommagé : {detail}',

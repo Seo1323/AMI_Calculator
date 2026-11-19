@@ -1,10 +1,10 @@
 :root {
 	--accent: #2f6fed;
 	--font-scale: 1;
-	--radius: 10px;
+	--radius: 14px;
 	--space: 1rem;
 
-	--bg: #f5f6f8;
+	--bg: #f4f5f9;
 	--surface: #ffffff;
 	--surface-2: #eef0f4;
 	--border: #dde1e8;
@@ -13,7 +13,10 @@
 	--positive: #0f8a5f;
 	--negative: #c8322a;
 	--warning: #b26b00;
-	--shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 2px 8px rgb(0 0 0 / 0.04);
+	--shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 8px 24px -12px rgb(16 24 40 / 0.14);
+	--shadow-lg: 0 2px 4px rgb(16 24 40 / 0.06), 0 18px 40px -18px rgb(16 24 40 / 0.28);
+	--ring: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
+	--glow: color-mix(in srgb, var(--accent) 9%, transparent);
 
 	/* Chart series: validated categorical order (fixed, never cycled). */
 	--series-1: #2a78d6;
@@ -39,7 +42,7 @@
 }
 
 :root[data-theme='dark'] {
-	--bg: #0f1115;
+	--bg: #0d0f14;
 	--surface: #181b22;
 	--surface-2: #21252e;
 	--border: #2d323d;
@@ -48,7 +51,9 @@
 	--positive: #3ecf8e;
 	--negative: #ff6b61;
 	--warning: #f0a83a;
-	--shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+	--shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 28px -14px rgb(0 0 0 / 0.7);
+	--shadow-lg: 0 2px 6px rgb(0 0 0 / 0.5), 0 22px 46px -18px rgb(0 0 0 / 0.85);
+	--glow: color-mix(in srgb, var(--accent) 16%, transparent);
 	--accent-text: color-mix(in srgb, var(--accent) 70%, white);
 	--series-1: #3987e5;
 	--series-2: #d95926;
@@ -85,6 +90,24 @@ body {
 	background: var(--bg);
 	color: var(--text);
 }
+/* A soft wash of the accent colour behind everything; fixed, so it does not scroll or repaint. */
+body::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+	background:
+		radial-gradient(60rem 34rem at 6% -14%, var(--glow), transparent 62%),
+		radial-gradient(44rem 28rem at 104% 2%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 58%);
+}
+* {
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in srgb, var(--text-muted) 40%, transparent) transparent;
+}
+::selection {
+	background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
 
 h1,
 h2,
@@ -93,10 +116,18 @@ h3 {
 	line-height: 1.25;
 }
 h1 {
-	font-size: 1.6rem;
+	font-size: 1.75rem;
+	font-weight: 700;
+	letter-spacing: -0.02em;
 }
 h2 {
-	font-size: 1.15rem;
+	font-size: 1.1rem;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+.big {
+	font-variant-numeric: tabular-nums;
+	letter-spacing: -0.025em;
 }
 
 a {
@@ -105,10 +136,24 @@ a {
 
 .card {
 	background: var(--surface);
-	border: 1px solid var(--border);
+	border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
 	border-radius: var(--radius);
 	padding: calc(var(--space) * 1.25);
 	box-shadow: var(--shadow);
+}
+a.card {
+	display: block;
+	color: inherit;
+	text-decoration: none;
+	transition:
+		transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+		box-shadow 0.18s,
+		border-color 0.18s;
+}
+a.card:hover {
+	transform: translateY(-2px);
+	box-shadow: var(--shadow-lg);
+	border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 }
 
 .stack {
@@ -160,18 +205,89 @@ select {
 	padding: calc(var(--space) * 0.4) calc(var(--space) * 0.6);
 	min-width: 0;
 	color: var(--text);
+	transition:
+		border-color 0.15s,
+		box-shadow 0.15s,
+		background 0.15s;
+}
+input[type='text']:hover,
+input[type='number']:hover,
+input:not([type]):hover,
+select:hover {
+	border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
 input:focus-visible,
-select:focus-visible,
+select:focus-visible {
+	outline: none;
+	border-color: var(--accent);
+	box-shadow: var(--ring);
+}
 button:focus-visible {
 	outline: 2px solid var(--accent);
-	outline-offset: 1px;
+	outline-offset: 2px;
 }
 
-input[type='checkbox'],
-input[type='range'] {
+input[type='checkbox'] {
 	accent-color: var(--accent);
+}
+
+/* Sliders: a slim track and a round accent thumb (same look in WebKit and Gecko). */
+input[type='range'] {
+	-webkit-appearance: none;
+	appearance: none;
+	height: 1.5rem;
+	background: transparent;
+	cursor: pointer;
+	accent-color: var(--accent);
+}
+input[type='range']::-webkit-slider-runnable-track {
+	height: 8px;
+	border-radius: 999px;
+	background: var(--surface-2);
+	box-shadow: inset 0 0 0 1px var(--border);
+}
+input[type='range']::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	width: 20px;
+	height: 20px;
+	margin-top: -6px;
+	border-radius: 50%;
+	background: var(--accent);
+	border: 3px solid var(--surface);
+	box-shadow:
+		0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent),
+		0 2px 6px rgb(0 0 0 / 0.3);
+	transition: transform 0.12s;
+}
+input[type='range']:hover::-webkit-slider-thumb {
+	transform: scale(1.12);
+}
+input[type='range']::-moz-range-track {
+	height: 8px;
+	border-radius: 999px;
+	background: var(--surface-2);
+	box-shadow: inset 0 0 0 1px var(--border);
+}
+input[type='range']::-moz-range-thumb {
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: var(--accent);
+	border: 3px solid var(--surface);
+	box-shadow:
+		0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent),
+		0 2px 6px rgb(0 0 0 / 0.3);
+}
+input[type='range']:focus-visible {
+	outline: none;
+}
+input[type='range']:focus-visible::-webkit-slider-thumb {
+	box-shadow: var(--ring);
+}
+input[type='range']:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
 }
 
 .btn {
@@ -183,21 +299,44 @@ input[type='range'] {
 	border-radius: calc(var(--radius) * 0.7);
 	padding: calc(var(--space) * 0.45) calc(var(--space) * 0.9);
 	cursor: pointer;
-	transition: background 0.15s, border-color 0.15s;
+	font-weight: 500;
+	transition:
+		background 0.15s,
+		border-color 0.15s,
+		box-shadow 0.15s,
+		transform 0.1s,
+		filter 0.15s;
 }
 .btn:hover {
 	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 7%, var(--surface-2));
+}
+.btn:active {
+	transform: translateY(1px) scale(0.985);
+}
+.btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	transform: none;
 }
 .btn.primary {
-	background: var(--accent);
-	border-color: var(--accent);
+	background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, white), var(--accent));
+	border-color: color-mix(in srgb, var(--accent) 80%, black);
 	color: white;
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 0.22),
+		0 4px 12px -4px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 .btn.primary:hover {
-	filter: brightness(1.08);
+	filter: brightness(1.07);
+	background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, white), var(--accent));
 }
 .btn.ghost {
 	background: transparent;
+	border-color: transparent;
+}
+.btn.ghost:hover {
+	background: var(--surface-2);
 	border-color: transparent;
 }
 
@@ -228,18 +367,27 @@ td.num,
 th.num {
 	text-align: right;
 }
+tbody tr {
+	transition: background 0.12s;
+}
+tbody tr:hover {
+	background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
 
 .notice {
 	border-radius: calc(var(--radius) * 0.7);
 	padding: calc(var(--space) * 0.6) calc(var(--space) * 0.9);
 	background: var(--accent-soft);
+	border-left: 3px solid var(--accent);
 }
 .notice.error {
 	background: color-mix(in srgb, var(--negative) 14%, transparent);
+	border-left-color: var(--negative);
 	color: var(--negative);
 }
 .notice.warn {
 	background: color-mix(in srgb, var(--warning) 16%, transparent);
+	border-left-color: var(--warning);
 }
 
 /* ---------- Small screens and touch ---------- */
