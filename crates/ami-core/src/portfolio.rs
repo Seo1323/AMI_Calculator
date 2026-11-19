@@ -80,6 +80,51 @@ pub struct PositionView {
     pub current_percent: Option<Decimal>,
 }
 
+/// Share of one asset kind (ETF, bonds, cash...) in the portfolio value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KindShare {
+    pub kind: InstrumentKind,
+    /// Value in the portfolio base currency.
+    pub value: Decimal,
+    /// Percent of `total_value`.
+    pub percent: Decimal,
+}
+
+/// Fixed order, so a kind keeps its place (and its chart color) whatever the amounts are.
+const KIND_ORDER: [InstrumentKind; 7] = [
+    InstrumentKind::Etf,
+    InstrumentKind::Stock,
+    InstrumentKind::Bond,
+    InstrumentKind::Crypto,
+    InstrumentKind::Cash,
+    InstrumentKind::Deposit,
+    InstrumentKind::Other,
+];
+
+/// Value per asset kind for the allocation chart: only valued positions count, kinds without value
+/// are left out.
+fn kind_shares(positions: &[PositionView], total: Decimal) -> Vec<KindShare> {
+    if total <= Decimal::ZERO {
+        return Vec::new();
+    }
+    KIND_ORDER
+        .iter()
+        .filter_map(|kind| {
+            let value: Decimal = positions
+                .iter()
+                .filter(|p| p.instrument.kind == *kind)
+                .filter_map(|p| p.value)
+                .sum();
+            (value > Decimal::ZERO).then(|| KindShare {
+                kind: *kind,
+                value: value.round_dp(2),
+                percent: (value / total * HUNDRED).round_dp(2),
+            })
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PortfolioView {
@@ -95,6 +140,8 @@ pub struct PortfolioView {
     pub missing_rates: Vec<String>,
     pub max_deviation: Option<Decimal>,
     pub needs_rebalance: bool,
+    /// Split of the value by asset kind, for the pie chart.
+    pub kind_shares: Vec<KindShare>,
 }
 
 struct Inputs {
@@ -257,7 +304,9 @@ pub fn view(store: &Store, portfolio_id: Uuid) -> Result<PortfolioView> {
         })
         .flatten();
 
+    let kind_shares = kind_shares(&positions, total_value);
     Ok(PortfolioView {
+        kind_shares,
         needs_rebalance: max_deviation.is_some_and(|d| d > inp.portfolio.tolerance_percent),
         total_gain: positions.iter().filter_map(|p| p.gain).sum(),
         targets_sum: inp.targets.values().copied().sum(),
@@ -564,6 +613,85 @@ mod tests {
         let v = view(&store, portfolio.meta.id).unwrap();
         assert_eq!(v.total_value, dec!(0));
         assert!(v.missing_prices.is_empty());
+    }
+
+    fn plain_instrument(kind: InstrumentKind, symbol: &str, currency: &str) -> Instrument {
+        Instrument {
+            meta: Meta::new(),
+            symbol: symbol.into(),
+            name: symbol.into(),
+            kind,
+            currency: Currency::new(currency).unwrap(),
+            quote_source: QuoteSource::Manual,
+            fractional: true,
+            interest_percent: None,
+            capitalization: None,
+            start_date: None,
+            maturity_date: None,
+        }
+    }
+
+    #[test]
+    fn value_is_split_by_asset_kind_in_a_fixed_order() {
+        let f = fixture(); // 10 VWCE (ETF, EUR) and a BTC target without units
+        f.store
+            .set_quote(&quote(f.etf.meta.id, dec!(110), "EUR"))
+            .unwrap();
+        f.store
+            .set_fx_rate(&FxRate {
+                currency: Currency::new("EUR").unwrap(),
+                rate_pln: dec!(4),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
+            .unwrap();
+        // Saved cash first, bond second: the result must still come out ETF, bond, cash.
+        for (kind, symbol, qty, price) in [
+            (InstrumentKind::Cash, "PLN", dec!(2200), dec!(1)),
+            (InstrumentKind::Bond, "EDO1136", dec!(10), dec!(100)),
+        ] {
+            let i = f.store.save(plain_instrument(kind, symbol, "PLN")).unwrap();
+            let mut t = trade(i.meta.id, 5, TradeSide::Buy, qty, price);
+            t.portfolio_id = f.portfolio.meta.id;
+            f.store.save_trade(t).unwrap();
+        }
+        let v = view(&f.store, f.portfolio.meta.id).unwrap();
+        let shares: Vec<_> = v
+            .kind_shares
+            .iter()
+            .map(|s| (s.kind, s.value, s.percent))
+            .collect();
+        // ETF 4400 + bond 1000 (at cost) + cash 2200 = 7600; the empty BTC position is left out.
+        assert_eq!(
+            shares,
+            [
+                (InstrumentKind::Etf, dec!(4400), dec!(57.89)),
+                (InstrumentKind::Bond, dec!(1000), dec!(13.16)),
+                (InstrumentKind::Cash, dec!(2200), dec!(28.95)),
+            ]
+        );
+        assert_eq!(v.total_value, dec!(7600));
+    }
+
+    #[test]
+    fn nothing_valued_gives_no_shares() {
+        let f = fixture(); // the ETF has no price yet, so nothing has a value
+        let v = view(&f.store, f.portfolio.meta.id).unwrap();
+        assert!(v.kind_shares.is_empty());
+        let json = serde_json::to_value(&v).unwrap();
+        assert_eq!(json["kindShares"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn a_share_serializes_with_camel_case_kind() {
+        let share = KindShare {
+            kind: InstrumentKind::Deposit,
+            value: dec!(5000),
+            percent: dec!(12.5),
+        };
+        let json = serde_json::to_value(&share).unwrap();
+        assert_eq!(json["kind"], "deposit");
+        assert_eq!(json["percent"], "12.5");
     }
 
     #[test]
