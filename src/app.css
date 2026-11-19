@@ -390,6 +390,45 @@ tbody tr:hover {
 	border-left-color: var(--warning);
 }
 
+/* ---------- Personalisation (set from Settings > Appearance) ---------- */
+:root[data-font='serif'] {
+	font-family: Georgia, 'Times New Roman', serif;
+}
+:root[data-font='mono'] {
+	font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+}
+:root[data-shadows='none'] {
+	--shadow: none;
+	--shadow-lg: none;
+}
+:root[data-shadows='strong'] {
+	--shadow: 0 2px 4px rgb(0 0 0 / 0.16), 0 14px 34px -12px rgb(0 0 0 / 0.38);
+	--shadow-lg: 0 4px 8px rgb(0 0 0 / 0.2), 0 26px 56px -16px rgb(0 0 0 / 0.55);
+}
+:root[data-no-glow] body::before {
+	display: none;
+}
+:root[data-colorblind] {
+	--positive: #0072b2;
+	--negative: #d55e00;
+}
+:root[data-colorblind][data-theme='dark'] {
+	--positive: #56b4e9;
+	--negative: #ff9d4d;
+}
+:root[data-theme='dark'][data-dark-style='black'] {
+	--bg: #000;
+	--surface: #0a0a0c;
+	--surface-2: #15151a;
+	--border: #26262d;
+}
+:root[data-width='narrow'] {
+	--content-max: 64rem;
+}
+:root[data-width='full'] {
+	--content-max: none;
+}
+
 /* ---------- Performance mode ---------- */
 /* Where painting is done in software the glow, shadows, gradients and transitions dominate the frame
    time (measured: a long page scrolled at 3 fps with them, 21 fps without). This switches them off. */

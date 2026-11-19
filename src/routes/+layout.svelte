@@ -109,6 +109,12 @@
 		root.style.setProperty('--font-scale', String(settings.fontScale));
 		root.style.setProperty('--radius', `${settings.radius}px`);
 		root.toggleAttribute('data-reduce-motion', settings.reduceMotion);
+		root.dataset.font = settings.fontFamily;
+		root.dataset.shadows = settings.shadows;
+		root.dataset.darkStyle = settings.darkStyle;
+		root.dataset.width = settings.contentWidth;
+		root.toggleAttribute('data-no-glow', !settings.glow);
+		root.toggleAttribute('data-colorblind', settings.colorblind);
 		// Breakpoints for hiding table columns, counted after text scaling (see `narrow`).
 		const effective = viewportWidth / (settings.fontScale * cssZoom);
 		for (const w of [820, 480, 400]) root.toggleAttribute(`data-lt${w}`, effective <= w);
@@ -403,7 +409,7 @@
 		flex: 1;
 		min-width: 0;
 		padding: calc(var(--space) * 1.75) calc(var(--space) * 2);
-		max-width: 94rem;
+		max-width: var(--content-max, 94rem);
 		margin-inline: auto;
 	}
 

@@ -37,7 +37,11 @@ export function fmtMoney(value: string | number, currency = settings.baseCurrenc
 	const n = typeof value === 'number' ? value : Number(value);
 	if (!Number.isFinite(n)) return String(value);
 	try {
-		return new Intl.NumberFormat(numberLocale(), { style: 'currency', currency }).format(n);
+		return new Intl.NumberFormat(numberLocale(), {
+			style: 'currency',
+			currency,
+			...(settings.showCents ? {} : { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+		}).format(n);
 	} catch {
 		return `${fmtNumber(n)} ${currency}`; // non-ISO codes such as BTC
 	}
