@@ -372,6 +372,7 @@ pub fn rebalance(
 mod tests {
     use super::*;
     use crate::money::Currency;
+    use crate::money::MAX_AMOUNT;
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
 
@@ -1000,5 +1001,57 @@ mod tests {
         let targets = f.store.targets_of(f.portfolio.meta.id).unwrap();
         assert_eq!(targets.len(), 1);
         assert_eq!(targets[0].target_percent, dec!(100));
+    }
+
+    #[test]
+    fn set_targets_is_all_or_nothing() {
+        let f = fixture();
+        let id = f.portfolio.meta.id;
+        f.store
+            .set_targets(id, &[(f.etf.meta.id, dec!(60)), (f.btc.meta.id, dec!(40))])
+            .unwrap();
+        // The second entry is invalid: nothing may change, not even the first.
+        let bad = f.store.set_targets(
+            id,
+            &[(f.etf.meta.id, dec!(100)), (f.btc.meta.id, dec!(150))],
+        );
+        assert!(matches!(bad, Err(CoreError::Validation(_))));
+        let mut after: Vec<_> = f
+            .store
+            .targets_of(id)
+            .unwrap()
+            .into_iter()
+            .map(|t| t.target_percent)
+            .collect();
+        after.sort();
+        assert_eq!(after, [dec!(40), dec!(60)]);
+        // The same instrument twice is refused.
+        let dup = f
+            .store
+            .set_targets(id, &[(f.etf.meta.id, dec!(50)), (f.etf.meta.id, dec!(50))]);
+        assert!(matches!(dup, Err(CoreError::Validation(_))));
+    }
+
+    #[test]
+    fn import_rejects_records_a_normal_save_would_refuse() {
+        let f = fixture();
+        let mut data = f.store.export_data().unwrap();
+        data.trades.push(Trade {
+            meta: Meta::new(),
+            portfolio_id: f.portfolio.meta.id,
+            instrument_id: f.etf.meta.id,
+            date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            side: TradeSide::Buy,
+            quantity: MAX_AMOUNT + dec!(1),
+            price: dec!(1),
+            fee: dec!(0),
+        });
+        let mut target = Store::open_in_memory().unwrap();
+        let err = target.import_data(&data, crate::store::ImportMode::Replace);
+        assert!(matches!(err, Err(CoreError::Validation(_))));
+        assert!(
+            target.list::<Portfolio>().unwrap().is_empty(),
+            "nothing imported"
+        );
     }
 }
