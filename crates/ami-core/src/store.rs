@@ -19,6 +19,7 @@ use uuid::Uuid;
 use crate::error::{CoreError, Result};
 use crate::export::DataSet;
 use crate::model::*;
+use crate::money::MAX_AMOUNT;
 
 pub const UI_SETTINGS_KEY: &str = "ui";
 
@@ -512,6 +513,10 @@ impl Store {
                 "trade price and fee must not be negative".into(),
             ));
         }
+        require(
+            trade.quantity.max(trade.price).max(trade.fee) <= MAX_AMOUNT,
+            "trade value is too large",
+        )?;
         let mut history: Vec<Trade> = self
             .trades_of(trade.portfolio_id)?
             .into_iter()
@@ -543,6 +548,7 @@ impl Store {
             quote.price > rust_decimal::Decimal::ZERO,
             "price must be positive",
         )?;
+        require(quote.price <= MAX_AMOUNT, "price is too large")?;
         if !self.exists("instruments", quote.instrument_id)? {
             return Err(CoreError::MissingReference {
                 table: "instruments".into(),
@@ -561,6 +567,7 @@ impl Store {
             rate.rate_pln > rust_decimal::Decimal::ZERO,
             "exchange rate must be positive",
         )?;
+        require(rate.rate_pln <= MAX_AMOUNT, "exchange rate is too large")?;
         require(
             rate.currency.code() != "PLN",
             "PLN is the reference currency",
@@ -976,6 +983,13 @@ mod tests {
                 "negative fee",
                 Trade {
                     fee: dec!(-1),
+                    ..good.clone()
+                },
+            ),
+            (
+                "absurdly large price",
+                Trade {
+                    price: MAX_AMOUNT + dec!(1),
                     ..good.clone()
                 },
             ),

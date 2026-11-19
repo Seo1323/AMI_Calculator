@@ -16,6 +16,7 @@ use rust_decimal::{Decimal, RoundingStrategy};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{CoreError, Result};
+use crate::money::MAX_AMOUNT;
 
 const HUNDRED: Decimal = Decimal::ONE_HUNDRED;
 const MAX_GREEDY_STEPS: usize = 100_000;
@@ -108,6 +109,9 @@ fn validate(input: &RebalanceInput) -> Result<()> {
         if p.quantity < Decimal::ZERO {
             return Err(invalid(&p.id, "quantity must not be negative"));
         }
+        if p.price > MAX_AMOUNT || p.quantity > MAX_AMOUNT {
+            return Err(invalid(&p.id, "value is too large"));
+        }
         if p.target_percent < Decimal::ZERO || p.target_percent > HUNDRED {
             return Err(invalid(&p.id, "target must be between 0 and 100"));
         }
@@ -115,6 +119,9 @@ fn validate(input: &RebalanceInput) -> Result<()> {
     let sum: Decimal = input.positions.iter().map(|p| p.target_percent).sum();
     if (sum - HUNDRED).abs() > Decimal::new(1, 2) {
         return Err(CoreError::WeightsSum(sum.normalize().to_string()));
+    }
+    if input.contribution.abs() > MAX_AMOUNT {
+        return Err(CoreError::Validation("contribution is too large".into()));
     }
     if input.mode == Mode::BuyOnly && input.contribution < Decimal::ZERO {
         return Err(CoreError::NegativeContribution);
@@ -476,5 +483,23 @@ mod tests {
             compute(&input(vec![], dec!(0), Mode::Full)),
             Err(CoreError::NoPositions)
         ));
+    }
+
+    #[test]
+    fn absurd_input_is_an_error_not_a_panic() {
+        let huge = input(
+            vec![pos("A", Decimal::MAX, dec!(1000), dec!(100))],
+            dec!(100),
+            Mode::BuyOnly,
+        );
+        assert!(compute(&huge).is_err());
+        assert_eq!(MAX_AMOUNT, dec!(1000000000000));
+        // The largest accepted values must not overflow when multiplied and summed.
+        let edge = input(
+            vec![pos("A", MAX_AMOUNT, MAX_AMOUNT, dec!(100))],
+            MAX_AMOUNT,
+            Mode::BuyOnly,
+        );
+        assert!(compute(&edge).is_ok());
     }
 }

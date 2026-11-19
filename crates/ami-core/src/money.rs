@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{CoreError, Result};
 
+/// Largest quantity, price, fee, contribution or exchange rate accepted from outside. Products of larger
+/// values could overflow `Decimal`, which panics (and the release build aborts on panic).
+pub const MAX_AMOUNT: Decimal = Decimal::from_parts(0xD4A51000, 0xE8, 0, false, 0); // 1e12
+
 /// Currency or asset code: ISO 4217 for fiat (PLN, EUR, USD) and ticker-like
 /// codes for crypto (BTC, ETH, USDT). 2–10 uppercase letters or digits.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
