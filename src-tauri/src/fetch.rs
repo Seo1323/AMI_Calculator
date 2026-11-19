@@ -3,7 +3,7 @@
 //! The database lock is never held across a network call: everything is
 //! downloaded first, then written in one go.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 
 use ami_core::model::{FxRate, Instrument, Quote, QuoteSource};
@@ -75,6 +75,38 @@ pub fn plan(store: &Store) -> ami_core::Result<Plan> {
     })
 }
 
+/// Coin ids per quote currency: the markets endpoint takes one `vs_currency` per request.
+fn coingecko_groups(instruments: &[Instrument]) -> BTreeMap<String, Vec<String>> {
+    let mut groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for i in instruments {
+        groups
+            .entry(i.currency.code().to_string())
+            .or_default()
+            .push(i.symbol.clone());
+    }
+    groups
+}
+
+/// Response body of `coins/markets` per currency; a failed request is an empty body, which
+/// parses to "no figure" (best effort, the price is fetched separately).
+async fn fetch_coingecko_returns(
+    client: &reqwest::Client,
+    instruments: &[Instrument],
+) -> HashMap<String, String> {
+    join_all(
+        coingecko_groups(instruments)
+            .into_iter()
+            .map(|(cur, ids)| async move {
+                let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+                let body = get(client, &providers::coingecko_markets_url(&ids, &cur)).await;
+                (cur, body.unwrap_or_default())
+            }),
+    )
+    .await
+    .into_iter()
+    .collect()
+}
+
 pub struct Downloaded {
     fx: Vec<FxRate>,
     quotes: Vec<Quote>,
@@ -118,30 +150,14 @@ pub async fn download(plan: Plan) -> Downloaded {
         let vs: Vec<&str> = plan.coingecko.iter().map(|i| i.currency.code()).collect();
         get(&client, &providers::coingecko_url(&ids, &vs)).await
     };
-    let coingecko_returns = async {
-        let mut currencies: Vec<&str> = plan.coingecko.iter().map(|i| i.currency.code()).collect();
-        currencies.sort_unstable();
-        currencies.dedup();
-        join_all(currencies.into_iter().map(|cur| {
-            let client = &client;
-            let ids: Vec<&str> = plan
-                .coingecko
-                .iter()
-                .filter(|i| i.currency.code() == cur)
-                .map(|i| i.symbol.as_str())
-                .collect();
-            async move {
-                // A failure here only means "no 12-month figure"; the price is fetched separately.
-                let body = get(client, &providers::coingecko_markets_url(&ids, cur)).await;
-                (cur.to_string(), body.unwrap_or_default())
-            }
-        }))
-        .await
-        .into_iter()
-        .collect::<HashMap<String, String>>()
+    let (nbp, yahoo, coingecko) = futures::join!(nbp, yahoo, coingecko);
+    // Only after the price call succeeded: CoinGecko's free tier rate-limits hard, and an
+    // optional 12-month figure must never be the reason a price is missing.
+    let coingecko_returns = if matches!(&coingecko, Ok(body) if !body.is_empty()) {
+        fetch_coingecko_returns(&client, &plan.coingecko).await
+    } else {
+        HashMap::new()
     };
-    let (nbp, yahoo, coingecko, coingecko_returns) =
-        futures::join!(nbp, yahoo, coingecko, coingecko_returns);
 
     match nbp {
         Ok(rates) => {
@@ -259,6 +275,20 @@ mod tests {
             interest_percent: None,
             maturity_date: None,
         }
+    }
+
+    #[test]
+    fn coingecko_ids_are_grouped_by_quote_currency() {
+        let list = [
+            instrument("bitcoin", QuoteSource::CoinGecko, "PLN"),
+            instrument("ethereum", QuoteSource::CoinGecko, "PLN"),
+            instrument("solana", QuoteSource::CoinGecko, "USD"),
+        ];
+        let groups = coingecko_groups(&list);
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups["PLN"], ["bitcoin", "ethereum"]);
+        assert_eq!(groups["USD"], ["solana"]);
+        assert!(coingecko_groups(&[]).is_empty());
     }
 
     /// Hits the real services: `cargo test -p ami-calculator -- --ignored live`
