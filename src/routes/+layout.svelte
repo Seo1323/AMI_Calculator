@@ -9,6 +9,8 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import { startAutoRefresh } from '$lib/quotes.svelte';
 	import { applyUiScale } from '$lib/uiScale';
+	import { perf, clearSlow, startWatching } from '$lib/perf.svelte';
+	import { perfActive } from '$lib/perf';
 	import { isActivePath, isRoot } from '$lib/route';
 
 	let { children } = $props();
@@ -29,6 +31,16 @@
 	// CSS zoom of the fallback in uiScale.ts; the viewport width does not shrink with it.
 	let cssZoom = $state(1);
 	const narrow = $derived(viewportWidth / (settings.fontScale * cssZoom) <= 1024);
+
+	// Performance mode: chosen, or in auto mode once slow painting was seen while scrolling.
+	$effect(() => {
+		document.documentElement.dataset.perf = perfActive(settings.perfMode, perf.slowSeen) ? 'on' : 'off';
+	});
+	$effect(() => {
+		if (settings.perfMode === 'off' && perf.slowSeen) clearSlow(); // choosing "off" resets the verdict
+		if (settings.perfMode !== 'auto' || perf.slowSeen) return;
+		return startWatching();
+	});
 
 	$effect(() => {
 		const wanted = settings.uiScale;

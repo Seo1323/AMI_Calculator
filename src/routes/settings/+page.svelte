@@ -13,6 +13,8 @@
 		setWidgetList
 	} from '$lib/settings.svelte';
 	import { UI_SCALE_MIN, UI_SCALE_MAX, UI_SCALE_PRESETS } from '$lib/uiScale';
+	import { PERF_MODES } from '$lib/perf';
+	import { perf } from '$lib/perf.svelte';
 	import { invoke, isTauri, type DataLocation, type ImportMode, type ImportReport } from '$lib/tauri';
 
 	const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'];
@@ -162,6 +164,17 @@
 		<label class="check">
 			<input type="checkbox" bind:checked={settings.reduceMotion} />
 			{t('settings.reduceMotion')}
+		</label>
+
+		<label class="field">
+			{t('settings.perf')}
+			<select bind:value={settings.perfMode}>
+				{#each PERF_MODES as m (m)}<option value={m}>{t(`settings.perf.${m}`)}</option>{/each}
+			</select>
+			<span class="muted small">{t('settings.perfHint')}</span>
+			{#if settings.perfMode === 'auto' && perf.slowSeen}
+				<span class="small">{t('settings.perfDetected')}</span>
+			{/if}
 		</label>
 	</section>
 

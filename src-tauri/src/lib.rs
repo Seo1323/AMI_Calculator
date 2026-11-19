@@ -1,3 +1,4 @@
+pub mod display;
 mod fetch;
 
 use std::fs;

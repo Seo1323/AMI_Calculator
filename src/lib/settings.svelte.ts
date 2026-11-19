@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '$lib/tauri';
 import { clampUiScale } from '$lib/uiScale';
+import { asPerfMode, type PerfMode } from '$lib/perf';
 
 export type Locale = 'pl' | 'en' | 'de' | 'es' | 'fr' | 'uk';
 export type Theme = 'system' | 'light' | 'dark';
@@ -15,6 +16,8 @@ export interface Settings {
 	fontScale: number;
 	/** Whole-interface zoom, 0.5 to 2 (see uiScale.ts). */
 	uiScale: number;
+	/** Switches off glow, shadows, gradients and animations; 'auto' does it once slow painting is seen. */
+	perfMode: PerfMode;
 	radius: number;
 	numberLocale: NumberLocale;
 	baseCurrency: string;
@@ -36,6 +39,7 @@ export const DEFAULTS: Settings = {
 	density: 'comfortable',
 	fontScale: 1,
 	uiScale: 1,
+	perfMode: 'auto',
 	radius: 14,
 	numberLocale: 'auto',
 	baseCurrency: 'PLN',
@@ -59,6 +63,7 @@ function sanitize(raw: unknown): Partial<Settings> {
 		if (v !== undefined && typeof v === typeof DEFAULTS[k]) (out as Record<string, unknown>)[k] = v;
 	}
 	if (out.uiScale !== undefined) out.uiScale = clampUiScale(out.uiScale);
+	if (out.perfMode !== undefined) out.perfMode = asPerfMode(out.perfMode);
 	// Start pages of the removed budget/reports sections go back to the dashboard.
 	if (!['/', '/portfolio', '/rebalance'].includes(out.startPage ?? '/')) out.startPage = '/';
 	return out;
