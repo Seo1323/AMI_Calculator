@@ -8,6 +8,7 @@
 	import { t, type MessageKey } from '$lib/i18n/index.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { startAutoRefresh } from '$lib/quotes.svelte';
+	import { applyUiScale } from '$lib/uiScale';
 
 	let { children } = $props();
 
@@ -19,7 +20,16 @@
 	// Medium windows collapse the sidebar to icons so the content keeps its room.
 	// The width is divided by the text size, because larger text leaves less room.
 	let viewportWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1280);
-	const narrow = $derived(viewportWidth / settings.fontScale <= 1024);
+	// CSS zoom of the fallback in uiScale.ts; the viewport width does not shrink with it.
+	let cssZoom = $state(1);
+	const narrow = $derived(viewportWidth / (settings.fontScale * cssZoom) <= 1024);
+
+	$effect(() => {
+		const wanted = settings.uiScale;
+		applyUiScale(wanted).then((z) => {
+			if (wanted === settings.uiScale) cssZoom = z;
+		});
+	});
 	const collapsed = $derived(settings.sidebarCollapsed || narrow);
 	const animate = $derived(!settings.reduceMotion && !systemReducedMotion);
 
@@ -81,7 +91,7 @@
 		root.style.setProperty('--radius', `${settings.radius}px`);
 		root.toggleAttribute('data-reduce-motion', settings.reduceMotion);
 		// Breakpoints for hiding table columns, counted after text scaling (see `narrow`).
-		const effective = viewportWidth / settings.fontScale;
+		const effective = viewportWidth / (settings.fontScale * cssZoom);
 		for (const w of [820, 480, 400]) root.toggleAttribute(`data-lt${w}`, effective <= w);
 		root.toggleAttribute('data-hide-amounts', settings.hideAmounts);
 		root.lang = settings.locale;

@@ -166,6 +166,8 @@ const es: Record<keyof typeof pl, string> = {
 	'settings.density.comfortable': 'Cómoda',
 	'settings.density.spacious': 'Amplia',
 	'settings.fontScale': 'Tamaño del texto',
+	'settings.uiScale': 'Escala de la interfaz',
+	'settings.uiScaleHint': 'Amplía o reduce toda la interfaz. Funciona junto con el tamaño del texto.',
 	'settings.radius': 'Redondeo de esquinas',
 	'settings.reduceMotion': 'Reducir animaciones',
 	'settings.regional': 'Idioma y formatos',

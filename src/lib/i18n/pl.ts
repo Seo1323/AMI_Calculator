@@ -164,6 +164,8 @@ const pl = {
 	'settings.density.comfortable': 'Wygodna',
 	'settings.density.spacious': 'Przestronna',
 	'settings.fontScale': 'Rozmiar tekstu',
+	'settings.uiScale': 'Skala interfejsu',
+	'settings.uiScaleHint': 'Powiększa lub zmniejsza cały interfejs. Działa razem z rozmiarem tekstu.',
 	'settings.radius': 'Zaokrąglenie rogów',
 	'settings.reduceMotion': 'Ogranicz animacje',
 	'settings.regional': 'Język i formaty',
