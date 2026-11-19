@@ -6,6 +6,8 @@
 	import { invoke, isTauri, type Mode, type RebalanceResult } from '$lib/tauri';
 	import Icon from '$lib/components/Icon.svelte';
 	import AllocationPie from '$lib/components/AllocationPie.svelte';
+	import TargetSliders from '$lib/components/TargetSliders.svelte';
+	import { fromSaved, fromUnits, type TargetRow } from '$lib/targets';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import { quotes as quoteState } from '$lib/quotes.svelte';
 	import RebalanceResultView from '$lib/components/RebalanceResultView.svelte';
@@ -20,8 +22,7 @@
 
 	// Target editing
 	let editing = $state(false);
-	let draftTargets: { instrumentId: string; percent: string }[] = $state([]);
-	let addInstrument = $state('');
+	let draftRows: TargetRow[] = $state([]);
 
 	// New trade
 	const emptyTrade = () => ({ date: today(), instrumentId: '', side: 'buy' as Trade['side'], quantity: '', price: '', fee: '0' });
@@ -46,7 +47,6 @@
 	$effect(() => {
 		if (isCash && tradeForm.price.trim() === '') tradeForm.price = '1';
 	});
-	const draftSum = $derived(draftTargets.reduce((s, x) => s + (Number(toDecimal(x.percent)) || 0), 0));
 
 	async function run(fn: () => Promise<unknown>) {
 		error = '';
@@ -73,9 +73,7 @@
 	});
 
 	function startEditing() {
-		draftTargets = (view?.positions ?? [])
-			.filter((p) => Number(p.targetPercent) > 0)
-			.map((p) => ({ instrumentId: p.instrument.id, percent: p.targetPercent }));
+		draftRows = fromSaved((view?.positions ?? []).map((p) => ({ id: p.instrument.id, percent: p.targetPercent })));
 		editing = true;
 	}
 
@@ -83,9 +81,9 @@
 		run(async () => {
 			await invoke('portfolio_set_targets', {
 				id,
-				targets: draftTargets
-					.filter((x) => Number(toDecimal(x.percent)) > 0)
-					.map((x) => ({ instrumentId: x.instrumentId, targetPercent: toDecimal(x.percent) }))
+				targets: draftRows
+					.filter((r) => r.units > 0)
+					.map((r) => ({ instrumentId: r.id, targetPercent: String(fromUnits(r.units)) }))
 			});
 			editing = false;
 			result = null;
@@ -175,8 +173,15 @@
 							<input bind:value={detailsForm.name} />
 						</label>
 						<label class="field">
-							{t('portfolio.tolerance')}
-							<input class="short" inputmode="decimal" bind:value={detailsForm.tolerance} />
+							{t('portfolio.tolerance')}: {fmtNumber(Number(detailsForm.tolerance) || 0)}
+							<input
+								type="range"
+								min="0"
+								max="20"
+								step="0.5"
+								value={Number(detailsForm.tolerance) || 0}
+								oninput={(e) => (detailsForm.tolerance = e.currentTarget.value)}
+							/>
 						</label>
 						<button class="btn primary" disabled={!detailsForm.name.trim()} onclick={saveDetails}>{t('common.save')}</button>
 						<button class="btn" onclick={() => (editingDetails = false)}>{t('common.cancel')}</button>
@@ -240,35 +245,7 @@
 
 			{#if editing}
 				<div class="stack">
-					{#each draftTargets as dt, i (dt.instrumentId)}
-						<div class="row target-row">
-							<span class="sym">{symbol(dt.instrumentId)}</span>
-							<input class="short n" inputmode="decimal" bind:value={dt.percent} aria-label={t('pf.target')} />
-							<span>%</span>
-							<button
-								class="btn ghost"
-								aria-label={t('common.remove')}
-								onclick={() => draftTargets.splice(i, 1)}><Icon name="trash" size={16} /></button
-							>
-						</div>
-					{/each}
-					<div class="row">
-						<select bind:value={addInstrument} aria-label={t('pf.addToTargets')}>
-							<option value="">{t('pf.addToTargets')}</option>
-							{#each instruments.filter((i) => !draftTargets.some((d) => d.instrumentId === i.id)) as i (i.id)}
-								<option value={i.id}>{i.symbol} · {i.name}</option>
-							{/each}
-						</select>
-						<button
-							class="btn"
-							disabled={!addInstrument}
-							onclick={() => {
-								draftTargets.push({ instrumentId: addInstrument, percent: '' });
-								addInstrument = '';
-							}}><Icon name="plus" size={16} />{t('common.add')}</button
-						>
-					</div>
-					<div class:neg={Math.abs(draftSum - 100) > 0.01}>{t('rebalance.sum', { sum: fmtNumber(draftSum) })}</div>
+					<TargetSliders bind:rows={draftRows} options={instruments.map((i) => ({ id: i.id, label: `${i.symbol} · ${i.name}` }))} />
 					<div class="row">
 						<button class="btn primary" onclick={saveTargets}>{t('pf.saveTargets')}</button>
 						<button class="btn" onclick={() => (editing = false)}>{t('common.cancel')}</button>
@@ -490,12 +467,6 @@
 	.short {
 		width: 7rem;
 	}
-	.n {
-		text-align: right;
-	}
-	.target-row {
-		align-items: center;
-	}
 	.instr {
 		white-space: normal;
 		min-width: 9rem;
@@ -509,9 +480,5 @@
 	}
 	h1 .btn {
 		vertical-align: middle;
-	}
-	.sym {
-		min-width: 8rem;
-		font-weight: 600;
 	}
 </style>
