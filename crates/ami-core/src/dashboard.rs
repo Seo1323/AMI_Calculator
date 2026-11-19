@@ -162,8 +162,13 @@ mod tests {
         assert_eq!(d.total_value, dec!(1000));
         assert_eq!(d.missing_rates, ["EUR"]);
 
-        s.set_fx_rate(&FxRate { currency: eur, rate_pln: dec!(4.25), source: "nbp".into(), fetched_at: Utc::now() })
-            .unwrap();
+        s.set_fx_rate(&FxRate {
+            currency: eur,
+            rate_pln: dec!(4.25),
+            source: "nbp".into(),
+            fetched_at: Utc::now(),
+        })
+        .unwrap();
         let d = build(&s, &pln).unwrap();
         assert_eq!(d.total_value, dec!(5250));
         assert!(d.missing_rates.is_empty());

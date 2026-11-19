@@ -38,7 +38,11 @@ pub trait Entity: Serialize + DeserializeOwned {
 }
 
 fn require(ok: bool, msg: &str) -> Result<()> {
-    if ok { Ok(()) } else { Err(CoreError::Validation(msg.into())) }
+    if ok {
+        Ok(())
+    } else {
+        Err(CoreError::Validation(msg.into()))
+    }
 }
 
 macro_rules! meta_accessors {
@@ -66,7 +70,10 @@ impl Entity for Portfolio {
     meta_accessors!();
     fn validate(&self) -> Result<()> {
         require(!self.name.trim().is_empty(), "portfolio name is empty")?;
-        require(self.tolerance_percent >= rust_decimal::Decimal::ZERO, "tolerance must not be negative")
+        require(
+            self.tolerance_percent >= rust_decimal::Decimal::ZERO,
+            "tolerance must not be negative",
+        )
     }
 }
 
@@ -75,10 +82,16 @@ impl Entity for AllocationTarget {
     meta_accessors!();
     fn validate(&self) -> Result<()> {
         let p = self.target_percent;
-        require(p >= rust_decimal::Decimal::ZERO && p <= rust_decimal::Decimal::ONE_HUNDRED, "target must be between 0 and 100")
+        require(
+            p >= rust_decimal::Decimal::ZERO && p <= rust_decimal::Decimal::ONE_HUNDRED,
+            "target must be between 0 and 100",
+        )
     }
     fn references(&self) -> Vec<(&'static str, Uuid)> {
-        vec![("portfolios", self.portfolio_id), ("instruments", self.instrument_id)]
+        vec![
+            ("portfolios", self.portfolio_id),
+            ("instruments", self.instrument_id),
+        ]
     }
 }
 
@@ -87,12 +100,21 @@ impl Entity for Trade {
     meta_accessors!();
     fn validate(&self) -> Result<()> {
         use rust_decimal::Decimal;
-        require(self.quantity > Decimal::ZERO, "trade quantity must be positive")?;
-        require(self.price >= Decimal::ZERO, "trade price must not be negative")?;
+        require(
+            self.quantity > Decimal::ZERO,
+            "trade quantity must be positive",
+        )?;
+        require(
+            self.price >= Decimal::ZERO,
+            "trade price must not be negative",
+        )?;
         require(self.fee >= Decimal::ZERO, "trade fee must not be negative")
     }
     fn references(&self) -> Vec<(&'static str, Uuid)> {
-        vec![("portfolios", self.portfolio_id), ("instruments", self.instrument_id)]
+        vec![
+            ("portfolios", self.portfolio_id),
+            ("instruments", self.instrument_id),
+        ]
     }
 }
 
@@ -109,10 +131,22 @@ pub enum EntityKind {
 macro_rules! with_entity {
     ($kind:expr, $T:ident => $body:expr) => {
         match $kind {
-            EntityKind::Instrument => { type $T = Instrument; $body }
-            EntityKind::Portfolio => { type $T = Portfolio; $body }
-            EntityKind::AllocationTarget => { type $T = AllocationTarget; $body }
-            EntityKind::Trade => { type $T = Trade; $body }
+            EntityKind::Instrument => {
+                type $T = Instrument;
+                $body
+            }
+            EntityKind::Portfolio => {
+                type $T = Portfolio;
+                $body
+            }
+            EntityKind::AllocationTarget => {
+                type $T = AllocationTarget;
+                $body
+            }
+            EntityKind::Trade => {
+                type $T = Trade;
+                $body
+            }
         }
     };
 }
@@ -120,16 +154,12 @@ macro_rules! with_entity {
 /// All entity tables, parents before children. The old budget tables (accounts,
 /// categories, transactions, budget_limits) stay in existing databases, unused,
 /// so an update never deletes anyone's data.
-const TABLES: &[&str] = &[
-    "instruments",
-    "portfolios",
-    "allocation_targets",
-    "trades",
-];
+const TABLES: &[&str] = &["instruments", "portfolios", "allocation_targets", "trades"];
 
 // ---------- Schema ----------
 
-const MIGRATIONS: &[&str] = &[r#"
+const MIGRATIONS: &[&str] = &[
+    r#"
 CREATE TABLE settings (
     key        TEXT PRIMARY KEY,
     value      TEXT NOT NULL CHECK (json_valid(value)),
@@ -190,7 +220,8 @@ CREATE TABLE trades (
     date          TEXT GENERATED ALWAYS AS (json_extract(data, '$.date')) VIRTUAL
 );
 CREATE INDEX trades_portfolio_date ON trades (portfolio_id, date);
-"#, r#"
+"#,
+    r#"
 CREATE TABLE quotes (
     instrument_id TEXT PRIMARY KEY,
     data          TEXT NOT NULL CHECK (json_valid(data)),
@@ -201,7 +232,8 @@ CREATE TABLE fx_rates (
     data       TEXT NOT NULL CHECK (json_valid(data)),
     fetched_at TEXT NOT NULL
 );
-"#];
+"#,
+];
 
 /// Fixed-width UTC timestamps so string comparison equals time comparison.
 fn ts(t: DateTime<Utc>) -> String {
@@ -226,14 +258,26 @@ fn write<T: Entity>(conn: &Connection, item: &T) -> Result<()> {
 
 fn read<T: Entity>(conn: &Connection, id: Uuid) -> Result<Option<T>> {
     let data: Option<String> = conn
-        .query_row(&format!("SELECT data FROM {} WHERE id = ?1", T::TABLE), [id.to_string()], |r| r.get(0))
+        .query_row(
+            &format!("SELECT data FROM {} WHERE id = ?1", T::TABLE),
+            [id.to_string()],
+            |r| r.get(0),
+        )
         .optional()?;
-    data.map(|d| serde_json::from_str(&d).map_err(CoreError::from)).transpose()
+    data.map(|d| serde_json::from_str(&d).map_err(CoreError::from))
+        .transpose()
 }
 
 fn read_all<T: Entity>(conn: &Connection, include_deleted: bool) -> Result<Vec<T>> {
-    let filter = if include_deleted { "" } else { "WHERE deleted_at IS NULL" };
-    let mut stmt = conn.prepare(&format!("SELECT data FROM {} {filter} ORDER BY created_at, id", T::TABLE))?;
+    let filter = if include_deleted {
+        ""
+    } else {
+        "WHERE deleted_at IS NULL"
+    };
+    let mut stmt = conn.prepare(&format!(
+        "SELECT data FROM {} {filter} ORDER BY created_at, id",
+        T::TABLE
+    ))?;
     let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
     rows.map(|d| Ok(serde_json::from_str(&d?)?)).collect()
 }
@@ -272,9 +316,19 @@ fn read_json_table<T: DeserializeOwned>(conn: &Connection, table: &str) -> Resul
 }
 
 /// Keeps the newer of the local and incoming value (by `fetched_at`).
-fn merge_cached(conn: &Connection, table: &str, key_col: &str, key: &str, fetched_at: DateTime<Utc>) -> Result<bool> {
+fn merge_cached(
+    conn: &Connection,
+    table: &str,
+    key_col: &str,
+    key: &str,
+    fetched_at: DateTime<Utc>,
+) -> Result<bool> {
     let local: Option<String> = conn
-        .query_row(&format!("SELECT fetched_at FROM {table} WHERE {key_col} = ?1"), [key], |r| r.get(0))
+        .query_row(
+            &format!("SELECT fetched_at FROM {table} WHERE {key_col} = ?1"),
+            [key],
+            |r| r.get(0),
+        )
         .optional()?;
     Ok(local.is_none_or(|l| l < ts(fetched_at)))
 }
@@ -337,7 +391,9 @@ impl Store {
     }
 
     fn migrate(&mut self) -> Result<()> {
-        let version: i64 = self.conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        let version: i64 = self
+            .conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))?;
         let latest = MIGRATIONS.len() as i64;
         if version > latest {
             return Err(CoreError::DatabaseTooNew(version));
@@ -352,7 +408,9 @@ impl Store {
     }
 
     pub fn schema_version(&self) -> Result<i64> {
-        Ok(self.conn.pragma_query_value(None, "user_version", |r| r.get(0))?)
+        Ok(self
+            .conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))?)
     }
 
     fn exists(&self, table: &str, id: Uuid) -> Result<bool> {
@@ -378,11 +436,15 @@ impl Store {
         item.validate()?;
         for (table, id) in item.references() {
             if !self.exists(table, id)? {
-                return Err(CoreError::MissingReference { table: table.into(), id: id.to_string() });
+                return Err(CoreError::MissingReference {
+                    table: table.into(),
+                    id: id.to_string(),
+                });
             }
         }
         let now = Utc::now().trunc_subsecs(6);
-        let created_at = read::<T>(&self.conn, item.meta().id)?.map_or(now, |e| e.meta().created_at);
+        let created_at =
+            read::<T>(&self.conn, item.meta().id)?.map_or(now, |e| e.meta().created_at);
         let meta = item.meta_mut();
         meta.created_at = created_at;
         meta.updated_at = now;
@@ -393,7 +455,9 @@ impl Store {
 
     /// Soft delete. Returns false if there was nothing to delete.
     pub fn delete<T: Entity>(&self, id: Uuid) -> Result<bool> {
-        let Some(mut item) = self.get::<T>(id)? else { return Ok(false) };
+        let Some(mut item) = self.get::<T>(id)? else {
+            return Ok(false);
+        };
         let now = Utc::now().trunc_subsecs(6);
         item.meta_mut().deleted_at = Some(now);
         item.meta_mut().updated_at = now;
@@ -409,7 +473,9 @@ impl Store {
 
     /// Saves a record sent by the UI. A missing `id` means "create".
     pub fn save_json(&self, kind: EntityKind, mut value: Value) -> Result<Value> {
-        let obj = value.as_object_mut().ok_or_else(|| CoreError::Validation("expected an object".into()))?;
+        let obj = value
+            .as_object_mut()
+            .ok_or_else(|| CoreError::Validation("expected an object".into()))?;
         if !obj.get("id").is_some_and(Value::is_string) {
             obj.insert("id".into(), Value::String(Uuid::now_v7().to_string()));
         }
@@ -417,7 +483,8 @@ impl Store {
         obj.entry("createdAt").or_insert_with(|| now.clone());
         obj.entry("updatedAt").or_insert(now);
         if kind == EntityKind::Trade {
-            let trade: Trade = serde_json::from_value(value).map_err(|e| CoreError::Validation(e.to_string()))?;
+            let trade: Trade =
+                serde_json::from_value(value).map_err(|e| CoreError::Validation(e.to_string()))?;
             return Ok(serde_json::to_value(self.save_trade(trade)?)?);
         }
         with_entity!(kind, T => {
@@ -435,8 +502,11 @@ impl Store {
 
     /// Saves a trade only if the portfolio history stays valid (no overselling).
     pub fn save_trade(&self, trade: Trade) -> Result<Trade> {
-        let mut history: Vec<Trade> =
-            self.trades_of(trade.portfolio_id)?.into_iter().filter(|t| t.meta.id != trade.meta.id).collect();
+        let mut history: Vec<Trade> = self
+            .trades_of(trade.portfolio_id)?
+            .into_iter()
+            .filter(|t| t.meta.id != trade.meta.id)
+            .collect();
         history.push(trade.clone());
         crate::portfolio::holdings(&history)?;
         self.save(trade)
@@ -444,8 +514,14 @@ impl Store {
 
     /// Deletes a trade only if the remaining history stays valid.
     pub fn delete_trade(&self, id: Uuid) -> Result<bool> {
-        let Some(trade) = self.get::<Trade>(id)? else { return Ok(false) };
-        let rest: Vec<Trade> = self.trades_of(trade.portfolio_id)?.into_iter().filter(|t| t.meta.id != id).collect();
+        let Some(trade) = self.get::<Trade>(id)? else {
+            return Ok(false);
+        };
+        let rest: Vec<Trade> = self
+            .trades_of(trade.portfolio_id)?
+            .into_iter()
+            .filter(|t| t.meta.id != id)
+            .collect();
         crate::portfolio::holdings(&rest)?;
         self.delete::<Trade>(id)
     }
@@ -453,9 +529,15 @@ impl Store {
     // ----- prices and exchange rates -----
 
     pub fn set_quote(&self, quote: &Quote) -> Result<()> {
-        require(quote.price > rust_decimal::Decimal::ZERO, "price must be positive")?;
+        require(
+            quote.price > rust_decimal::Decimal::ZERO,
+            "price must be positive",
+        )?;
         if !self.exists("instruments", quote.instrument_id)? {
-            return Err(CoreError::MissingReference { table: "instruments".into(), id: quote.instrument_id.to_string() });
+            return Err(CoreError::MissingReference {
+                table: "instruments".into(),
+                id: quote.instrument_id.to_string(),
+            });
         }
         write_quote(&self.conn, quote)
     }
@@ -465,8 +547,14 @@ impl Store {
     }
 
     pub fn set_fx_rate(&self, rate: &FxRate) -> Result<()> {
-        require(rate.rate_pln > rust_decimal::Decimal::ZERO, "exchange rate must be positive")?;
-        require(rate.currency.code() != "PLN", "PLN is the reference currency")?;
+        require(
+            rate.rate_pln > rust_decimal::Decimal::ZERO,
+            "exchange rate must be positive",
+        )?;
+        require(
+            rate.currency.code() != "PLN",
+            "PLN is the reference currency",
+        )?;
         write_fx(&self.conn, rate)
     }
 
@@ -486,15 +574,27 @@ impl Store {
     // ----- portfolio helpers -----
 
     pub fn trades_of(&self, portfolio_id: Uuid) -> Result<Vec<Trade>> {
-        Ok(self.list::<Trade>()?.into_iter().filter(|t| t.portfolio_id == portfolio_id).collect())
+        Ok(self
+            .list::<Trade>()?
+            .into_iter()
+            .filter(|t| t.portfolio_id == portfolio_id)
+            .collect())
     }
 
     pub fn targets_of(&self, portfolio_id: Uuid) -> Result<Vec<AllocationTarget>> {
-        Ok(self.list::<AllocationTarget>()?.into_iter().filter(|t| t.portfolio_id == portfolio_id).collect())
+        Ok(self
+            .list::<AllocationTarget>()?
+            .into_iter()
+            .filter(|t| t.portfolio_id == portfolio_id)
+            .collect())
     }
 
     /// Replaces a portfolio's target allocation with the given (instrument, percent) list.
-    pub fn set_targets(&self, portfolio_id: Uuid, targets: &[(Uuid, rust_decimal::Decimal)]) -> Result<()> {
+    pub fn set_targets(
+        &self,
+        portfolio_id: Uuid,
+        targets: &[(Uuid, rust_decimal::Decimal)],
+    ) -> Result<()> {
         if self.get::<Portfolio>(portfolio_id)?.is_none() {
             return Err(CoreError::NotFound);
         }
@@ -508,10 +608,18 @@ impl Store {
             match existing.iter().find(|t| t.instrument_id == instrument_id) {
                 Some(t) if t.target_percent == target_percent => {}
                 Some(t) => {
-                    self.save(AllocationTarget { target_percent, ..t.clone() })?;
+                    self.save(AllocationTarget {
+                        target_percent,
+                        ..t.clone()
+                    })?;
                 }
                 None => {
-                    self.save(AllocationTarget { meta: Meta::new(), portfolio_id, instrument_id, target_percent })?;
+                    self.save(AllocationTarget {
+                        meta: Meta::new(),
+                        portfolio_id,
+                        instrument_id,
+                        target_percent,
+                    })?;
                 }
             }
         }
@@ -523,9 +631,12 @@ impl Store {
     pub fn get_setting(&self, key: &str) -> Result<Option<Value>> {
         let raw: Option<String> = self
             .conn
-            .query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| r.get(0))
+            .query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| {
+                r.get(0)
+            })
             .optional()?;
-        raw.map(|r| serde_json::from_str(&r).map_err(CoreError::from)).transpose()
+        raw.map(|r| serde_json::from_str(&r).map_err(CoreError::from))
+            .transpose()
     }
 
     pub fn set_setting(&self, key: &str, value: &Value) -> Result<()> {
@@ -565,7 +676,13 @@ impl Store {
         import_list(&tx, &data.targets, &mut stats)?;
         import_list(&tx, &data.trades, &mut stats)?;
         for q in &data.quotes {
-            if merge_cached(&tx, "quotes", "instrument_id", &q.instrument_id.to_string(), q.fetched_at)? {
+            if merge_cached(
+                &tx,
+                "quotes",
+                "instrument_id",
+                &q.instrument_id.to_string(),
+                q.fetched_at,
+            )? {
                 write_quote(&tx, q)?;
             }
         }
@@ -580,7 +697,9 @@ impl Store {
 
     /// Consistent copy of the database file (safe while the app is running).
     pub fn backup_to(&self, path: &Path) -> Result<()> {
-        let target = path.to_str().ok_or_else(|| CoreError::Validation("backup path is not valid UTF-8".into()))?;
+        let target = path
+            .to_str()
+            .ok_or_else(|| CoreError::Validation("backup path is not valid UTF-8".into()))?;
         self.conn.execute("VACUUM INTO ?1", [target])?;
         Ok(())
     }
@@ -657,15 +776,27 @@ mod tests {
     #[test]
     fn validation_and_references() {
         let s = Store::open_in_memory().unwrap();
-        assert!(matches!(s.save(portfolio("  ")), Err(CoreError::Validation(_))));
+        assert!(matches!(
+            s.save(portfolio("  ")),
+            Err(CoreError::Validation(_))
+        ));
         let orphan = trade(Uuid::now_v7(), Uuid::now_v7(), dec!(1));
-        assert!(matches!(s.save(orphan), Err(CoreError::MissingReference { .. })));
+        assert!(matches!(
+            s.save(orphan),
+            Err(CoreError::MissingReference { .. })
+        ));
         let p = s.save(portfolio("A")).unwrap();
         let i = s.save(instrument()).unwrap();
         s.save(trade(p.meta.id, i.meta.id, dec!(1))).unwrap();
-        assert!(matches!(s.save(trade(p.meta.id, i.meta.id, dec!(0))), Err(CoreError::Validation(_))));
+        assert!(matches!(
+            s.save(trade(p.meta.id, i.meta.id, dec!(0))),
+            Err(CoreError::Validation(_))
+        ));
         s.delete::<Portfolio>(p.meta.id).unwrap();
-        assert!(matches!(s.save(trade(p.meta.id, i.meta.id, dec!(1))), Err(CoreError::MissingReference { .. })));
+        assert!(matches!(
+            s.save(trade(p.meta.id, i.meta.id, dec!(1))),
+            Err(CoreError::MissingReference { .. })
+        ));
     }
 
     #[test]
@@ -692,8 +823,12 @@ mod tests {
     fn settings_roundtrip() {
         let s = Store::open_in_memory().unwrap();
         assert!(s.get_setting(UI_SETTINGS_KEY).unwrap().is_none());
-        s.set_setting(UI_SETTINGS_KEY, &serde_json::json!({ "theme": "dark" })).unwrap();
-        assert_eq!(s.get_setting(UI_SETTINGS_KEY).unwrap().unwrap()["theme"], "dark");
+        s.set_setting(UI_SETTINGS_KEY, &serde_json::json!({ "theme": "dark" }))
+            .unwrap();
+        assert_eq!(
+            s.get_setting(UI_SETTINGS_KEY).unwrap().unwrap()["theme"],
+            "dark"
+        );
     }
 
     #[test]
@@ -702,18 +837,29 @@ mod tests {
         let p = src.save(portfolio("A")).unwrap();
         let i = src.save(instrument()).unwrap();
         src.save(trade(p.meta.id, i.meta.id, dec!(12.34))).unwrap();
-        src.set_setting(UI_SETTINGS_KEY, &serde_json::json!({ "locale": "en" })).unwrap();
+        src.set_setting(UI_SETTINGS_KEY, &serde_json::json!({ "locale": "en" }))
+            .unwrap();
         let data = src.export_data().unwrap();
 
         let mut dst = Store::open_in_memory().unwrap();
         dst.save(portfolio("local only")).unwrap();
         let stats = dst.import_data(&data, ImportMode::Replace).unwrap();
-        assert_eq!(stats, ImportStats { inserted: 3, updated: 0, skipped: 0 });
+        assert_eq!(
+            stats,
+            ImportStats {
+                inserted: 3,
+                updated: 0,
+                skipped: 0
+            }
+        );
         let portfolios = dst.list::<Portfolio>().unwrap();
         assert_eq!(portfolios.len(), 1);
         assert_eq!(portfolios[0].name, "A");
         assert_eq!(dst.list::<Trade>().unwrap()[0].quantity, dec!(12.34));
-        assert_eq!(dst.get_setting(UI_SETTINGS_KEY).unwrap().unwrap()["locale"], "en");
+        assert_eq!(
+            dst.get_setting(UI_SETTINGS_KEY).unwrap().unwrap()["locale"],
+            "en"
+        );
     }
 
     #[test]
@@ -730,10 +876,25 @@ mod tests {
         older.meta.updated_at = local_only.meta.updated_at - chrono::Duration::seconds(10);
         let fresh = portfolio("fresh");
 
-        let data = DataSet { portfolios: vec![newer, older, fresh], ..Default::default() };
+        let data = DataSet {
+            portfolios: vec![newer, older, fresh],
+            ..Default::default()
+        };
         let stats = s.import_data(&data, ImportMode::Merge).unwrap();
-        assert_eq!(stats, ImportStats { inserted: 1, updated: 1, skipped: 1 });
-        let mut names: Vec<_> = s.list::<Portfolio>().unwrap().into_iter().map(|a| a.name).collect();
+        assert_eq!(
+            stats,
+            ImportStats {
+                inserted: 1,
+                updated: 1,
+                skipped: 1
+            }
+        );
+        let mut names: Vec<_> = s
+            .list::<Portfolio>()
+            .unwrap()
+            .into_iter()
+            .map(|a| a.name)
+            .collect();
         names.sort();
         assert_eq!(names, ["fresh", "local", "new"]);
     }
@@ -758,7 +919,13 @@ mod tests {
     fn rejects_newer_database() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("ami.db");
-        Connection::open(&path).unwrap().pragma_update(None, "user_version", 999).unwrap();
-        assert!(matches!(Store::open(&path), Err(CoreError::DatabaseTooNew(999))));
+        Connection::open(&path)
+            .unwrap()
+            .pragma_update(None, "user_version", 999)
+            .unwrap();
+        assert!(matches!(
+            Store::open(&path),
+            Err(CoreError::DatabaseTooNew(999))
+        ));
     }
 }

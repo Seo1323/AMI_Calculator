@@ -91,7 +91,10 @@ pub struct RebalanceResult {
 }
 
 fn invalid(id: &str, reason: &str) -> CoreError {
-    CoreError::InvalidPosition { id: id.to_string(), reason: reason.to_string() }
+    CoreError::InvalidPosition {
+        id: id.to_string(),
+        reason: reason.to_string(),
+    }
 }
 
 fn validate(input: &RebalanceInput) -> Result<()> {
@@ -128,7 +131,9 @@ fn water_fill(values: &[Decimal], weights: &[Decimal], contribution: Decimal) ->
     if contribution <= Decimal::ZERO {
         return adds;
     }
-    let mut order: Vec<usize> = (0..values.len()).filter(|&i| weights[i] > Decimal::ZERO).collect();
+    let mut order: Vec<usize> = (0..values.len())
+        .filter(|&i| weights[i] > Decimal::ZERO)
+        .collect();
     order.sort_by(|&a, &b| (values[a] / weights[a]).cmp(&(values[b] / weights[b])));
 
     let mut sum_v = Decimal::ZERO;
@@ -167,15 +172,25 @@ pub fn compute(input: &RebalanceInput) -> Result<RebalanceResult> {
     };
 
     let step = |p: &Position| {
-        if p.fractional { Decimal::new(1, input.fraction_decimals) } else { Decimal::ONE }
+        if p.fractional {
+            Decimal::new(1, input.fraction_decimals)
+        } else {
+            Decimal::ONE
+        }
     };
     let round_units = |p: &Position, units: Decimal| {
-        let dp = if p.fractional { input.fraction_decimals } else { 0 };
+        let dp = if p.fractional {
+            input.fraction_decimals
+        } else {
+            0
+        };
         units.round_dp_with_strategy(dp, RoundingStrategy::ToZero)
     };
 
     // 1. Round ideal trades toward zero.
-    let mut units: Vec<Decimal> = (0..n).map(|i| round_units(&ps[i], ideal[i] / ps[i].price)).collect();
+    let mut units: Vec<Decimal> = (0..n)
+        .map(|i| round_units(&ps[i], ideal[i] / ps[i].price))
+        .collect();
     let spent = |units: &[Decimal]| -> Decimal { (0..n).map(|i| units[i] * ps[i].price).sum() };
     let mut cash = input.contribution - spent(&units);
     let after = |units: &[Decimal], i: usize| (ps[i].quantity + units[i]) * ps[i].price;
@@ -197,8 +212,13 @@ pub fn compute(input: &RebalanceInput) -> Result<RebalanceResult> {
         let p = &ps[i];
         let delta = if p.fractional {
             // Exactly the shortfall, rounded up to the allowed precision.
-            let needed = (-cash / p.price).round_dp_with_strategy(input.fraction_decimals, RoundingStrategy::AwayFromZero);
-            let limit = if units[i] > Decimal::ZERO { units[i] } else { p.quantity + units[i] };
+            let needed = (-cash / p.price)
+                .round_dp_with_strategy(input.fraction_decimals, RoundingStrategy::AwayFromZero);
+            let limit = if units[i] > Decimal::ZERO {
+                units[i]
+            } else {
+                p.quantity + units[i]
+            };
             needed.min(limit).max(step(p))
         } else {
             Decimal::ONE
@@ -212,14 +232,21 @@ pub fn compute(input: &RebalanceInput) -> Result<RebalanceResult> {
     while guard < MAX_GREEDY_STEPS {
         guard += 1;
         let candidate = (0..n)
-            .filter(|&i| weights[i] > Decimal::ZERO && ps[i].price <= cash && targets[i] - after(&units, i) > Decimal::ZERO)
+            .filter(|&i| {
+                weights[i] > Decimal::ZERO
+                    && ps[i].price <= cash
+                    && targets[i] - after(&units, i) > Decimal::ZERO
+            })
             .max_by(|&a, &b| (targets[a] - after(&units, a)).cmp(&(targets[b] - after(&units, b))));
         let Some(i) = candidate else { break };
         let p = &ps[i];
         let delta = if p.fractional {
             let room = (targets[i] - after(&units, i)).min(cash);
-            let d = (room / p.price).round_dp_with_strategy(input.fraction_decimals, RoundingStrategy::ToZero);
-            if d <= Decimal::ZERO { break }
+            let d = (room / p.price)
+                .round_dp_with_strategy(input.fraction_decimals, RoundingStrategy::ToZero);
+            if d <= Decimal::ZERO {
+                break;
+            }
             d
         } else {
             Decimal::ONE
@@ -231,7 +258,11 @@ pub fn compute(input: &RebalanceInput) -> Result<RebalanceResult> {
     let values_after: Vec<Decimal> = (0..n).map(|i| after(&units, i)).collect();
     let total_after: Decimal = values_after.iter().sum();
     let pct = |v: Decimal, total: Decimal| {
-        if total > Decimal::ZERO { (v / total * HUNDRED).round_dp(4) } else { Decimal::ZERO }
+        if total > Decimal::ZERO {
+            (v / total * HUNDRED).round_dp(4)
+        } else {
+            Decimal::ZERO
+        }
     };
 
     let positions: Vec<PositionResult> = (0..n)
@@ -254,14 +285,19 @@ pub fn compute(input: &RebalanceInput) -> Result<RebalanceResult> {
         })
         .collect();
 
-    let max_deviation_before = positions.iter().map(|p| p.deviation_before.abs()).max().unwrap_or_default();
+    let max_deviation_before = positions
+        .iter()
+        .map(|p| p.deviation_before.abs())
+        .max()
+        .unwrap_or_default();
 
     Ok(RebalanceResult {
         total_before,
         contribution: input.contribution,
         total_after,
         cash_left: cash,
-        needs_rebalance: total_before > Decimal::ZERO && max_deviation_before > input.tolerance_percent,
+        needs_rebalance: total_before > Decimal::ZERO
+            && max_deviation_before > input.tolerance_percent,
         max_deviation_before,
         positions,
     })
@@ -273,11 +309,23 @@ mod tests {
     use rust_decimal_macros::dec;
 
     fn pos(id: &str, quantity: Decimal, price: Decimal, target: Decimal) -> Position {
-        Position { id: id.into(), quantity, price, target_percent: target, fractional: false }
+        Position {
+            id: id.into(),
+            quantity,
+            price,
+            target_percent: target,
+            fractional: false,
+        }
     }
 
     fn input(positions: Vec<Position>, contribution: Decimal, mode: Mode) -> RebalanceInput {
-        RebalanceInput { positions, contribution, mode, tolerance_percent: dec!(5), fraction_decimals: 8 }
+        RebalanceInput {
+            positions,
+            contribution,
+            mode,
+            tolerance_percent: dec!(5),
+            fraction_decimals: 8,
+        }
     }
 
     fn units(r: &RebalanceResult) -> Vec<Decimal> {
@@ -287,7 +335,10 @@ mod tests {
     #[test]
     fn full_rebalance_sells_and_buys() {
         let r = compute(&input(
-            vec![pos("A", dec!(10), dec!(100), dec!(50)), pos("B", dec!(0), dec!(50), dec!(50))],
+            vec![
+                pos("A", dec!(10), dec!(100), dec!(50)),
+                pos("B", dec!(0), dec!(50), dec!(50)),
+            ],
             dec!(0),
             Mode::Full,
         ))
@@ -300,7 +351,10 @@ mod tests {
     #[test]
     fn buy_only_fills_underweight_first() {
         let r = compute(&input(
-            vec![pos("A", dec!(10), dec!(100), dec!(50)), pos("B", dec!(0), dec!(100), dec!(50))],
+            vec![
+                pos("A", dec!(10), dec!(100), dec!(50)),
+                pos("B", dec!(0), dec!(100), dec!(50)),
+            ],
             dec!(500),
             Mode::BuyOnly,
         ))
@@ -311,7 +365,10 @@ mod tests {
     #[test]
     fn buy_only_spreads_surplus_by_weight() {
         let r = compute(&input(
-            vec![pos("A", dec!(10), dec!(100), dec!(50)), pos("B", dec!(0), dec!(100), dec!(50))],
+            vec![
+                pos("A", dec!(10), dec!(100), dec!(50)),
+                pos("B", dec!(0), dec!(100), dec!(50)),
+            ],
             dec!(3000),
             Mode::BuyOnly,
         ))
@@ -323,7 +380,10 @@ mod tests {
     #[test]
     fn leftover_cash_is_spent_greedily() {
         let r = compute(&input(
-            vec![pos("A", dec!(0), dec!(30), dec!(50)), pos("B", dec!(0), dec!(70), dec!(50))],
+            vec![
+                pos("A", dec!(0), dec!(30), dec!(50)),
+                pos("B", dec!(0), dec!(70), dec!(50)),
+            ],
             dec!(100),
             Mode::Full,
         ))
@@ -335,7 +395,10 @@ mod tests {
     #[test]
     fn rounding_never_leaves_negative_cash() {
         let r = compute(&input(
-            vec![pos("A", dec!(3), dec!(100), dec!(50)), pos("B", dec!(0), dec!(70), dec!(50))],
+            vec![
+                pos("A", dec!(3), dec!(100), dec!(50)),
+                pos("B", dec!(0), dec!(70), dec!(50)),
+            ],
             dec!(0),
             Mode::Full,
         ))
@@ -357,7 +420,10 @@ mod tests {
     #[test]
     fn withdrawal_in_full_mode() {
         let r = compute(&input(
-            vec![pos("A", dec!(10), dec!(100), dec!(50)), pos("B", dec!(10), dec!(100), dec!(50))],
+            vec![
+                pos("A", dec!(10), dec!(100), dec!(50)),
+                pos("B", dec!(10), dec!(100), dec!(50)),
+            ],
             dec!(-400),
             Mode::Full,
         ))
@@ -369,7 +435,10 @@ mod tests {
     #[test]
     fn within_tolerance_needs_no_rebalance() {
         let r = compute(&input(
-            vec![pos("A", dec!(52), dec!(1), dec!(50)), pos("B", dec!(48), dec!(1), dec!(50))],
+            vec![
+                pos("A", dec!(52), dec!(1), dec!(50)),
+                pos("B", dec!(48), dec!(1), dec!(50)),
+            ],
             dec!(0),
             Mode::Full,
         ))
@@ -379,12 +448,33 @@ mod tests {
 
     #[test]
     fn validation_errors() {
-        let bad_sum = input(vec![pos("A", dec!(1), dec!(1), dec!(60))], dec!(0), Mode::Full);
+        let bad_sum = input(
+            vec![pos("A", dec!(1), dec!(1), dec!(60))],
+            dec!(0),
+            Mode::Full,
+        );
         assert!(matches!(compute(&bad_sum), Err(CoreError::WeightsSum(_))));
-        let bad_price = input(vec![pos("A", dec!(1), dec!(0), dec!(100))], dec!(0), Mode::Full);
-        assert!(matches!(compute(&bad_price), Err(CoreError::InvalidPosition { .. })));
-        let neg = input(vec![pos("A", dec!(1), dec!(1), dec!(100))], dec!(-1), Mode::BuyOnly);
-        assert!(matches!(compute(&neg), Err(CoreError::NegativeContribution)));
-        assert!(matches!(compute(&input(vec![], dec!(0), Mode::Full)), Err(CoreError::NoPositions)));
+        let bad_price = input(
+            vec![pos("A", dec!(1), dec!(0), dec!(100))],
+            dec!(0),
+            Mode::Full,
+        );
+        assert!(matches!(
+            compute(&bad_price),
+            Err(CoreError::InvalidPosition { .. })
+        ));
+        let neg = input(
+            vec![pos("A", dec!(1), dec!(1), dec!(100))],
+            dec!(-1),
+            Mode::BuyOnly,
+        );
+        assert!(matches!(
+            compute(&neg),
+            Err(CoreError::NegativeContribution)
+        ));
+        assert!(matches!(
+            compute(&input(vec![], dec!(0), Mode::Full)),
+            Err(CoreError::NoPositions)
+        ));
     }
 }

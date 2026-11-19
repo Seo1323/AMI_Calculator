@@ -15,8 +15,14 @@ impl Currency {
     pub fn new(code: &str) -> Result<Self> {
         let code = code.trim().to_ascii_uppercase();
         let ok = (2..=10).contains(&code.len())
-            && code.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit());
-        if ok { Ok(Currency(code)) } else { Err(CoreError::InvalidCurrency(code)) }
+            && code
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit());
+        if ok {
+            Ok(Currency(code))
+        } else {
+            Err(CoreError::InvalidCurrency(code))
+        }
     }
 
     pub fn code(&self) -> &str {

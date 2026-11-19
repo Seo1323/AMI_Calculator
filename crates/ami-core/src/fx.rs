@@ -16,7 +16,10 @@ pub struct FxTable {
 
 impl FxTable {
     pub fn new(base: Currency) -> Self {
-        FxTable { base, rates: HashMap::new() }
+        FxTable {
+            base,
+            rates: HashMap::new(),
+        }
     }
 
     pub fn set(&mut self, currency: Currency, rate_in_base: Decimal) {
@@ -27,7 +30,10 @@ impl FxTable {
         if *c == self.base {
             return Ok(Decimal::ONE);
         }
-        self.rates.get(c).copied().ok_or_else(|| CoreError::MissingRate(c.to_string()))
+        self.rates
+            .get(c)
+            .copied()
+            .ok_or_else(|| CoreError::MissingRate(c.to_string()))
     }
 
     pub fn convert(&self, money: &Money, to: &Currency) -> Result<Money> {
@@ -51,10 +57,15 @@ mod tests {
         fx.set(eur.clone(), dec!(4.30));
         fx.set(usd.clone(), dec!(4.00));
 
-        let m = fx.convert(&Money::new(dec!(100), eur.clone()), &pln).unwrap();
+        let m = fx
+            .convert(&Money::new(dec!(100), eur.clone()), &pln)
+            .unwrap();
         assert_eq!(m.amount, dec!(430));
         let m = fx.convert(&Money::new(dec!(100), eur), &usd).unwrap();
         assert_eq!(m.amount, dec!(107.5));
-        assert!(fx.convert(&Money::new(dec!(1), Currency::new("GBP").unwrap()), &pln).is_err());
+        assert!(
+            fx.convert(&Money::new(dec!(1), Currency::new("GBP").unwrap()), &pln)
+                .is_err()
+        );
     }
 }

@@ -38,7 +38,11 @@ fn client() -> reqwest::Result<reqwest::Client> {
 }
 
 async fn get(client: &reqwest::Client, url: &str) -> Result<String, String> {
-    let resp = client.get(url).send().await.map_err(|e| e.without_url().to_string())?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| e.without_url().to_string())?;
     let status = resp.status();
     let body = resp.text().await.map_err(|e| e.without_url().to_string())?;
     // Yahoo answers 404 with a JSON error body worth parsing; other errors are just HTTP.
@@ -58,8 +62,16 @@ pub struct Plan {
 pub fn plan(store: &Store) -> ami_core::Result<Plan> {
     let instruments = store.list::<Instrument>()?;
     Ok(Plan {
-        yahoo: instruments.iter().filter(|i| i.quote_source == QuoteSource::Yahoo).cloned().collect(),
-        coingecko: instruments.iter().filter(|i| i.quote_source == QuoteSource::CoinGecko).cloned().collect(),
+        yahoo: instruments
+            .iter()
+            .filter(|i| i.quote_source == QuoteSource::Yahoo)
+            .cloned()
+            .collect(),
+        coingecko: instruments
+            .iter()
+            .filter(|i| i.quote_source == QuoteSource::CoinGecko)
+            .cloned()
+            .collect(),
     })
 }
 
@@ -70,11 +82,18 @@ pub struct Downloaded {
 }
 
 pub async fn download(plan: Plan) -> Downloaded {
-    let mut out = Downloaded { fx: Vec::new(), quotes: Vec::new(), failures: Vec::new() };
+    let mut out = Downloaded {
+        fx: Vec::new(),
+        quotes: Vec::new(),
+        failures: Vec::new(),
+    };
     let client = match client() {
         Ok(c) => c,
         Err(e) => {
-            out.failures.push(Failure { symbol: "HTTP".into(), reason: e.to_string() });
+            out.failures.push(Failure {
+                symbol: "HTTP".into(),
+                reason: e.to_string(),
+            });
             return out;
         }
     };
@@ -102,11 +121,21 @@ pub async fn download(plan: Plan) -> Downloaded {
     let (nbp, yahoo, coingecko) = futures::join!(nbp, yahoo, coingecko);
 
     match nbp {
-        Ok(rates) => out.fx = rates
-            .into_iter()
-            .map(|r| FxRate { currency: r.currency, rate_pln: r.mid, source: "nbp".into(), fetched_at: now })
-            .collect(),
-        Err(reason) => out.failures.push(Failure { symbol: "NBP".into(), reason }),
+        Ok(rates) => {
+            out.fx = rates
+                .into_iter()
+                .map(|r| FxRate {
+                    currency: r.currency,
+                    rate_pln: r.mid,
+                    source: "nbp".into(),
+                    fetched_at: now,
+                })
+                .collect()
+        }
+        Err(reason) => out.failures.push(Failure {
+            symbol: "NBP".into(),
+            reason,
+        }),
     }
 
     for (instrument, result) in plan.yahoo.iter().zip(yahoo) {
@@ -118,7 +147,10 @@ pub async fn download(plan: Plan) -> Downloaded {
                 source: "yahoo".into(),
                 fetched_at: now,
             }),
-            Err(reason) => out.failures.push(Failure { symbol: instrument.symbol.clone(), reason }),
+            Err(reason) => out.failures.push(Failure {
+                symbol: instrument.symbol.clone(),
+                reason,
+            }),
         }
     }
 
@@ -133,15 +165,24 @@ pub async fn download(plan: Plan) -> Downloaded {
                         source: "coingecko".into(),
                         fetched_at: now,
                     }),
-                    Ok(None) => out.failures.push(Failure { symbol: i.symbol.clone(), reason: "CoinGecko: unknown id".into() }),
-                    Err(e) => out.failures.push(Failure { symbol: i.symbol.clone(), reason: e.to_string() }),
+                    Ok(None) => out.failures.push(Failure {
+                        symbol: i.symbol.clone(),
+                        reason: "CoinGecko: unknown id".into(),
+                    }),
+                    Err(e) => out.failures.push(Failure {
+                        symbol: i.symbol.clone(),
+                        reason: e.to_string(),
+                    }),
                 }
             }
         }
         Ok(_) => {}
         Err(reason) => {
             for i in &plan.coingecko {
-                out.failures.push(Failure { symbol: i.symbol.clone(), reason: reason.clone() });
+                out.failures.push(Failure {
+                    symbol: i.symbol.clone(),
+                    reason: reason.clone(),
+                });
             }
         }
     }
@@ -149,7 +190,10 @@ pub async fn download(plan: Plan) -> Downloaded {
 }
 
 pub fn save(store: &Store, data: Downloaded) -> ami_core::Result<RefreshReport> {
-    let mut report = RefreshReport { failures: data.failures, ..Default::default() };
+    let mut report = RefreshReport {
+        failures: data.failures,
+        ..Default::default()
+    };
     for r in &data.fx {
         store.set_fx_rate(r)?;
         report.fx_updated += 1;
@@ -201,7 +245,13 @@ mod tests {
         for f in &d.failures {
             println!("failure {}: {}", f.symbol, f.reason);
         }
-        println!("fx rates: {} (EUR = {:?})", d.fx.len(), d.fx.iter().find(|r| r.currency.code() == "EUR").map(|r| r.rate_pln));
+        println!(
+            "fx rates: {} (EUR = {:?})",
+            d.fx.len(),
+            d.fx.iter()
+                .find(|r| r.currency.code() == "EUR")
+                .map(|r| r.rate_pln)
+        );
         assert!(d.fx.len() > 20);
         assert_eq!(d.quotes.len(), 3);
         assert_eq!(d.failures.len(), 1);

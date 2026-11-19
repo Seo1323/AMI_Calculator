@@ -22,7 +22,12 @@ pub struct Meta {
 impl Meta {
     pub fn new() -> Self {
         let now = Utc::now();
-        Meta { id: Uuid::now_v7(), created_at: now, updated_at: now, deleted_at: None }
+        Meta {
+            id: Uuid::now_v7(),
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        }
     }
 
     pub fn touch(&mut self) {
