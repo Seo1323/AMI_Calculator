@@ -502,6 +502,16 @@ impl Store {
 
     /// Saves a trade only if the portfolio history stays valid (no overselling).
     pub fn save_trade(&self, trade: Trade) -> Result<Trade> {
+        if trade.quantity <= rust_decimal::Decimal::ZERO {
+            return Err(CoreError::Validation(
+                "trade quantity must be positive".into(),
+            ));
+        }
+        if trade.price < rust_decimal::Decimal::ZERO || trade.fee < rust_decimal::Decimal::ZERO {
+            return Err(CoreError::Validation(
+                "trade price and fee must not be negative".into(),
+            ));
+        }
         let mut history: Vec<Trade> = self
             .trades_of(trade.portfolio_id)?
             .into_iter()
@@ -931,5 +941,60 @@ mod tests {
             Store::open(&path),
             Err(CoreError::DatabaseTooNew(999))
         ));
+    }
+
+    #[test]
+    fn a_new_trade_needs_a_positive_quantity_and_no_negative_money() {
+        let s = Store::open_in_memory().unwrap();
+        let p = s.save(portfolio("IKE")).unwrap();
+        let i = s.save(instrument()).unwrap();
+        let good = trade(p.meta.id, i.meta.id, dec!(1));
+        assert!(s.save_trade(good.clone()).is_ok());
+        for (what, bad) in [
+            (
+                "zero quantity",
+                Trade {
+                    quantity: dec!(0),
+                    ..good.clone()
+                },
+            ),
+            (
+                "negative quantity",
+                Trade {
+                    quantity: dec!(-1),
+                    ..good.clone()
+                },
+            ),
+            (
+                "negative price",
+                Trade {
+                    price: dec!(-1),
+                    ..good.clone()
+                },
+            ),
+            (
+                "negative fee",
+                Trade {
+                    fee: dec!(-1),
+                    ..good.clone()
+                },
+            ),
+        ] {
+            let bad = Trade {
+                meta: Meta::new(),
+                ..bad
+            };
+            assert!(
+                matches!(s.save_trade(bad), Err(CoreError::Validation(_))),
+                "{what}"
+            );
+        }
+        // A free (price 0) trade is fine.
+        let free = Trade {
+            meta: Meta::new(),
+            price: dec!(0),
+            ..good
+        };
+        assert!(s.save_trade(free).is_ok());
     }
 }
