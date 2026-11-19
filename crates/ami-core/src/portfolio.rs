@@ -120,10 +120,10 @@ fn load(store: &Store, portfolio_id: Uuid) -> Result<Inputs> {
         .into_iter()
         .map(|q| (q.instrument_id, q))
         .collect();
-    // Cash needs no price entry: one unit is one unit of its own currency.
+    // Cash and deposits need no price entry: one unit is one unit of their own currency.
     for i in instruments
         .values()
-        .filter(|i| i.kind == InstrumentKind::Cash)
+        .filter(|i| matches!(i.kind, InstrumentKind::Cash | InstrumentKind::Deposit))
     {
         quotes.entry(i.meta.id).or_insert_with(|| Quote {
             instrument_id: i.meta.id,
@@ -370,6 +370,7 @@ mod tests {
             quote_source: QuoteSource::Manual,
             fractional,
             interest_percent: None,
+            start_date: None,
             maturity_date: None,
         };
         let etf = store
@@ -446,7 +447,11 @@ mod tests {
         assert!(v.needs_rebalance);
     }
 
-    fn cash_in_portfolio(currency: &str, quantity: Decimal) -> (Store, Portfolio) {
+    fn money_in_portfolio(
+        kind: InstrumentKind,
+        currency: &str,
+        quantity: Decimal,
+    ) -> (Store, Portfolio) {
         let store = Store::open_in_memory().unwrap();
         let portfolio = store
             .save(Portfolio {
@@ -461,11 +466,12 @@ mod tests {
                 meta: Meta::new(),
                 symbol: currency.into(),
                 name: format!("Cash {currency}"),
-                kind: InstrumentKind::Cash,
+                kind,
                 currency: Currency::new(currency).unwrap(),
                 quote_source: QuoteSource::Manual,
                 fractional: true,
                 interest_percent: Some(dec!(3.5)),
+                start_date: None,
                 maturity_date: None,
             })
             .unwrap();
@@ -477,7 +483,7 @@ mod tests {
 
     #[test]
     fn cash_is_worth_one_unit_of_its_currency_without_a_price_entry() {
-        let (store, portfolio) = cash_in_portfolio("PLN", dec!(1000.50));
+        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "PLN", dec!(1000.50));
         let v = view(&store, portfolio.meta.id).unwrap();
         assert!(v.missing_prices.is_empty());
         assert!(v.missing_rates.is_empty());
@@ -486,8 +492,18 @@ mod tests {
     }
 
     #[test]
+    fn a_bank_deposit_is_valued_at_its_principal() {
+        let (store, portfolio) = money_in_portfolio(InstrumentKind::Deposit, "PLN", dec!(5000));
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert!(v.missing_prices.is_empty());
+        assert_eq!(v.total_value, dec!(5000));
+        // The manual rate stays on the instrument and does not change the valuation.
+        assert_eq!(v.positions[0].instrument.interest_percent, Some(dec!(3.5)));
+    }
+
+    #[test]
     fn foreign_cash_still_needs_an_exchange_rate() {
-        let (store, portfolio) = cash_in_portfolio("EUR", dec!(100));
+        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "EUR", dec!(100));
         let v = view(&store, portfolio.meta.id).unwrap();
         assert!(v.missing_prices.is_empty());
         assert_eq!(v.missing_rates, ["EUR"]);
@@ -505,7 +521,7 @@ mod tests {
 
     #[test]
     fn an_entered_cash_price_wins_over_the_default() {
-        let (store, portfolio) = cash_in_portfolio("PLN", dec!(10));
+        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "PLN", dec!(10));
         let cash_id = store.list::<Instrument>().unwrap()[0].meta.id;
         store.set_quote(&quote(cash_id, dec!(2), "PLN")).unwrap();
         let v = view(&store, portfolio.meta.id).unwrap();

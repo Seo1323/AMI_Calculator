@@ -273,6 +273,7 @@ mod tests {
             quote_source: source,
             fractional: false,
             interest_percent: None,
+            start_date: None,
             maturity_date: None,
         }
     }

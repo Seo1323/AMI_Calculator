@@ -51,6 +51,8 @@ pub enum InstrumentKind {
     Bond,
     Crypto,
     Cash,
+    /// Bank deposit: valued at its principal, the rate is entered by hand.
+    Deposit,
     Other,
 }
 
@@ -84,6 +86,9 @@ pub struct Instrument {
     /// instruments get their rates from the exchange instead (see `Quote`).
     #[serde(default)]
     pub interest_percent: Option<Decimal>,
+    /// Bond purchase/start date; the maturity is this date plus the term.
+    #[serde(default)]
+    pub start_date: Option<NaiveDate>,
     /// Maturity date of a bond.
     #[serde(default)]
     pub maturity_date: Option<NaiveDate>,
@@ -182,6 +187,7 @@ mod tests {
             quote_source: QuoteSource::Manual,
             fractional: false,
             interest_percent: Some(dec!(5.75)),
+            start_date: NaiveDate::from_ymd_opt(2026, 4, 1),
             maturity_date: NaiveDate::from_ymd_opt(2036, 4, 1),
         }
     }
@@ -192,6 +198,7 @@ mod tests {
         let back: Instrument = serde_json::from_str(&serde_json::to_string(&b).unwrap()).unwrap();
         assert_eq!(back.interest_percent, Some(dec!(5.75)));
         assert_eq!(back.maturity_date, b.maturity_date);
+        assert_eq!(back.start_date, NaiveDate::from_ymd_opt(2026, 4, 1));
     }
 
     #[test]
@@ -200,8 +207,12 @@ mod tests {
         let o = v.as_object_mut().unwrap();
         o.remove("interestPercent");
         o.remove("maturityDate");
+        o.remove("startDate");
         let old: Instrument = serde_json::from_value(v).unwrap();
-        assert_eq!((old.interest_percent, old.maturity_date), (None, None));
+        assert_eq!(
+            (old.interest_percent, old.start_date, old.maturity_date),
+            (None, None, None)
+        );
 
         let quote = r#"{"instrumentId":"018f0000-0000-7000-8000-000000000000","price":"10","currency":"PLN",
             "source":"yahoo","fetchedAt":"2026-11-19T10:00:00Z"}"#;
