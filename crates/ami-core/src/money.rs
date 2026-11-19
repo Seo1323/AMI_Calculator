@@ -66,4 +66,62 @@ mod tests {
         assert!(Currency::new("P").is_err());
         assert!(Currency::new("PL-N").is_err());
     }
+
+    #[test]
+    fn currency_length_bounds_are_inclusive() {
+        assert_eq!(Currency::new("ab").unwrap().code(), "AB");
+        assert_eq!(Currency::new("abcdefghij").unwrap().code(), "ABCDEFGHIJ");
+        assert!(Currency::new("abcdefghijk").is_err());
+    }
+
+    #[test]
+    fn currency_rejects_empty_blank_and_inner_whitespace() {
+        assert!(Currency::new("").is_err());
+        assert!(Currency::new("   ").is_err());
+        assert!(Currency::new("PL N").is_err());
+    }
+
+    #[test]
+    fn currency_rejects_non_ascii_letters() {
+        // `to_ascii_uppercase` leaves these untouched and they are not ASCII, so they must fail.
+        assert!(Currency::new("zł").is_err());
+        assert!(Currency::new("€UR").is_err());
+    }
+
+    #[test]
+    fn currency_accepts_digits_and_reports_the_normalized_code_on_error() {
+        assert_eq!(Currency::new("1inch").unwrap().code(), "1INCH");
+        match Currency::new(" pl-n ") {
+            Err(CoreError::InvalidCurrency(code)) => assert_eq!(code, "PL-N"),
+            other => panic!("expected InvalidCurrency(\"PL-N\"), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn currency_deserialization_applies_the_same_validation() {
+        let ok: Currency = serde_json::from_str("\" eur \"").unwrap();
+        assert_eq!(ok.code(), "EUR");
+        assert!(serde_json::from_str::<Currency>("\"E\"").is_err());
+        assert!(serde_json::from_str::<Currency>("\"E-R\"").is_err());
+    }
+
+    #[test]
+    fn currency_serializes_as_the_normalized_plain_string() {
+        let c = Currency::new("eur").unwrap();
+        assert_eq!(serde_json::to_string(&c).unwrap(), "\"EUR\"");
+        let back: Currency = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
+        assert_eq!(back, c);
+    }
+
+    #[test]
+    fn currency_trims_tabs_and_newlines() {
+        assert_eq!(Currency::new("\tEUR\n").unwrap().code(), "EUR");
+    }
+
+    #[test]
+    fn money_deserialization_rejects_an_invalid_nested_currency() {
+        let ok: Money = serde_json::from_str(r#"{"amount":"1.50","currency":" pln "}"#).unwrap();
+        assert_eq!(ok.currency.code(), "PLN");
+        assert!(serde_json::from_str::<Money>(r#"{"amount":"1.50","currency":"x"}"#).is_err());
+    }
 }
