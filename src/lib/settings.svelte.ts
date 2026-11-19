@@ -1,9 +1,9 @@
 import { invoke, isTauri } from '$lib/tauri';
 
-export type Locale = 'pl' | 'en';
+export type Locale = 'pl' | 'en' | 'de' | 'es' | 'fr' | 'uk';
 export type Theme = 'system' | 'light' | 'dark';
 export type Density = 'compact' | 'comfortable' | 'spacious';
-export type NumberLocale = 'auto' | 'pl-PL' | 'en-US' | 'en-GB' | 'de-DE';
+export type NumberLocale = 'auto' | 'pl-PL' | 'en-US' | 'en-GB' | 'de-DE' | 'fr-FR' | 'es-ES' | 'uk-UA';
 export type StartPage = '/' | '/portfolio' | '/rebalance';
 
 export interface Settings {

@@ -94,7 +94,7 @@
 							{#if !p.complete}
 								<span class="muted">{t('dashboard.incomplete')}</span>
 							{:else if p.needsRebalance}
-								<span class="status warn-text">⚠ {t('dashboard.needsRebalance')} · {fmtNumber(p.maxDeviation ?? 0)} p.p.</span>
+								<span class="status warn-text">⚠ {t('dashboard.needsRebalance')} · {fmtNumber(p.maxDeviation ?? 0)} {t('unit.pp')}</span>
 							{:else}
 								<span class="status ok-text">✓ {t('dashboard.inTolerance')}</span>
 							{/if}

@@ -195,7 +195,7 @@
 				{#if view.maxDeviation !== null}
 					<div>
 						<span class="muted">{t('rebalance.deviation')}</span>
-						<strong class:warn-text={view.needsRebalance}>{fmtNumber(view.maxDeviation)} p.p.</strong>
+						<strong class:warn-text={view.needsRebalance}>{fmtNumber(view.maxDeviation)} {t('unit.pp')}</strong>
 					</div>
 				{/if}
 			</div>

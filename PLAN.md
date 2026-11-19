@@ -10,7 +10,7 @@ Kalkulator rebalansowania portfela inwestycyjnego, dla jednej osoby (właścicie
 - **Portfele**: instrumenty (GPW, ETF-y, akcje, krypto), transakcje, średnia cena, zysk, alokacja docelowa, rebalansowanie (tylko dokupowanie albo pełne).
 - **Kursy online**: NBP (waluty), Yahoo Finance (GPW `.WA`, giełdy zagraniczne), CoinGecko (krypto).
 - **Dane lokalnie**, bez kont i chmury. Kopia w jednym pliku `.ami` (JSON), np. na pendrive.
-- **Wygląd**: motyw jasny, ciemny i systemowy, kolor akcentu, gęstość, rozmiar tekstu, zaokrąglenia, polski i angielski, tryb prywatny (ukrywa kwoty), konfigurowalny pulpit.
+- **Wygląd**: motyw jasny, ciemny i systemowy, kolor akcentu, gęstość, rozmiar tekstu, zaokrąglenia, języki (polski, angielski, niemiecki, hiszpański, francuski, ukraiński), tryb prywatny (ukrywa kwoty), konfigurowalny pulpit.
 - Synchronizacja: **później** (model danych jest przygotowany: UUID, znaczniki czasu, miękkie usuwanie).
 
 ## 2. Stack i układ projektu
@@ -92,6 +92,6 @@ Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podp
 
 - Pisze po polsku, odpowiedzi po polsku.
 - Maksimum personalizacji, motyw jasny i ciemny, UI dopasowany do różnych ekranów.
-- Języki: tylko polski i angielski.
+- Języki: polski, angielski, niemiecki, hiszpański, francuski, ukraiński (decyzja właściciela, 2026-11-19; wcześniej tylko pl i en). Każdy nowy tekst trzeba dodać we **wszystkich sześciu** plikach `src/lib/i18n/*.ts` naraz (typ `Record<keyof typeof pl, string>` tego pilnuje). Tłumaczenia de/es/fr/uk zrobił Claude i nie sprawdził ich native speaker.
 - Repozytorium prywatne, dostęp tylko dla zaproszonych osób. Commity idą z adresu noreply GitHuba (konfiguracja lokalna repo), prywatnego e-maila nie wpisujemy.
 - Dał szeroką swobodę w prowadzeniu planu i budowaniu lokalnie. Zawsze potwierdzaj z nim rzeczy nieodwracalne (usuwanie wydań, nowy klucz Androida, upublicznianie repo).

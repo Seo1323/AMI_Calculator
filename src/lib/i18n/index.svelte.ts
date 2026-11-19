@@ -1,10 +1,17 @@
 import pl from './pl';
 import en from './en';
+import de from './de';
+import es from './es';
+import fr from './fr';
+import uk from './uk';
 import { settings } from '$lib/settings.svelte';
 
 export type MessageKey = keyof typeof pl;
 
-const dictionaries: Record<string, Record<MessageKey, string>> = { pl, en };
+const dictionaries: Record<string, Record<MessageKey, string>> = { pl, en, de, es, fr, uk };
+
+/** Default number/date format for each app language (`auto` setting). */
+const AUTO_FORMAT: Record<string, string> = { pl: 'pl-PL', en: 'en-GB', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', uk: 'uk-UA' };
 
 /** Reactive: re-renders when `settings.locale` changes. */
 export function t(key: MessageKey, params?: Record<string, string | number>): string {
@@ -15,7 +22,7 @@ export function t(key: MessageKey, params?: Record<string, string | number>): st
 
 export function numberLocale(): string {
 	if (settings.numberLocale !== 'auto') return settings.numberLocale;
-	return settings.locale === 'pl' ? 'pl-PL' : 'en-GB';
+	return AUTO_FORMAT[settings.locale] ?? 'en-GB';
 }
 
 export function fmtNumber(value: string | number, maxDigits = 2): string {

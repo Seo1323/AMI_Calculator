@@ -154,6 +154,10 @@
 				<select bind:value={settings.locale}>
 					<option value="pl">Polski</option>
 					<option value="en">English</option>
+					<option value="de">Deutsch</option>
+					<option value="es">Español</option>
+					<option value="fr">Français</option>
+					<option value="uk">Українська</option>
 				</select>
 			</label>
 			<label class="field">
@@ -164,6 +168,9 @@
 					<option value="en-US">1,234.56 · en-US</option>
 					<option value="en-GB">1,234.56 · en-GB</option>
 					<option value="de-DE">1.234,56 · de-DE</option>
+					<option value="fr-FR">1 234,56 · fr-FR</option>
+					<option value="es-ES">1234,56 · es-ES</option>
+					<option value="uk-UA">1 234,56 · uk-UA</option>
 				</select>
 			</label>
 			<label class="field">

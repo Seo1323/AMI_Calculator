@@ -45,7 +45,6 @@ const en: Record<keyof typeof pl, string> = {
 	'instruments.symbolHint.coinGecko': 'CoinGecko id, e.g. bitcoin, ethereum, solana.',
 	'instruments.symbolHint.manual': 'Any symbol; you enter the price by hand.',
 	'portfolio.title': 'Portfolios',
-	'portfolio.soon': 'Portfolios, instruments (WSE, ETFs, crypto) and live quotes arrive in stages 2 and 4.',
 
 	'common.save': 'Save',
 	'common.cancel': 'Cancel',
@@ -153,6 +152,7 @@ const en: Record<keyof typeof pl, string> = {
 	'rebalance.cashLeft': 'Cash left',
 	'rebalance.needs': 'Portfolio is outside tolerance (max drift {dev} pp).',
 	'rebalance.ok': 'Portfolio is within tolerance (max drift {dev} pp).',
+	'unit.pp': 'pp',
 
 	'settings.title': 'Settings',
 	'settings.appearance': 'Appearance',
@@ -184,7 +184,7 @@ const en: Record<keyof typeof pl, string> = {
 	'settings.privacy': 'Privacy',
 	'settings.hideAmounts': 'Hide amounts (e.g. when showing the app to others)',
 	'settings.shortcuts': 'Keyboard shortcuts',
-	'shortcut.sections': 'Go to section 1–6',
+	'shortcut.sections': 'Go to section 1–4',
 	'shortcut.hide': 'Hide or show amounts',
 	'shortcut.sidebar': 'Collapse or expand the menu',
 	'settings.data': 'Data and backup',

@@ -43,7 +43,6 @@ const pl = {
 	'instruments.symbolHint.coinGecko': 'Identyfikator z CoinGecko, np. bitcoin, ethereum, solana.',
 	'instruments.symbolHint.manual': 'Dowolny symbol, cenę wpisujesz ręcznie.',
 	'portfolio.title': 'Portfele',
-	'portfolio.soon': 'Portfele, instrumenty (GPW, ETF-y, krypto) i kursy online pojawią się w etapach 2 i 4.',
 
 	'common.save': 'Zapisz',
 	'common.cancel': 'Anuluj',
@@ -151,6 +150,7 @@ const pl = {
 	'rebalance.cashLeft': 'Pozostała gotówka',
 	'rebalance.needs': 'Portfel wyszedł poza tolerancję (maks. odchylenie {dev} p.p.).',
 	'rebalance.ok': 'Portfel mieści się w tolerancji (maks. odchylenie {dev} p.p.).',
+	'unit.pp': 'p.p.',
 
 	'settings.title': 'Ustawienia',
 	'settings.appearance': 'Wygląd',
@@ -182,7 +182,7 @@ const pl = {
 	'settings.privacy': 'Prywatność',
 	'settings.hideAmounts': 'Ukryj kwoty (np. gdy pokazujesz aplikację innym)',
 	'settings.shortcuts': 'Skróty klawiszowe',
-	'shortcut.sections': 'Przejście do sekcji 1–6',
+	'shortcut.sections': 'Przejście do sekcji 1–4',
 	'shortcut.hide': 'Ukryj lub pokaż kwoty',
 	'shortcut.sidebar': 'Zwiń lub rozwiń menu',
 	'settings.data': 'Dane i kopia zapasowa',

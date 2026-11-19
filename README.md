@@ -1,7 +1,7 @@
 # AMI_Calculator
 
 Kalkulator rebalansowania portfela inwestycyjnego.
-Windows (priorytet), Linux, później Android. Język: polski / English.
+Windows (priorytet), Linux, później Android. Języki: polski, English, Deutsch, Español, Français, Українська.
 
 ## Stack
 - **Tauri 2**: cała logika w Ruście (`crates/ami-core`), UI w **Svelte 5 + TypeScript**
