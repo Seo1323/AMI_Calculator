@@ -220,6 +220,7 @@
 			</div>
 		</header>
 
+		{#if view.problem}<div class="notice error">{errorText(view.problem)} {t('portfolio.dataProblem')}</div>{/if}
 		{#if view.missingPrices.length}
 			<div class="notice warn">{t('pf.missingPrices', { list: view.missingPrices.join(', ') })}</div>
 		{/if}

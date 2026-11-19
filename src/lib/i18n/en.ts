@@ -62,6 +62,8 @@ const en: Record<keyof typeof pl, string> = {
 	'portfolio.deleteConfirm': 'Delete portfolio "{name}"? Its trades will no longer be shown.',
 	'portfolio.drift': 'Drift: {dev} pp',
 	'portfolio.incomplete': 'Prices or rates missing',
+	'portfolio.dataProblem': 'Fix or delete the faulty trade in the table below.',
+	'portfolio.dataProblemShort': 'Portfolio data problem',
 	'instruments.title': 'Instruments',
 	'instruments.hint': 'Stocks and ETFs from the WSE or abroad, and crypto. Prices are downloaded automatically; with the "Manual" source you enter them yourself.',
 	'instruments.symbol': 'Symbol',

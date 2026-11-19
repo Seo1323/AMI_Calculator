@@ -467,7 +467,9 @@
 					<div class:pos={Number(v.totalGain) > 0} class:neg={Number(v.totalGain) < 0}>
 						{t('portfolio.gain')}: {fmtMoney(v.totalGain, v.portfolio.baseCurrency)}
 					</div>
-					{#if v.missingPrices.length || v.missingRates.length}
+					{#if v.problem}
+						<div class="small warn-text">⚠ {t('portfolio.dataProblemShort')}</div>
+					{:else if v.missingPrices.length || v.missingRates.length}
 						<div class="muted small">{t('portfolio.incomplete')}</div>
 					{:else if v.maxDeviation !== null}
 						<div class="small" class:warn-text={v.needsRebalance}>

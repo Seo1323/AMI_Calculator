@@ -62,6 +62,8 @@ const de: Record<keyof typeof pl, string> = {
 	'portfolio.deleteConfirm': 'Portfolio „{name}“ löschen? Die zugehörigen Transaktionen werden nicht mehr angezeigt.',
 	'portfolio.drift': 'Abweichung: {dev} Prozentpunkte',
 	'portfolio.incomplete': 'Kurse oder Wechselkurse fehlen',
+	'portfolio.dataProblem': 'Korrigiere oder lösche die fehlerhafte Transaktion in der Tabelle unten.',
+	'portfolio.dataProblemShort': 'Problem mit den Portfoliodaten',
 	'instruments.title': 'Instrumente',
 	'instruments.hint': 'Aktien und ETFs aus Warschau oder dem Ausland sowie Krypto. Kurse werden automatisch geladen; bei der Quelle „Manuell“ gibst du sie selbst ein.',
 	'instruments.symbol': 'Symbol',

@@ -88,6 +88,13 @@ pub struct PositionView {
     pub current_percent: Option<Decimal>,
 }
 
+/// Why a portfolio could not be valued (its trade history is broken), in the frontend's error shape.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Problem {
+    pub code: String,
+    pub message: String,
+}
+
 /// Share of one asset kind (ETF, bonds, cash...) in the portfolio value.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -152,6 +159,9 @@ pub struct PortfolioView {
     pub kind_shares: Vec<KindShare>,
     /// Symbols valued at their purchase cost because no price was entered (bonds): an estimate.
     pub estimated_prices: Vec<String>,
+    /// Set when the trade history is broken (e.g. a sale above the quantity held, after merging two
+    /// backups). The view is then empty, but the trades stay listed so the bad one can be removed.
+    pub problem: Option<Problem>,
 }
 
 struct Inputs {
@@ -264,7 +274,40 @@ impl Inputs {
 }
 
 pub fn view(store: &Store, portfolio_id: Uuid) -> Result<PortfolioView> {
-    let inp = load(store, portfolio_id)?;
+    match load(store, portfolio_id) {
+        Ok(inp) => Ok(build_view(inp)),
+        // One broken history must not take the dashboard and the portfolio list down with it.
+        Err(e @ (CoreError::Oversold { .. } | CoreError::Validation(_))) => {
+            let portfolio = store
+                .get::<Portfolio>(portfolio_id)?
+                .ok_or(CoreError::NotFound)?;
+            Ok(broken_view(portfolio, &e))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn broken_view(portfolio: Portfolio, e: &CoreError) -> PortfolioView {
+    PortfolioView {
+        portfolio,
+        positions: Vec::new(),
+        total_value: Decimal::ZERO,
+        total_gain: Decimal::ZERO,
+        targets_sum: Decimal::ZERO,
+        missing_prices: Vec::new(),
+        missing_rates: Vec::new(),
+        max_deviation: None,
+        needs_rebalance: false,
+        kind_shares: Vec::new(),
+        estimated_prices: Vec::new(),
+        problem: Some(Problem {
+            code: e.code().into(),
+            message: e.to_string(),
+        }),
+    }
+}
+
+fn build_view(inp: Inputs) -> PortfolioView {
     let mut positions = Vec::new();
     let mut missing_prices = Vec::new();
     let mut missing_rates = Vec::new();
@@ -322,7 +365,7 @@ pub fn view(store: &Store, portfolio_id: Uuid) -> Result<PortfolioView> {
         .filter(|p| p.price_source.as_deref() == Some("cost"))
         .map(|p| p.instrument.symbol.clone())
         .collect();
-    Ok(PortfolioView {
+    PortfolioView {
         kind_shares,
         estimated_prices,
         needs_rebalance: max_deviation.is_some_and(|d| d > inp.portfolio.tolerance_percent),
@@ -334,7 +377,8 @@ pub fn view(store: &Store, portfolio_id: Uuid) -> Result<PortfolioView> {
         missing_prices,
         missing_rates,
         max_deviation,
-    })
+        problem: None,
+    }
 }
 
 /// Rebalance a stored portfolio. Result position ids are instrument ids.
@@ -1079,5 +1123,38 @@ mod tests {
         t.quantity = dec!(1);
         t.price = dec!(1);
         assert!(holdings(&[t]).is_ok());
+    }
+
+    #[test]
+    fn a_broken_history_gives_an_empty_view_with_a_problem_not_an_error() {
+        let f = fixture();
+        // A sale without a purchase can only arrive through an import or merge, never through save_trade.
+        let mut data = f.store.export_data().unwrap();
+        data.trades.push(Trade {
+            meta: Meta::new(),
+            portfolio_id: f.portfolio.meta.id,
+            instrument_id: f.etf.meta.id,
+            date: chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap(),
+            side: TradeSide::Sell,
+            quantity: dec!(5),
+            price: dec!(100),
+            fee: dec!(0),
+        });
+        let mut store = f.store;
+        store
+            .import_data(&data, crate::store::ImportMode::Merge)
+            .unwrap();
+
+        let v = view(&store, f.portfolio.meta.id).unwrap();
+        assert!(v.positions.is_empty());
+        assert_eq!(v.problem.as_ref().unwrap().code, "oversold");
+        // The dashboard keeps working and flags the portfolio.
+        let dash = crate::dashboard::build(&store, &Currency::new("PLN").unwrap()).unwrap();
+        assert!(dash.portfolios[0].has_problem);
+        // An unknown portfolio is still an error.
+        assert!(matches!(
+            view(&store, Uuid::now_v7()),
+            Err(CoreError::NotFound)
+        ));
     }
 }

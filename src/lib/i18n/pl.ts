@@ -60,6 +60,8 @@ const pl = {
 	'portfolio.deleteConfirm': 'Usunąć portfel „{name}”? Jego transakcje przestaną być widoczne.',
 	'portfolio.drift': 'Odchylenie: {dev} p.p.',
 	'portfolio.incomplete': 'Brakuje cen lub kursów',
+	'portfolio.dataProblem': 'Popraw lub usuń błędną transakcję w tabeli poniżej.',
+	'portfolio.dataProblemShort': 'Problem z danymi portfela',
 	'instruments.title': 'Instrumenty',
 	'instruments.hint': 'Akcje i ETF-y z GPW lub zagranicy oraz kryptowaluty. Ceny pobierają się automatycznie, a przy źródle „Ręcznie” trzeba je wpisać.',
 	'instruments.symbol': 'Symbol',
