@@ -12,3 +12,6 @@ vite.config.ts.timestamp-*
 /src-tauri/target
 /src-tauri/gen/schemas
 /src-tauri/gen/android/keystore.properties
+
+# code-factory runtime ledger
+.claude/state/
