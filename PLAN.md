@@ -75,7 +75,7 @@ npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 | 7 | Wycięcie budżetu i raportów: aplikacja to sam kalkulator portfela (Pulpit, Portfele, Rebalansowanie, Ustawienia) | 0.4.0 |
 | 8 | Oprocentowanie: stopa zwrotu z 12 mies. i dywidenda (Yahoo, CoinGecko), ręczne oprocentowanie obligacji/gotówki/lokat, nowy rodzaj „lokata bankowa”, gotówka wyceniana po 1 | po 0.4.3 (PR #4) |
 | 9 | Skala interfejsu 50-200% (zoom webview, na Androidzie i w przeglądarce CSS `zoom`) | po 0.4.3 (PR #5) |
-| 10 | Listy zamiast wpisywania (ETF-y, 32 akcje, krypto, waluty, serie obligacji) z wyszukiwaniem; obligacje: oprocentowanie 1. okresu, kapitalizacja i cena 100 zł z oficjalnej oferty MF (obligacjeskarbowe.pl, z wbudowaną migawką z 2026-11), wykup 1. dnia miesiąca, czas do wykupu; okno ilości (instrument + pozycja w jednym kroku) | gałąź `feat/asset-picker`, bez PR |
+| 10 | Listy zamiast wpisywania (ETF-y, 32 akcje, krypto, waluty, serie obligacji) z wyszukiwaniem; obligacje: oprocentowanie 1. okresu, kapitalizacja i cena 100 zł z oficjalnej oferty MF (obligacjeskarbowe.pl, z wbudowaną migawką z 2026-11), wykup 1. dnia miesiąca, czas do wykupu; okno ilości (instrument + pozycja w jednym kroku); cena pozycji akcji/ETF-ów/krypto sama z bieżącego kursu (komenda `quote_preview`) | gałąź `feat/asset-picker`, bez PR |
 
 (Etap 3, budżet domowy, był w 0.2.0 i 0.3.0, a w 0.4.0 został usunięty.)
 
@@ -85,6 +85,7 @@ Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podp
 
 0. **Z etapów 8-10 (najpilniejsze):**
    - Formularz instrumentu (listy, obligacje, okno ilości) i skala UI były sprawdzane tylko w Firefoksie na atrapie backendu Tauri i przez `svelte-check`; **nie widziane w prawdziwej aplikacji** (WebKitGTK, WebView2, Android). Przed wydaniem obejrzeć w `npm run tauri dev` (najpierw kopia `ami.db*`).
+   - Cena pozycji z kursu to **cena bieżąca**: przy wpisaniu wcześniejszej daty zakupu trzeba poprawić ją ręcznie (aplikacja nie ma kursów historycznych).
    - Oprocentowanie i kapitalizacja są tylko zapisywane i wyświetlane w tabeli instrumentów; **nie powiększają wartości portfela** ani nie są pokazane w widoku portfela i na pulpicie (pomysł: średnie ważone oprocentowanie).
    - Stawka z oferty MF to stawka **pierwszego okresu**; kolejne okresy zależą od inflacji lub stopy NBP. Podpowiedź działa tylko dla obligacji kupionych w miesiącu oferty.
    - Migawka ofert w `src/lib/bondOffers.ts` (listopad 2026) jest zapasem bez sieci; odświeżać przy wydaniach. Gdy MF zmieni układ strony, parser zgłosi serię jako pominiętą i formularz poprosi o ręczne oprocentowanie (testy: fixtures w `crates/ami-core/tests/fixtures/`).
