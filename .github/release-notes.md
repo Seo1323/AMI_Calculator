@@ -1,4 +1,11 @@
-## Co nowego w 0.4.4
+## Co nowego w 0.4.5
+- **Wykres kołowy na stronie portfela**: „Podział aktywów” pokazuje, ile wartości portfela jest w ETF-ach, akcjach, obligacjach, krypto, gotówce i lokatach, z dokładnymi udziałami i kwotami w tabeli obok. Najechanie na wycinek pokazuje szczegóły. Działa w trybie jasnym, ciemnym i prywatnym.
+- **Poprawka: data wykupu** obligacji i lokat nie pokazuje już godziny („1 lis 2036, 01:00”) i nie przesuwa się o dzień w innych strefach czasowych.
+- **Poprawka: obligacje bez wpisanej ceny** nie liczą się już jako 0 zł. Do czasu wpisania ceny są wyceniane po koszcie zakupu, a na stronie portfela pojawia się o tym komunikat.
+- **Poprawka: nieprawidłowe transakcje**: ilość równa zero lub ujemna oraz ujemna cena albo opłata są odrzucane z komunikatem. Wcześniej sprzedaż zerowej ilości mogła zawiesić widok portfela.
+- **Wersja 0.4.4 nie została opublikowana**, więc ta wersja zawiera także jej zmiany opisane niżej (listy z wyszukiwaniem, obligacje z oferty Ministerstwa Finansów, lokaty, oprocentowanie, dodawanie pozycji w jednym kroku, skala interfejsu).
+
+## Co nowego w 0.4.4 (nie wydano osobno, zmiany są w 0.4.5)
 - **Wybór z list zamiast wpisywania**: po wybraniu rodzaju (ETF, akcje, obligacje, krypto, gotówka, lokata) wybierasz konkretny instrument z listy z wyszukiwaniem (ETF-y, 32 akcje z GPW i zagranicy, kryptowaluty, waluty, serie obligacji). Zawsze możesz też wpisać własny instrument.
 - **Obligacje skarbowe**: po wybraniu serii (OTS, ROR, DOR, TOS, COI, ROS, EDO, ROD) aplikacja sama podpowiada oprocentowanie pierwszego okresu, kapitalizację i cenę 100 zł z aktualnej oferty Ministerstwa Finansów (obligacjeskarbowe.pl; bez internetu użyje zapisanej oferty z listopada 2026). Wszystko możesz zmienić. Aplikacja liczy datę wykupu (1. dzień miesiąca), symbol (np. EDO1136) i ile zostało do wykupu.
 - **Lokata bankowa**: nowy rodzaj z terminem, datą startu, kapitalizacją i ręcznym oprocentowaniem.
