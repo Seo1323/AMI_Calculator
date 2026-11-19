@@ -4,6 +4,7 @@
 	import { t, fmtMoney, fmtNumber, fmtDate, fmtDay, errorText } from '$lib/i18n/index.svelte';
 	import { settings } from '$lib/settings.svelte';
 	import { db } from '$lib/db';
+	import { orUndo } from '$lib/undo';
 	import { invoke, isTauri } from '$lib/tauri';
 	import Icon from '$lib/components/Icon.svelte';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
@@ -121,7 +122,11 @@
 			const targets = newTargets
 				.filter((r) => r.units > 0)
 				.map((r) => ({ instrumentId: r.id, targetPercent: String(fromUnits(r.units)) }));
-			if (targets.length) await invoke('portfolio_set_targets', { id: created.id, targets });
+			if (targets.length)
+				await orUndo(
+					() => db.remove('portfolio', created.id),
+					() => invoke('portfolio_set_targets', { id: created.id, targets })
+				);
 			newPortfolio = emptyPortfolio();
 			newTargets = [];
 			await load();
@@ -350,15 +355,19 @@
 				maturityDate: timed(f.kind) && f.maturityDate ? f.maturityDate : null
 			} as Instrument);
 			if (!f.id && position.portfolioId && position.quantity.trim()) {
-				await db.save<Trade>('trade', {
-					portfolioId: position.portfolioId,
-					instrumentId: saved.id,
-					date: position.date,
-					side: 'buy',
-					quantity: toDecimal(position.quantity),
-					price: toDecimal(position.price),
-					fee: '0'
-				} as Trade);
+				await orUndo(
+					() => db.remove('instrument', saved.id),
+					() =>
+						db.save<Trade>('trade', {
+							portfolioId: position.portfolioId,
+							instrumentId: saved.id,
+							date: position.date,
+							side: 'buy',
+							quantity: toDecimal(position.quantity),
+							price: toDecimal(position.price),
+							fee: '0'
+						} as Trade)
+				);
 			}
 			// A new instrument with an online source gets its quote now instead of at the next scheduled refresh.
 			if (!f.id && f.quoteSource !== 'manual') void refreshQuotes();

@@ -407,14 +407,29 @@ pub fn save(store: &Store, data: Downloaded) -> ami_core::Result<RefreshReport> 
         store.set_fx_rate(r)?;
         report.fx_updated += 1;
     }
-    let mut seen: HashMap<uuid::Uuid, ()> = HashMap::new();
-    for q in &data.quotes {
+    let previous: HashMap<uuid::Uuid, Quote> = store
+        .quotes()?
+        .into_iter()
+        .map(|q| (q.instrument_id, q))
+        .collect();
+    let mut seen = std::collections::HashSet::new();
+    for mut q in data.quotes {
+        let known = previous.get(&q.instrument_id);
+        keep_known_figures(&mut q, known);
         // The instrument may have been deleted while we were downloading.
-        if seen.insert(q.instrument_id, ()).is_none() && store.set_quote(q).is_ok() {
+        if seen.insert(q.instrument_id) && store.set_quote(&q).is_ok() {
             report.quotes_updated += 1;
         }
     }
     Ok(report)
+}
+
+/// The 12-month figures are optional extras that a provider sometimes leaves out (rate limit, short
+/// history): a fresh price without them must not erase the ones we already know.
+fn keep_known_figures(q: &mut Quote, previous: Option<&Quote>) {
+    let Some(prev) = previous else { return };
+    q.return_12m_percent = q.return_12m_percent.or(prev.return_12m_percent);
+    q.dividend_yield_percent = q.dividend_yield_percent.or(prev.dividend_yield_percent);
 }
 
 #[cfg(test)]
@@ -422,6 +437,115 @@ mod tests {
     use super::*;
     use ami_core::model::{InstrumentKind, Meta};
     use ami_core::money::Currency;
+
+    /// Serves canned HTTP responses on localhost, chosen by request path; returns the base URL.
+    async fn serve(routes: Vec<(&'static str, Vec<u8>)>) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    return;
+                };
+                let mut buf = vec![0u8; 4096];
+                let n = sock.read(&mut buf).await.unwrap_or(0);
+                let head = String::from_utf8_lossy(&buf[..n]).into_owned();
+                let path = head.split_whitespace().nth(1).unwrap_or("/");
+                let reply = routes
+                    .iter()
+                    .find(|(p, _)| *p == path)
+                    .map(|(_, r)| r.clone());
+                let _ = sock.write_all(&reply.unwrap_or_default()).await;
+            }
+        });
+        base
+    }
+
+    fn http(status: &str, extra: &str, body: &[u8]) -> Vec<u8> {
+        let mut r = format!(
+            "HTTP/1.1 {status}\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
+        r.extend_from_slice(body);
+        r
+    }
+
+    #[tokio::test]
+    async fn get_returns_the_body_and_maps_http_errors() {
+        let base = serve(vec![
+            ("/ok", http("200 OK", "", b"hello")),
+            ("/missing", http("404 Not Found", "", b"{\"error\":1}")),
+            ("/boom", http("500 Internal Server Error", "", b"oops")),
+        ])
+        .await;
+        let c = client().unwrap();
+        assert_eq!(get(&c, &format!("{base}/ok")).await.unwrap(), "hello");
+        // Yahoo's 404 carries a JSON error worth parsing.
+        assert_eq!(
+            get(&c, &format!("{base}/missing")).await.unwrap(),
+            "{\"error\":1}"
+        );
+        assert!(
+            get(&c, &format!("{base}/boom"))
+                .await
+                .unwrap_err()
+                .contains("500")
+        );
+    }
+
+    #[tokio::test]
+    async fn get_refuses_a_response_over_the_size_limit() {
+        let big = vec![b'x'; MAX_BODY + 1];
+        let base = serve(vec![("/big", http("200 OK", "", &big))]).await;
+        let err = get(&client().unwrap(), &format!("{base}/big"))
+            .await
+            .unwrap_err();
+        assert_eq!(err, "response too large");
+    }
+
+    #[tokio::test]
+    async fn bond_client_follows_redirects_on_the_same_host_only() {
+        let base = serve(vec![
+            ("/start", http("302 Found", "Location: /final\r\n", b"")),
+            ("/final", http("200 OK", "", b"arrived")),
+            // Same server, but reached through another host name.
+            (
+                "/away",
+                http("302 Found", "Location: http://localhost:1/x\r\n", b""),
+            ),
+        ])
+        .await;
+        let c = bond_client().unwrap();
+        assert_eq!(get(&c, &format!("{base}/start")).await.unwrap(), "arrived");
+        let err = get(&c, &format!("{base}/away")).await.unwrap_err();
+        assert!(err.contains("302"), "{err}");
+    }
+
+    #[test]
+    fn a_fresh_price_without_figures_keeps_the_known_ones() {
+        use rust_decimal_macros::dec;
+        let quote = |price, ret, div| Quote {
+            instrument_id: uuid::Uuid::now_v7(),
+            price,
+            currency: Currency::new("PLN").unwrap(),
+            source: "yahoo".into(),
+            fetched_at: Utc::now(),
+            return_12m_percent: ret,
+            dividend_yield_percent: div,
+        };
+        let old = quote(dec!(100), Some(dec!(12.5)), Some(dec!(2)));
+        let mut fresh = quote(dec!(101), None, None);
+        keep_known_figures(&mut fresh, Some(&old));
+        assert_eq!(fresh.price, dec!(101));
+        assert_eq!(fresh.return_12m_percent, Some(dec!(12.5)));
+        assert_eq!(fresh.dividend_yield_percent, Some(dec!(2)));
+        // New figures win over old ones.
+        let mut newer = quote(dec!(101), Some(dec!(3)), None);
+        keep_known_figures(&mut newer, Some(&old));
+        assert_eq!(newer.return_12m_percent, Some(dec!(3)));
+    }
 
     fn instrument(symbol: &str, source: QuoteSource, currency: &str) -> Instrument {
         Instrument {

@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::error::{CoreError, Result};
 use crate::fx::FxTable;
 use crate::model::*;
-use crate::money::Money;
+use crate::money::{MAX_AMOUNT, Money};
 use crate::rebalance::{self, Mode, Position, RebalanceInput, RebalanceResult};
 use crate::store::Store;
 
@@ -38,6 +38,10 @@ pub fn holdings(trades: &[Trade]) -> Result<BTreeMap<Uuid, Holding>> {
         // A zero-quantity trade changes nothing (and a sell of 0 would divide the cost by a zero quantity).
         if t.quantity.is_zero() {
             continue;
+        }
+        // Saved before the limit existed? A product of absurd values would panic, so refuse it here.
+        if t.quantity.max(t.price).max(t.fee) > MAX_AMOUNT {
+            return Err(CoreError::Validation("trade value is too large".into()));
         }
         let h = map.entry(t.instrument_id).or_default();
         match t.side {
@@ -372,6 +376,7 @@ pub fn rebalance(
 mod tests {
     use super::*;
     use crate::money::Currency;
+    use crate::money::MAX_AMOUNT;
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
 
@@ -1000,5 +1005,79 @@ mod tests {
         let targets = f.store.targets_of(f.portfolio.meta.id).unwrap();
         assert_eq!(targets.len(), 1);
         assert_eq!(targets[0].target_percent, dec!(100));
+    }
+
+    #[test]
+    fn set_targets_is_all_or_nothing() {
+        let f = fixture();
+        let id = f.portfolio.meta.id;
+        f.store
+            .set_targets(id, &[(f.etf.meta.id, dec!(60)), (f.btc.meta.id, dec!(40))])
+            .unwrap();
+        // The second entry is invalid: nothing may change, not even the first.
+        let bad = f.store.set_targets(
+            id,
+            &[(f.etf.meta.id, dec!(100)), (f.btc.meta.id, dec!(150))],
+        );
+        assert!(matches!(bad, Err(CoreError::Validation(_))));
+        let mut after: Vec<_> = f
+            .store
+            .targets_of(id)
+            .unwrap()
+            .into_iter()
+            .map(|t| t.target_percent)
+            .collect();
+        after.sort();
+        assert_eq!(after, [dec!(40), dec!(60)]);
+        // The same instrument twice is refused.
+        let dup = f
+            .store
+            .set_targets(id, &[(f.etf.meta.id, dec!(50)), (f.etf.meta.id, dec!(50))]);
+        assert!(matches!(dup, Err(CoreError::Validation(_))));
+    }
+
+    #[test]
+    fn import_rejects_records_a_normal_save_would_refuse() {
+        let f = fixture();
+        let mut data = f.store.export_data().unwrap();
+        data.trades.push(Trade {
+            meta: Meta::new(),
+            portfolio_id: f.portfolio.meta.id,
+            instrument_id: f.etf.meta.id,
+            date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            side: TradeSide::Buy,
+            quantity: MAX_AMOUNT + dec!(1),
+            price: dec!(1),
+            fee: dec!(0),
+        });
+        let mut target = Store::open_in_memory().unwrap();
+        let err = target.import_data(&data, crate::store::ImportMode::Replace);
+        assert!(matches!(err, Err(CoreError::Validation(_))));
+        assert!(
+            target.list::<Portfolio>().unwrap().is_empty(),
+            "nothing imported"
+        );
+    }
+
+    #[test]
+    fn holdings_refuses_a_stored_trade_with_absurd_values() {
+        let f = fixture();
+        let mut t = Trade {
+            meta: Meta::new(),
+            portfolio_id: f.portfolio.meta.id,
+            instrument_id: f.etf.meta.id,
+            date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            side: TradeSide::Buy,
+            quantity: MAX_AMOUNT * dec!(1000),
+            price: MAX_AMOUNT * dec!(1000),
+            fee: dec!(0),
+        };
+        assert!(matches!(
+            holdings(&[t.clone()]),
+            Err(CoreError::Validation(_))
+        ));
+        t.quantity = dec!(1);
+        t.price = dec!(1);
+        assert!(holdings(&[t]).is_ok());
     }
 }

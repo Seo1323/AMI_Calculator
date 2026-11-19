@@ -19,6 +19,7 @@ use uuid::Uuid;
 use crate::error::{CoreError, Result};
 use crate::export::DataSet;
 use crate::model::*;
+use crate::money::MAX_AMOUNT;
 
 pub const UI_SETTINGS_KEY: &str = "ui";
 
@@ -108,7 +109,11 @@ impl Entity for Trade {
             self.price >= Decimal::ZERO,
             "trade price must not be negative",
         )?;
-        require(self.fee >= Decimal::ZERO, "trade fee must not be negative")
+        require(self.fee >= Decimal::ZERO, "trade fee must not be negative")?;
+        require(
+            self.quantity.max(self.price).max(self.fee) <= MAX_AMOUNT,
+            "trade value is too large",
+        )
     }
     fn references(&self) -> Vec<(&'static str, Uuid)> {
         vec![
@@ -350,8 +355,26 @@ pub struct ImportStats {
     pub skipped: usize,
 }
 
+fn check_quote(q: &Quote) -> Result<()> {
+    let positive = q.price > rust_decimal::Decimal::ZERO;
+    require(
+        positive && q.price <= MAX_AMOUNT,
+        "price must be positive and not absurdly large",
+    )
+}
+
+fn check_rate(r: &FxRate) -> Result<()> {
+    let positive = r.rate_pln > rust_decimal::Decimal::ZERO;
+    require(
+        positive && r.rate_pln <= MAX_AMOUNT,
+        "exchange rate must be positive and not absurdly large",
+    )?;
+    require(r.currency.code() != "PLN", "PLN is the reference currency")
+}
+
 fn import_list<T: Entity>(conn: &Connection, items: &[T], stats: &mut ImportStats) -> Result<()> {
     for item in items {
+        item.validate()?; // a hand-edited file must not smuggle in what a normal save would refuse
         match read::<T>(conn, item.meta().id)? {
             None => {
                 write(conn, item)?;
@@ -502,16 +525,7 @@ impl Store {
 
     /// Saves a trade only if the portfolio history stays valid (no overselling).
     pub fn save_trade(&self, trade: Trade) -> Result<Trade> {
-        if trade.quantity <= rust_decimal::Decimal::ZERO {
-            return Err(CoreError::Validation(
-                "trade quantity must be positive".into(),
-            ));
-        }
-        if trade.price < rust_decimal::Decimal::ZERO || trade.fee < rust_decimal::Decimal::ZERO {
-            return Err(CoreError::Validation(
-                "trade price and fee must not be negative".into(),
-            ));
-        }
+        trade.validate()?;
         let mut history: Vec<Trade> = self
             .trades_of(trade.portfolio_id)?
             .into_iter()
@@ -539,10 +553,7 @@ impl Store {
     // ----- prices and exchange rates -----
 
     pub fn set_quote(&self, quote: &Quote) -> Result<()> {
-        require(
-            quote.price > rust_decimal::Decimal::ZERO,
-            "price must be positive",
-        )?;
+        check_quote(quote)?;
         if !self.exists("instruments", quote.instrument_id)? {
             return Err(CoreError::MissingReference {
                 table: "instruments".into(),
@@ -557,14 +568,7 @@ impl Store {
     }
 
     pub fn set_fx_rate(&self, rate: &FxRate) -> Result<()> {
-        require(
-            rate.rate_pln > rust_decimal::Decimal::ZERO,
-            "exchange rate must be positive",
-        )?;
-        require(
-            rate.currency.code() != "PLN",
-            "PLN is the reference currency",
-        )?;
+        check_rate(rate)?;
         write_fx(&self.conn, rate)
     }
 
@@ -600,6 +604,7 @@ impl Store {
     }
 
     /// Replaces a portfolio's target allocation with the given (instrument, percent) list.
+    /// All or nothing: an invalid entry leaves the stored targets untouched.
     pub fn set_targets(
         &self,
         portfolio_id: Uuid,
@@ -608,6 +613,27 @@ impl Store {
         if self.get::<Portfolio>(portfolio_id)?.is_none() {
             return Err(CoreError::NotFound);
         }
+        let distinct: std::collections::HashSet<_> = targets.iter().map(|(id, _)| id).collect();
+        require(
+            distinct.len() == targets.len(),
+            "an instrument appears twice in the targets",
+        )?;
+        self.conn.execute_batch("SAVEPOINT set_targets")?;
+        let result = self.apply_targets(portfolio_id, targets);
+        let end = if result.is_ok() {
+            "RELEASE set_targets"
+        } else {
+            "ROLLBACK TO set_targets; RELEASE set_targets"
+        };
+        self.conn.execute_batch(end)?;
+        result
+    }
+
+    fn apply_targets(
+        &self,
+        portfolio_id: Uuid,
+        targets: &[(Uuid, rust_decimal::Decimal)],
+    ) -> Result<()> {
         let existing = self.targets_of(portfolio_id)?;
         for t in &existing {
             if !targets.iter().any(|(id, _)| *id == t.instrument_id) {
@@ -686,6 +712,7 @@ impl Store {
         import_list(&tx, &data.targets, &mut stats)?;
         import_list(&tx, &data.trades, &mut stats)?;
         for q in &data.quotes {
+            check_quote(q)?;
             if merge_cached(
                 &tx,
                 "quotes",
@@ -697,6 +724,7 @@ impl Store {
             }
         }
         for r in &data.fx_rates {
+            check_rate(r)?;
             if merge_cached(&tx, "fx_rates", "currency", r.currency.code(), r.fetched_at)? {
                 write_fx(&tx, r)?;
             }
@@ -976,6 +1004,13 @@ mod tests {
                 "negative fee",
                 Trade {
                     fee: dec!(-1),
+                    ..good.clone()
+                },
+            ),
+            (
+                "absurdly large price",
+                Trade {
+                    price: MAX_AMOUNT + dec!(1),
                     ..good.clone()
                 },
             ),
