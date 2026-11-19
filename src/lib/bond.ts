@@ -79,3 +79,20 @@ export function termBetween(startIso: string, endIso: string): number | null {
 	}
 	return null;
 }
+
+/** First day of the month of `iso`: Polish retail bonds mature on the 1st. */
+export function firstOfMonth(iso: string): string | null {
+	const p = parse(iso);
+	return p ? `${pad(p.y, 4)}-${pad(p.m)}-01` : null;
+}
+
+/**
+ * Month (YYYY-MM) in which an offered series is sold, from its symbol (series + maturity MMYY)
+ * and term: EDO1136 with 120 months is sold in 2026-11.
+ */
+export function offerMonth(symbol: string, termMonths: number): string | null {
+	const m = /^[A-Z]{3}(\d{2})(\d{2})$/.exec(symbol);
+	if (!m) return null;
+	const matured = addMonths(`20${m[2]}-${m[1]}-01`, -termMonths);
+	return matured ? matured.slice(0, 7) : null;
+}
