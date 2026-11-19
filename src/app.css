@@ -422,6 +422,9 @@ tbody tr:hover {
 	--surface-2: #15151a;
 	--border: #26262d;
 }
+:root[data-theme='dark'][data-dark-style='black'] .sidebar {
+	background: var(--surface);
+}
 :root[data-width='narrow'] {
 	--content-max: 64rem;
 }
