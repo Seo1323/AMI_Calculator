@@ -955,6 +955,20 @@ mod tests {
     }
 
     #[test]
+    fn the_parsed_rate_is_the_percentage_not_the_first_number() {
+        let page = series_page(
+            "EDO1136",
+            "w pierwszym 12-miesięcznym okresie 5,35%",
+            "roczna",
+            "100 zł",
+        );
+        assert_eq!(
+            parse_bond_offer(&page).unwrap().first_period_rate_percent,
+            dec!(5.35)
+        );
+    }
+
+    #[test]
     fn a_row_never_borrows_the_value_of_another_row() {
         let row_with_value = |label: &str, value: &str| row(label, value);
         // "Seria" has a label but no value element; the next row's value must not leak into it.
