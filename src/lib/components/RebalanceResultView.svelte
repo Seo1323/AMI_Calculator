@@ -27,12 +27,12 @@
 				<tr>
 					<th>{t('rebalance.name')}</th>
 					<th class="num">{t('rebalance.current')}</th>
-					<th class="num">%</th>
+					<th class="num hide-sm">%</th>
 					<th class="num">{t('rebalance.target')}</th>
-					<th class="num">{t('rebalance.deviation')}</th>
+					<th class="num hide-xs">{t('rebalance.deviation')}</th>
 					<th>{t('rebalance.action')}</th>
-					<th class="num">{t('rebalance.after')}</th>
-					<th class="num">{t('rebalance.after')} %</th>
+					<th class="num hide-xs">{t('rebalance.after')}</th>
+					<th class="num hide-sm">{t('rebalance.after')} %</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -41,14 +41,14 @@
 					<tr>
 						<td>{label(p.id)}</td>
 						<td class="num">{fmtMoney(p.currentValue, currency)}</td>
-						<td class="num">{fmtNumber(p.currentPercent)}</td>
+						<td class="num hide-sm">{fmtNumber(p.currentPercent)}</td>
 						<td class="num">{fmtNumber(p.targetPercent)}</td>
-						<td class="num">{fmtNumber(p.deviationBefore)}</td>
-						<td class={a.cls}>
+						<td class="num hide-xs">{fmtNumber(p.deviationBefore)}</td>
+						<td class="{a.cls} act">
 							{a.text} <span class="muted">({fmtMoney(Math.abs(Number(p.tradeValue)), currency)})</span>
 						</td>
-						<td class="num">{fmtMoney(p.valueAfter, currency)}</td>
-						<td class="num">{fmtNumber(p.percentAfter)}</td>
+						<td class="num hide-xs">{fmtMoney(p.valueAfter, currency)}</td>
+						<td class="num hide-sm">{fmtNumber(p.percentAfter)}</td>
 					</tr>
 				{/each}
 			</tbody>
@@ -62,6 +62,11 @@
 </section>
 
 <style>
+	@media (max-width: 640px) {
+		.act {
+			white-space: normal;
+		}
+	}
 	.totals {
 		display: flex;
 		flex-wrap: wrap;

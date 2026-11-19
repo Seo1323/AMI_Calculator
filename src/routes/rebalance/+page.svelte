@@ -116,12 +116,12 @@
 				<tbody>
 					{#each rows as r (r.key)}
 						<tr>
-							<td><input bind:value={r.id} aria-label={t('rebalance.name')} /></td>
-							<td><input class="n" inputmode="decimal" bind:value={r.quantity} aria-label={t('rebalance.quantity')} /></td>
-							<td><input class="n" inputmode="decimal" bind:value={r.price} aria-label={t('rebalance.price')} /></td>
-							<td><input class="n" inputmode="decimal" bind:value={r.targetPercent} aria-label={t('rebalance.target')} /></td>
-							<td><input type="checkbox" bind:checked={r.fractional} aria-label={t('rebalance.fractional')} /></td>
-							<td>
+							<td class="name" data-label={t('rebalance.name')}><input bind:value={r.id} aria-label={t('rebalance.name')} /></td>
+							<td data-label={t('rebalance.quantity')}><input class="n" inputmode="decimal" bind:value={r.quantity} aria-label={t('rebalance.quantity')} /></td>
+							<td data-label={t('rebalance.price')}><input class="n" inputmode="decimal" bind:value={r.price} aria-label={t('rebalance.price')} /></td>
+							<td data-label={t('rebalance.target')}><input class="n" inputmode="decimal" bind:value={r.targetPercent} aria-label={t('rebalance.target')} /></td>
+							<td class="frac" data-label={t('rebalance.fractional')}><input type="checkbox" bind:checked={r.fractional} aria-label={t('rebalance.fractional')} /></td>
+							<td class="del">
 								<button
 									class="btn ghost"
 									title={t('common.remove')}
@@ -194,5 +194,59 @@
 	}
 	.sum {
 		font-variant-numeric: tabular-nums;
+	}
+	/* Phones: every position becomes a small card with labelled fields. */
+	@media (max-width: 640px) {
+		.inputs,
+		.inputs tbody {
+			display: block;
+		}
+		.inputs thead {
+			display: none;
+		}
+		.inputs tr {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 0.5rem;
+			padding: 0.7rem 0;
+			border-bottom: 1px solid var(--border);
+		}
+		.inputs td {
+			display: block;
+			padding: 0;
+			min-width: 0;
+		}
+		.inputs td::before {
+			content: attr(data-label);
+			display: block;
+			font-size: 0.8rem;
+			color: var(--text-muted);
+			margin-bottom: 0.2rem;
+		}
+		.inputs td.name {
+			grid-column: 1;
+			grid-row: 1;
+		}
+		.inputs td.del {
+			grid-column: 2;
+			grid-row: 1;
+			justify-self: end;
+			align-self: end;
+		}
+		.inputs td.del::before {
+			display: none;
+		}
+		.inputs td.frac {
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+			align-self: end;
+			min-height: 2.4rem;
+		}
+		.inputs td.frac::before {
+			order: 2;
+			margin: 0;
+			font-size: 0.9rem;
+		}
 	}
 </style>
