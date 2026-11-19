@@ -1,3 +1,7 @@
+## Co nowego w 0.4.7
+- **Więcej opcji wyglądu** (Ustawienia → Wygląd): czcionka (domyślna, szeryfowa, monospace), cienie kart (brak, delikatne, wyraźne), styl ciemnego motywu (miękki albo czarny AMOLED), szerokość treści (wąska, normalna, pełna), poświata koloru akcentu w tle, paleta dla daltonistów (niebieski i pomarańczowy zamiast zieleni i czerwieni) oraz pokazywanie groszy w kwotach.
+- **Do wiedzenia**: opcje zapisują się razem z resztą ustawień, więc trafiają też do kopii `.ami`. Tłumaczenia nowych tekstów (de/es/fr/uk) nie były sprawdzone przez osobę znającą język.
+
 ## Co nowego w 0.4.6
 - **Płynniejsze przewijanie na Linuksie (niri)**: na natywnym Waylandzie GL się nie uruchamiał, a strona była rysowana programowo w czterokrotnie większej rozdzielczości (ok. 3 klatki na sekundę). Aplikacja startuje teraz przez XWayland (ok. 60 klatek na sekundę). Wyłączysz to zmienną `AMI_DISPLAY=wayland`.
 - **Tryb wydajny** (Ustawienia): wyłącza poświatę, cienie, gradienty i animacje. W trybie automatycznym włącza się sam, gdy wykryje bardzo wolne klatki.
