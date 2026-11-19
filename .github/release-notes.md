@@ -1,3 +1,6 @@
+## Co nowego w 0.4.2
+- **Rebalansowanie na telefonie**: pozycje kalkulatora są małymi kartami z podpisanymi polami (wcześniej pole „Cel %” było poza ekranem), tabela wyników chowa mniej ważne kolumny.
+
 ## Co nowego w 0.4.1
 - **Własna ikona aplikacji** (waga) na wszystkich platformach.
 - **Edycja**: transakcje giełdowe (ołówek w tabeli) oraz nazwa i tolerancja portfela. Zmiana, po której wyszłaby sprzedaż niekupionych akcji, jest odrzucana.
