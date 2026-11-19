@@ -17,8 +17,9 @@
 	let systemReducedMotion = $state(motionQuery?.matches ?? false);
 	let ready = $state(false);
 	// Medium windows collapse the sidebar to icons so the content keeps its room.
-	const narrowQuery = typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)') : null;
-	let narrow = $state(narrowQuery?.matches ?? false);
+	// The width is divided by the text size, because larger text leaves less room.
+	let viewportWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1280);
+	const narrow = $derived(viewportWidth / settings.fontScale <= 1024);
 	const collapsed = $derived(settings.sidebarCollapsed || narrow);
 	const animate = $derived(!settings.reduceMotion && !systemReducedMotion);
 
@@ -58,8 +59,6 @@
 	onMount(() => {
 		const onDark = (e: MediaQueryListEvent) => (systemDark = e.matches);
 		const onMotion = (e: MediaQueryListEvent) => (systemReducedMotion = e.matches);
-		const onNarrow = (e: MediaQueryListEvent) => (narrow = e.matches);
-		narrowQuery?.addEventListener('change', onNarrow);
 		media?.addEventListener('change', onDark);
 		motionQuery?.addEventListener('change', onMotion);
 		hydrateSettings().then(() => {
@@ -67,7 +66,6 @@
 			if (page.url.pathname === '/' && settings.startPage !== '/') goto(settings.startPage, { replaceState: true });
 		});
 		return () => {
-			narrowQuery?.removeEventListener('change', onNarrow);
 			media?.removeEventListener('change', onDark);
 			motionQuery?.removeEventListener('change', onMotion);
 		};
@@ -82,6 +80,9 @@
 		root.style.setProperty('--font-scale', String(settings.fontScale));
 		root.style.setProperty('--radius', `${settings.radius}px`);
 		root.toggleAttribute('data-reduce-motion', settings.reduceMotion);
+		// Breakpoints for hiding table columns, counted after text scaling (see `narrow`).
+		const effective = viewportWidth / settings.fontScale;
+		for (const w of [820, 480, 400]) root.toggleAttribute(`data-lt${w}`, effective <= w);
 		root.toggleAttribute('data-hide-amounts', settings.hideAmounts);
 		root.lang = settings.locale;
 		saveSettings();
@@ -118,7 +119,7 @@
 	});
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} bind:innerWidth={viewportWidth} />
 
 <div class="shell" class:collapsed class:animate>
 	<nav class="sidebar" aria-label="main">
@@ -185,13 +186,13 @@
 
 <style>
 	.shell {
-		--sidebar-w: 220px;
+		--sidebar-w: 14.7rem;
 		--ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 		display: flex;
 		min-height: 100vh;
 	}
 	.shell.collapsed {
-		--sidebar-w: 64px;
+		--sidebar-w: 4.3rem;
 	}
 	.sidebar {
 		position: sticky;
@@ -354,7 +355,8 @@
 		flex: 1;
 		min-width: 0;
 		padding: calc(var(--space) * 1.5);
-		max-width: 1400px;
+		max-width: 94rem;
+		margin-inline: auto;
 	}
 
 	/* Phones: bottom navigation bar */
