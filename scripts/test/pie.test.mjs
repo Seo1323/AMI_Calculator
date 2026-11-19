@@ -55,3 +55,10 @@ test('arcPath never produces NaN', () => {
 		assert.ok(!/NaN|undefined/.test(arcPath(100, 100, 90, 50, a, b)), `${a}..${b}`);
 	}
 });
+
+test('the last slice closes the circle exactly even when float error would leave a gap or an overlap', () => {
+	// Naively adding value/total * 2π for these three values lands 9e-16 past 2π.
+	const s = layout([{ id: 'a', value: 841.11 }, { id: 'b', value: 401.56 }, { id: 'c', value: 930.99 }]);
+	assert.equal(s.at(-1).end, Math.PI * 2);
+	for (let i = 1; i < s.length; i++) assert.equal(s[i].start, s[i - 1].end);
+});
