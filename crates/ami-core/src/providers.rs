@@ -7,6 +7,7 @@
 //! * Yahoo Finance chart API (unofficial): WSE tickers with `.WA` (e.g. `PKN.WA`),
 //!   foreign ones with their exchange suffix (`VWCE.DE`) or none (`AAPL`).
 //! * CoinGecko simple price API: crypto by CoinGecko id (`bitcoin`, `ethereum`).
+//! * obligacjeskarbowe.pl (Ministry of Finance): the current offer of Polish retail treasury bonds.
 
 use std::str::FromStr;
 
@@ -15,6 +16,7 @@ use rust_decimal::Decimal;
 use serde_json::Value;
 
 use crate::error::{CoreError, Result};
+use crate::model::Capitalization;
 use crate::money::Currency;
 
 fn provider(msg: impl Into<String>) -> CoreError {
@@ -309,6 +311,148 @@ pub fn parse_coingecko(body: &str, id: &str, vs: &str) -> Result<Option<Decimal>
         .and_then(decimal))
 }
 
+// ---------- Polish retail treasury bonds (obligacjeskarbowe.pl) ----------
+
+pub const BOND_SITE: &str = "https://www.obligacjeskarbowe.pl";
+pub const BOND_OFFER_URL: &str = "https://www.obligacjeskarbowe.pl/oferta-obligacji/";
+
+/// One series of the current monthly offer, e.g. `EDO1136`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BondOffer {
+    /// Series code without the maturity part: `EDO`.
+    pub series: String,
+    /// Full symbol: series + maturity month and year, `EDO1136`.
+    pub symbol: String,
+    /// Annual rate of the first interest period in percent. Later periods of floating and
+    /// inflation-indexed bonds depend on inflation or the NBP rate and are not known upfront.
+    pub first_period_rate_percent: Decimal,
+    pub capitalization: Option<Capitalization>,
+    /// Sale price of one bond in PLN (nominal 100).
+    pub price: Decimal,
+}
+
+/// Text of an HTML fragment: tags dropped, the few entities that occur decoded, spaces collapsed.
+fn html_text(fragment: &str) -> String {
+    let mut out = String::with_capacity(fragment.len());
+    let mut in_tag = false;
+    for c in fragment.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => {
+                in_tag = false;
+                out.push(' ');
+            }
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    out.replace("&#160;", " ")
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Value of a `<strong class="product-details__list-label">Label:</strong>` row.
+fn offer_field(html: &str, label: &str) -> Option<String> {
+    let after_label = &html[html.find(&format!(">{label}:</strong>"))?..];
+    let after_value = &after_label[after_label.find("list-value\"")?..];
+    let value = &after_value[after_value.find('>')? + 1..];
+    Some(html_text(&value[..value.find("</span>")?]))
+}
+
+/// First decimal number in `s`, accepting a comma: `"4,75%, w skali"` gives 4.75.
+fn first_number(s: &str) -> Option<Decimal> {
+    let start = s.find(|c: char| c.is_ascii_digit())?;
+    let number: String = s[start..]
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == ',' || *c == '.')
+        .collect();
+    Decimal::from_str(
+        number
+            .trim_end_matches([',', '.'])
+            .replace(',', ".")
+            .as_str(),
+    )
+    .ok()
+}
+
+fn valid_series_symbol(s: &str) -> bool {
+    s.len() == 7
+        && s[..3].chars().all(|c| c.is_ascii_uppercase())
+        && s[3..].chars().all(|c| c.is_ascii_digit())
+}
+
+/// Paths of the series pages linked from the offer overview, e.g.
+/// `/oferta-obligacji/obligacje-10-letnie-edo/edo1136/`. Only plain lowercase paths of this
+/// shape are returned, so the result can be appended to [`BOND_SITE`] safely.
+pub fn bond_series_paths(overview: &str) -> Vec<String> {
+    const PREFIX: &str = "href=\"/oferta-obligacji/obligacje-";
+    let mut paths: Vec<String> = Vec::new();
+    for (i, _) in overview.match_indices(PREFIX) {
+        let start = i + "href=\"".len();
+        let Some(len) = overview[start..].find('"') else {
+            continue;
+        };
+        let path = &overview[start..start + len];
+        let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
+        let plain = path
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '/');
+        let code = parts.get(2).copied().unwrap_or_default();
+        if plain
+            && parts.len() == 3
+            && code.len() == 7
+            && code[..3].chars().all(|c| c.is_ascii_lowercase())
+            && code[3..].chars().all(|c| c.is_ascii_digit())
+            && !paths.iter().any(|p| p == path)
+        {
+            paths.push(path.to_string());
+        }
+    }
+    paths
+}
+
+/// Parses one series page of obligacjeskarbowe.pl.
+pub fn parse_bond_offer(html: &str) -> Result<BondOffer> {
+    let missing = |what: &str| provider(format!("obligacjeskarbowe.pl: no {what}"));
+    let symbol = offer_field(html, "Seria")
+        .and_then(|v| v.split_whitespace().next().map(str::to_string))
+        .filter(|s| valid_series_symbol(s))
+        .ok_or_else(|| missing("series"))?;
+    let rate = offer_field(html, "Oprocentowanie")
+        .and_then(|v| first_number(&v))
+        .ok_or_else(|| missing("rate"))?;
+    let capitalization = match offer_field(html, "Kapitalizacja odsetek")
+        .ok_or_else(|| missing("capitalization"))?
+        .to_lowercase()
+        .as_str()
+    {
+        "brak" => None,
+        "roczna" => Some(Capitalization::Annual),
+        "kwartalna" => Some(Capitalization::Quarterly),
+        "miesięczna" => Some(Capitalization::Monthly),
+        other => {
+            return Err(provider(format!(
+                "obligacjeskarbowe.pl: unknown capitalization '{other}'"
+            )));
+        }
+    };
+    let price = offer_field(html, "Cena sprzedaży jednej obligacji")
+        .and_then(|v| first_number(&v))
+        .filter(|p| *p > Decimal::ZERO)
+        .ok_or_else(|| missing("price"))?;
+    Ok(BondOffer {
+        series: symbol[..3].to_string(),
+        symbol,
+        first_period_rate_percent: rate,
+        capitalization,
+        price,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -558,5 +702,122 @@ mod tests {
         );
         assert_eq!(parse_coingecko_return(&body("-100.5"), "x").unwrap(), None);
         assert_eq!(parse_coingecko_return(&body("2000000"), "x").unwrap(), None);
+    }
+
+    /// A series page row in the markup of obligacjeskarbowe.pl.
+    fn row(label: &str, value: &str) -> String {
+        format!(
+            r#"<li>
+                <strong class="product-details__list-label">{label}:</strong>
+                <span class="product-details__list-value">
+                    {value}
+                </span>
+            </li>"#
+        )
+    }
+
+    fn series_page(symbol: &str, rate: &str, capitalization: &str, price: &str) -> String {
+        format!(
+            "<html><ul>{}{}{}{}{}</ul></html>",
+            row(
+                "Seria",
+                &format!(r#"{symbol} <a href="/x.pdf">Zobacz list emisyjny</a>&#160;"#)
+            ),
+            row("Oprocentowanie", rate),
+            row("Kapitalizacja odsetek", capitalization),
+            row("Wypłata odsetek", "przy wykupie obligacji"),
+            row("Cena sprzedaży jednej obligacji", price),
+        )
+    }
+
+    #[test]
+    fn bond_offer_from_the_official_markup() {
+        let edo = series_page(
+            "EDO1136",
+            "5,35% w pierwszym rocznym okresie odsetkowym, w kolejnych rocznych okresach odsetkowych: marża 2,00% + inflacja",
+            "roczna",
+            "100,00&nbsp;zł",
+        );
+        let o = parse_bond_offer(&edo).unwrap();
+        assert_eq!(o.symbol, "EDO1136");
+        assert_eq!(o.series, "EDO");
+        assert_eq!(o.first_period_rate_percent, dec!(5.35));
+        assert_eq!(o.capitalization, Some(Capitalization::Annual));
+        assert_eq!(o.price, dec!(100));
+
+        let coi = series_page(
+            "COI1130",
+            "4,75%, w skali roku, w pierwszym rocznym okresie odsetkowym",
+            "brak",
+            "100,00&nbsp;zł",
+        );
+        let o = parse_bond_offer(&coi).unwrap();
+        assert_eq!(
+            (
+                o.series.as_str(),
+                o.first_period_rate_percent,
+                o.capitalization
+            ),
+            ("COI", dec!(4.75), None)
+        );
+
+        let ots = series_page(
+            "OTS0227",
+            "2,00% w skali roku, stałe przez cały 3-miesięczny okres oszczędzania",
+            "brak",
+            "100,00&nbsp;zł",
+        );
+        assert_eq!(
+            parse_bond_offer(&ots).unwrap().first_period_rate_percent,
+            dec!(2)
+        );
+    }
+
+    #[test]
+    fn bond_offer_rejects_pages_it_does_not_understand() {
+        assert!(parse_bond_offer("<html>nothing here</html>").is_err());
+        let bad_series = series_page("EDO", "5,35%", "roczna", "100,00 zł");
+        assert!(parse_bond_offer(&bad_series).is_err());
+        let no_rate = series_page("EDO1136", "w pierwszym okresie", "roczna", "100,00 zł");
+        assert!(parse_bond_offer(&no_rate).is_err());
+        // An unknown wording must not silently become "no capitalization".
+        let odd = series_page("EDO1136", "5,35%", "półroczna", "100,00 zł");
+        assert!(
+            parse_bond_offer(&odd)
+                .unwrap_err()
+                .to_string()
+                .contains("półroczna")
+        );
+        let free = series_page("EDO1136", "5,35%", "roczna", "0,00 zł");
+        assert!(parse_bond_offer(&free).is_err());
+    }
+
+    #[test]
+    fn bond_series_paths_are_filtered_and_deduplicated() {
+        let overview = r#"
+            <a href="/oferta-obligacji/obligacje-10-letnie-edo/edo1136/">EDO</a>
+            <a href="/oferta-obligacji/obligacje-10-letnie-edo/edo1136/">again</a>
+            <a href="/oferta-obligacji/obligacje-4-letnie-coi/coi1130/">COI</a>
+            <a href="/oferta-obligacji/obligacje-roczne-ror/ror1127/">ROR</a>
+            <a href="/oferta-obligacji/obligacje-x/../../admin/edo1136/">dotdot</a>
+            <a href="/oferta-obligacji/obligacje-y/ED1136/">uppercase</a>
+            <a href="/oferta-obligacji/obligacje-z/">no code</a>
+            <a href="/oferta-obligacji/obligacje-w/abc1234/extra/">too deep</a>"#;
+        assert_eq!(
+            bond_series_paths(overview),
+            [
+                "/oferta-obligacji/obligacje-10-letnie-edo/edo1136/",
+                "/oferta-obligacji/obligacje-4-letnie-coi/coi1130/",
+                "/oferta-obligacji/obligacje-roczne-ror/ror1127/",
+            ]
+        );
+    }
+
+    #[test]
+    fn first_number_handles_commas_and_trailing_punctuation() {
+        assert_eq!(first_number("4,75%, w skali roku"), Some(dec!(4.75)));
+        assert_eq!(first_number("100,00 zł"), Some(dec!(100.00)));
+        assert_eq!(first_number("od 2.5% do 3"), Some(dec!(2.5)));
+        assert_eq!(first_number("brak"), None);
     }
 }

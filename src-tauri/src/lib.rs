@@ -147,6 +147,14 @@ fn quote_set(
 }
 
 /// Downloads NBP rates and quotes for all instruments with an online source.
+/// Current offer of Polish retail treasury bonds: first-period rate, capitalization, price.
+#[tauri::command]
+async fn bond_offers() -> CmdResult<Vec<ami_core::providers::BondOffer>> {
+    fetch::bond_offers()
+        .await
+        .map_err(|e| CoreError::Provider(e).into())
+}
+
 #[tauri::command]
 async fn quotes_refresh(state: State<'_, AppState>) -> CmdResult<fetch::RefreshReport> {
     let plan = fetch::plan(&state.store())?;
@@ -316,6 +324,7 @@ pub fn run() {
             portfolio_set_targets,
             quote_set,
             quote_list,
+            bond_offers,
             quotes_refresh,
             fx_list,
             fx_set,

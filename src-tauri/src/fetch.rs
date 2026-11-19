@@ -107,6 +107,31 @@ async fn fetch_coingecko_returns(
     .collect()
 }
 
+/// The current monthly offer of Polish retail treasury bonds (public page of the Ministry of
+/// Finance). Series that cannot be read are skipped; an error means none could be read.
+pub async fn bond_offers() -> Result<Vec<providers::BondOffer>, String> {
+    let client = client().map_err(|e| e.to_string())?;
+    let overview = get(&client, providers::BOND_OFFER_URL).await?;
+    let paths = providers::bond_series_paths(&overview);
+    if paths.is_empty() {
+        return Err("obligacjeskarbowe.pl: no series found".into());
+    }
+    let pages = join_all(paths.iter().take(16).map(|path| {
+        let client = &client;
+        async move { get(client, &format!("{}{path}", providers::BOND_SITE)).await }
+    }))
+    .await;
+    let offers: Vec<_> = pages
+        .into_iter()
+        .filter_map(|body| providers::parse_bond_offer(&body.ok()?).ok())
+        .collect();
+    if offers.is_empty() {
+        Err("obligacjeskarbowe.pl: could not read any series".into())
+    } else {
+        Ok(offers)
+    }
+}
+
 pub struct Downloaded {
     fx: Vec<FxRate>,
     quotes: Vec<Quote>,
@@ -273,6 +298,7 @@ mod tests {
             quote_source: source,
             fractional: false,
             interest_percent: None,
+            capitalization: None,
             start_date: None,
             maturity_date: None,
         }
@@ -290,6 +316,24 @@ mod tests {
         assert_eq!(groups["PLN"], ["bitcoin", "ethereum"]);
         assert_eq!(groups["USD"], ["solana"]);
         assert!(coingecko_groups(&[]).is_empty());
+    }
+
+    /// Reads the real bond offer: `cargo test -p ami-calculator -- --ignored live_bond --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn live_bond_offers() {
+        let offers = bond_offers().await.unwrap();
+        for o in &offers {
+            println!(
+                "{} {} rate={} cap={:?} price={}",
+                o.series, o.symbol, o.first_period_rate_percent, o.capitalization, o.price
+            );
+        }
+        assert!(
+            offers.len() >= 6,
+            "expected most series, got {}",
+            offers.len()
+        );
     }
 
     /// Hits the real services: `cargo test -p ami-calculator -- --ignored live`

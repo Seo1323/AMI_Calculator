@@ -731,6 +731,7 @@ mod tests {
             quote_source: QuoteSource::Yahoo,
             fractional: false,
             interest_percent: None,
+            capitalization: None,
             start_date: None,
             maturity_date: None,
         }
