@@ -81,8 +81,14 @@ mod tests {
         fx.set(eur.clone(), dec!(0.0000000000000000000001));
         // Dividing by a tiny rate overflows; a missing rate is still reported as such.
         let big = Money::new(Decimal::MAX / dec!(2), pln.clone());
-        assert!(matches!(fx.convert(&big, &eur), Err(CoreError::Validation(_))));
+        assert!(matches!(
+            fx.convert(&big, &eur),
+            Err(CoreError::Validation(_))
+        ));
         let gbp = Currency::new("GBP").unwrap();
-        assert!(matches!(fx.convert(&big, &gbp), Err(CoreError::MissingRate(_))));
+        assert!(matches!(
+            fx.convert(&big, &gbp),
+            Err(CoreError::MissingRate(_))
+        ));
     }
 }

@@ -407,14 +407,29 @@ pub fn save(store: &Store, data: Downloaded) -> ami_core::Result<RefreshReport> 
         store.set_fx_rate(r)?;
         report.fx_updated += 1;
     }
-    let mut seen: HashMap<uuid::Uuid, ()> = HashMap::new();
-    for q in &data.quotes {
+    let previous: HashMap<uuid::Uuid, Quote> = store
+        .quotes()?
+        .into_iter()
+        .map(|q| (q.instrument_id, q))
+        .collect();
+    let mut seen = std::collections::HashSet::new();
+    for mut q in data.quotes {
+        let known = previous.get(&q.instrument_id);
+        keep_known_figures(&mut q, known);
         // The instrument may have been deleted while we were downloading.
-        if seen.insert(q.instrument_id, ()).is_none() && store.set_quote(q).is_ok() {
+        if seen.insert(q.instrument_id) && store.set_quote(&q).is_ok() {
             report.quotes_updated += 1;
         }
     }
     Ok(report)
+}
+
+/// The 12-month figures are optional extras that a provider sometimes leaves out (rate limit, short
+/// history): a fresh price without them must not erase the ones we already know.
+fn keep_known_figures(q: &mut Quote, previous: Option<&Quote>) {
+    let Some(prev) = previous else { return };
+    q.return_12m_percent = q.return_12m_percent.or(prev.return_12m_percent);
+    q.dividend_yield_percent = q.dividend_yield_percent.or(prev.dividend_yield_percent);
 }
 
 #[cfg(test)]
@@ -422,6 +437,30 @@ mod tests {
     use super::*;
     use ami_core::model::{InstrumentKind, Meta};
     use ami_core::money::Currency;
+
+    #[test]
+    fn a_fresh_price_without_figures_keeps_the_known_ones() {
+        use rust_decimal_macros::dec;
+        let quote = |price, ret, div| Quote {
+            instrument_id: uuid::Uuid::now_v7(),
+            price,
+            currency: Currency::new("PLN").unwrap(),
+            source: "yahoo".into(),
+            fetched_at: Utc::now(),
+            return_12m_percent: ret,
+            dividend_yield_percent: div,
+        };
+        let old = quote(dec!(100), Some(dec!(12.5)), Some(dec!(2)));
+        let mut fresh = quote(dec!(101), None, None);
+        keep_known_figures(&mut fresh, Some(&old));
+        assert_eq!(fresh.price, dec!(101));
+        assert_eq!(fresh.return_12m_percent, Some(dec!(12.5)));
+        assert_eq!(fresh.dividend_yield_percent, Some(dec!(2)));
+        // New figures win over old ones.
+        let mut newer = quote(dec!(101), Some(dec!(3)), None);
+        keep_known_figures(&mut newer, Some(&old));
+        assert_eq!(newer.return_12m_percent, Some(dec!(3)));
+    }
 
     fn instrument(symbol: &str, source: QuoteSource, currency: &str) -> Instrument {
         Instrument {
