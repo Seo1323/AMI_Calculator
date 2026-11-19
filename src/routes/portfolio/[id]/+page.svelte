@@ -211,6 +211,9 @@
 		{#if view.missingPrices.length}
 			<div class="notice warn">{t('pf.missingPrices', { list: view.missingPrices.join(', ') })}</div>
 		{/if}
+		{#if view.estimatedPrices.length}
+			<div class="notice">{t('pf.estimatedPrices', { list: view.estimatedPrices.join(', ') })}</div>
+		{/if}
 		{#if view.missingRates.length}
 			<div class="notice warn">{t('pf.missingRates', { list: view.missingRates.join(', ') })}</div>
 		{/if}

@@ -148,6 +148,7 @@ const pl = {
 	'pf.gain': 'Zysk / strata',
 	'pf.realized': 'Zrealizowany zysk',
 	'pf.missingPrices': 'Brak ceny dla: {list}. Wpisz ją, żeby policzyć wartość portfela.',
+	'pf.estimatedPrices': 'Wyceniono po koszcie zakupu: {list}. Wpisz cenę, żeby użyć bieżącej wartości.',
 	'pf.missingRates': 'Brak kursu waluty: {list}. Dodaj go w sekcji „Kursy walut” na liście portfeli.',
 	'pf.targetsSum': 'Suma celów: {sum}% (powinna wynosić 100%).',
 	'pf.addToTargets': 'Dodaj do alokacji…',

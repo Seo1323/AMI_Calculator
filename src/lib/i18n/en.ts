@@ -150,6 +150,7 @@ const en: Record<keyof typeof pl, string> = {
 	'pf.gain': 'Gain / loss',
 	'pf.realized': 'Realised gain',
 	'pf.missingPrices': 'Missing price for: {list}. Enter it to value the portfolio.',
+	'pf.estimatedPrices': 'Valued at purchase cost: {list}. Enter a price to use the current value.',
 	'pf.missingRates': 'Missing exchange rate: {list}. Add it under "Exchange rates" on the portfolio list.',
 	'pf.targetsSum': 'Targets sum: {sum}% (should be 100%).',
 	'pf.addToTargets': 'Add to allocation…',

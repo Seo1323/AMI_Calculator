@@ -83,6 +83,8 @@ export interface PortfolioView {
 	maxDeviation: string | null;
 	needsRebalance: boolean;
 	kindShares: KindShare[];
+	/** Symbols valued at their purchase cost because no price was entered (an estimate). */
+	estimatedPrices: string[];
 }
 
 /** Accepts "1 234,56" as well as "1234.56". */

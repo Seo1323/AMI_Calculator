@@ -150,6 +150,7 @@ const de: Record<keyof typeof pl, string> = {
 	'pf.gain': 'Gewinn / Verlust',
 	'pf.realized': 'Realisierter Gewinn',
 	'pf.missingPrices': 'Kurs fehlt für: {list}. Trage ihn ein, um das Portfolio zu bewerten.',
+	'pf.estimatedPrices': 'Zum Einstandspreis bewertet: {list}. Gib einen Preis ein, um den aktuellen Wert zu verwenden.',
 	'pf.missingRates': 'Wechselkurs fehlt: {list}. Füge ihn in der Portfolioliste unter „Wechselkurse“ hinzu.',
 	'pf.targetsSum': 'Summe der Ziele: {sum} % (sollte 100 % sein).',
 	'pf.addToTargets': 'Zur Aufteilung hinzufügen…',
