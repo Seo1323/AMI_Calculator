@@ -40,8 +40,15 @@ jobs:
       - name: System deps for Tauri (Linux)
         if: startsWith(matrix.platform, 'ubuntu')
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          # The Ubuntu mirror can drop packages between `update` and `install` (404 on a slow
+          # download), so retry the whole sequence; fail only after the last attempt.
+          for attempt in 1 2 3; do
+            sudo apt-get update && sudo apt-get install -y --fix-missing \
+              libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf && exit 0
+            echo "apt attempt $attempt failed" >&2
+            sleep 15
+          done
+          exit 1
       - uses: actions/setup-node@v5
         with:
           node-version: lts/*
