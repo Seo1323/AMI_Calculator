@@ -1,3 +1,7 @@
+## Co nowego w 0.4.3
+- **Nowe języki**: niemiecki, hiszpański, francuski i ukraiński (Ustawienia → Język i formaty). Tłumaczenia nie były jeszcze sprawdzone przez osobę znającą język, więc daj znać o błędach.
+- **Różne rozmiary ekranu i skale**: menu zwija się do ikon w średnich oknach, treść jest wyśrodkowana na dużych monitorach, a na 4K przy skali 100% tekst jest większy. Kalkulator rebalansowania na telefonie pokazuje pozycje jako karty. Zwijanie menu i chowanie kolumn uwzględnia też ustawiony rozmiar tekstu.
+
 ## Co nowego w 0.4.2
 - **Rebalansowanie na telefonie**: pozycje kalkulatora są małymi kartami z podpisanymi polami (wcześniej pole „Cel %” było poza ekranem), tabela wyników chowa mniej ważne kolumny.
 
