@@ -104,4 +104,24 @@ mod tests {
         assert!(serde_json::from_str::<Currency>("\"E\"").is_err());
         assert!(serde_json::from_str::<Currency>("\"E-R\"").is_err());
     }
+
+    #[test]
+    fn currency_serializes_as_the_normalized_plain_string() {
+        let c = Currency::new("eur").unwrap();
+        assert_eq!(serde_json::to_string(&c).unwrap(), "\"EUR\"");
+        let back: Currency = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
+        assert_eq!(back, c);
+    }
+
+    #[test]
+    fn currency_trims_tabs_and_newlines() {
+        assert_eq!(Currency::new("\tEUR\n").unwrap().code(), "EUR");
+    }
+
+    #[test]
+    fn money_deserialization_rejects_an_invalid_nested_currency() {
+        let ok: Money = serde_json::from_str(r#"{"amount":"1.50","currency":" pln "}"#).unwrap();
+        assert_eq!(ok.currency.code(), "PLN");
+        assert!(serde_json::from_str::<Money>(r#"{"amount":"1.50","currency":"x"}"#).is_err());
+    }
 }
