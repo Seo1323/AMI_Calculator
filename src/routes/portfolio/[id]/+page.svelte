@@ -59,9 +59,16 @@
 	}
 
 	async function load() {
-		view = await invoke<PortfolioView>('portfolio_view', { id });
-		instruments = (await db.list<Instrument>('instrument')).sort((a, b) => a.symbol.localeCompare(b.symbol));
-		trades = (await db.list<Trade>('trade'))
+		const wanted = id;
+		const [v, all, allTrades] = await Promise.all([
+			invoke<PortfolioView>('portfolio_view', { id }),
+			db.list<Instrument>('instrument'),
+			db.list<Trade>('trade')
+		]);
+		if (wanted !== id) return; // the user moved to another portfolio while this was loading
+		view = v;
+		instruments = all.sort((a, b) => a.symbol.localeCompare(b.symbol));
+		trades = allTrades
 			.filter((x) => x.portfolioId === id)
 			.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 		if (!tradeForm.instrumentId && instruments.length) tradeForm.instrumentId = instruments[0].id;

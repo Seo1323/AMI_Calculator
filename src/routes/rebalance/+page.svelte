@@ -2,6 +2,7 @@
 	import { t, fmtNumber, errorText } from '$lib/i18n/index.svelte';
 	import { settings } from '$lib/settings.svelte';
 	import { invoke, type Mode, type RebalanceResult } from '$lib/tauri';
+	import { toDecimal as num } from '$lib/types';
 	import Icon from '$lib/components/Icon.svelte';
 	import RebalanceResultView from '$lib/components/RebalanceResultView.svelte';
 
@@ -54,7 +55,6 @@
 	let result: RebalanceResult | null = $state(null);
 	let error = $state('');
 
-	const num = (s: string) => s.replace(/\s/g, '').replace(',', '.') || '0';
 	const targetSum = $derived(rows.reduce((acc, r) => acc + (Number(num(r.targetPercent)) || 0), 0));
 
 	$effect(() => {
