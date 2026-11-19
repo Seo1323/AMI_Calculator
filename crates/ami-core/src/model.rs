@@ -56,6 +56,15 @@ pub enum InstrumentKind {
     Other,
 }
 
+/// How often interest is added to the principal. `None` on an instrument means no capitalization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Capitalization {
+    Monthly,
+    Quarterly,
+    Annual,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum QuoteSource {
@@ -86,6 +95,9 @@ pub struct Instrument {
     /// instruments get their rates from the exchange instead (see `Quote`).
     #[serde(default)]
     pub interest_percent: Option<Decimal>,
+    /// Interest capitalization of a bond or deposit (`None`: no capitalization).
+    #[serde(default)]
+    pub capitalization: Option<Capitalization>,
     /// Bond purchase/start date; the maturity is this date plus the term.
     #[serde(default)]
     pub start_date: Option<NaiveDate>,
@@ -187,6 +199,7 @@ mod tests {
             quote_source: QuoteSource::Manual,
             fractional: false,
             interest_percent: Some(dec!(5.75)),
+            capitalization: Some(Capitalization::Annual),
             start_date: NaiveDate::from_ymd_opt(2026, 4, 1),
             maturity_date: NaiveDate::from_ymd_opt(2036, 4, 1),
         }
@@ -199,6 +212,7 @@ mod tests {
         assert_eq!(back.interest_percent, Some(dec!(5.75)));
         assert_eq!(back.maturity_date, b.maturity_date);
         assert_eq!(back.start_date, NaiveDate::from_ymd_opt(2026, 4, 1));
+        assert_eq!(back.capitalization, Some(Capitalization::Annual));
     }
 
     #[test]
@@ -208,10 +222,16 @@ mod tests {
         o.remove("interestPercent");
         o.remove("maturityDate");
         o.remove("startDate");
+        o.remove("capitalization");
         let old: Instrument = serde_json::from_value(v).unwrap();
         assert_eq!(
-            (old.interest_percent, old.start_date, old.maturity_date),
-            (None, None, None)
+            (
+                old.interest_percent,
+                old.start_date,
+                old.maturity_date,
+                old.capitalization
+            ),
+            (None, None, None, None)
         );
 
         let quote = r#"{"instrumentId":"018f0000-0000-7000-8000-000000000000","price":"10","currency":"PLN",
@@ -220,6 +240,24 @@ mod tests {
         assert_eq!(
             (q.return_12m_percent, q.dividend_yield_percent),
             (None, None)
+        );
+    }
+
+    #[test]
+    fn capitalization_wire_format_is_camel_case() {
+        for (c, text) in [
+            (Capitalization::Monthly, "\"monthly\""),
+            (Capitalization::Quarterly, "\"quarterly\""),
+            (Capitalization::Annual, "\"annual\""),
+        ] {
+            assert_eq!(serde_json::to_string(&c).unwrap(), text);
+        }
+        let mut b = bond();
+        b.capitalization = None;
+        let v = serde_json::to_value(&b).unwrap();
+        assert!(
+            v["capitalization"].is_null(),
+            "the frontend reads null as 'none'"
         );
     }
 }

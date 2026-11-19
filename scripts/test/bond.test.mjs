@@ -1,7 +1,7 @@
 // Run with: npm test  (Node strips the TypeScript types itself, no extra dependency)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addMonths, remaining, bondSymbol, daysInMonth, termBetween, BOND_SERIES } from '../../src/lib/bond.ts';
+import { addMonths, remaining, bondSymbol, daysInMonth, termBetween, firstOfMonth, offerMonth, BOND_SERIES } from '../../src/lib/bond.ts';
 
 test('addMonths keeps the day when it exists', () => {
 	assert.equal(addMonths('2026-04-15', 120), '2036-04-15');
@@ -59,4 +59,19 @@ test('termBetween recovers the term from two dates', () => {
 	assert.equal(termBetween('2026-04-15', '2026-04-15'), null);
 	assert.equal(termBetween('2026-04-15', '2026-07-16'), null); // not a whole number of months
 	assert.equal(termBetween('2026-04-15', 'x'), null);
+});
+
+test('retail bonds mature on the first day of the month', () => {
+	// Sold in November 2026, 10 years: EDO1136 matures on 1 Nov 2036, whatever day it was bought.
+	assert.equal(firstOfMonth(addMonths('2026-11-19', 120)), '2036-11-01');
+	assert.equal(firstOfMonth(addMonths('2026-11-30', 3)), '2027-02-01'); // OTS0227 (28 Feb clamp)
+	assert.equal(firstOfMonth('x'), null);
+});
+
+test('offerMonth recovers the month an offer is sold in', () => {
+	assert.equal(offerMonth('EDO1136', 120), '2026-11');
+	assert.equal(offerMonth('OTS0227', 3), '2026-11');
+	assert.equal(offerMonth('ROD1138', 144), '2026-11');
+	assert.equal(offerMonth('COI1130', 48), '2026-11');
+	assert.equal(offerMonth('bad', 12), null);
 });

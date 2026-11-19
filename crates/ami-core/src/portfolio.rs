@@ -370,6 +370,7 @@ mod tests {
             quote_source: QuoteSource::Manual,
             fractional,
             interest_percent: None,
+            capitalization: None,
             start_date: None,
             maturity_date: None,
         };
@@ -471,6 +472,7 @@ mod tests {
                 quote_source: QuoteSource::Manual,
                 fractional: true,
                 interest_percent: Some(dec!(3.5)),
+                capitalization: None,
                 start_date: None,
                 maturity_date: None,
             })

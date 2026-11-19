@@ -146,6 +146,27 @@ fn quote_set(
     Ok(store.set_quote(&quote)?)
 }
 
+/// Current price of one instrument from its online source, to prefill a holding.
+#[tauri::command]
+async fn quote_preview(
+    symbol: String,
+    source: ami_core::model::QuoteSource,
+    currency: Currency,
+) -> CmdResult<fetch::QuotePreview> {
+    fetch::quote_preview(source, symbol.trim(), &currency)
+        .await
+        .map_err(|e| CoreError::Provider(e).into())
+}
+
+/// Current offer of Polish retail treasury bonds: first-period rate, capitalization, price.
+/// Series that could not be read are listed in `skipped`.
+#[tauri::command]
+async fn bond_offers() -> CmdResult<ami_core::providers::BondOffers> {
+    fetch::bond_offers()
+        .await
+        .map_err(|e| CoreError::Provider(e).into())
+}
+
 /// Downloads NBP rates and quotes for all instruments with an online source.
 #[tauri::command]
 async fn quotes_refresh(state: State<'_, AppState>) -> CmdResult<fetch::RefreshReport> {
@@ -316,6 +337,8 @@ pub fn run() {
             portfolio_set_targets,
             quote_set,
             quote_list,
+            bond_offers,
+            quote_preview,
             quotes_refresh,
             fx_list,
             fx_set,

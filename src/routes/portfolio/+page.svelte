@@ -7,8 +7,10 @@
 	import { invoke, isTauri } from '$lib/tauri';
 	import Icon from '$lib/components/Icon.svelte';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
-	import { quotes as quoteState } from '$lib/quotes.svelte';
-	import { BOND_SERIES, addMonths, bondSymbol, remaining, termBetween } from '$lib/bond';
+	import { quotes as quoteState, refreshQuotes } from '$lib/quotes.svelte';
+	import { BOND_SERIES, addMonths, bondSymbol, firstOfMonth, offerMonth, remaining, termBetween } from '$lib/bond';
+	import SearchSelect from '$lib/components/SearchSelect.svelte';
+	import { loadBondOffers, SNAPSHOT_SET, type BondOffer, type OfferSet } from '$lib/bondOffers';
 	import { CATALOG, catalogFor, DEPOSIT_TERMS } from '$lib/catalog';
 	import {
 		CURRENCIES,
@@ -16,10 +18,13 @@
 		QUOTE_SOURCES,
 		toDecimal,
 		today,
+		CAPITALIZATIONS,
+		type Capitalization,
 		type FxRate,
 		type Instrument,
 		type Portfolio,
-		type PortfolioView
+		type PortfolioView,
+		type Trade
 	} from '$lib/types';
 
 	interface QuoteRow {
@@ -52,10 +57,22 @@
 		/** Form-only: which entry of the second list is chosen ('custom' = typed by hand). */
 		catalogKey: '',
 		/** Form-only: bond/deposit term in months. */
-		termMonths: ''
+		termMonths: '',
+		capitalization: '' as '' | Capitalization
 	});
+	const emptyPosition = () => ({ portfolioId: '', quantity: '', price: '', date: today() });
 	let newPortfolio = $state(emptyPortfolio());
 	let instrumentForm = $state(emptyInstrument());
+	let position = $state(emptyPosition());
+	let offerSet: OfferSet = $state(SNAPSHOT_SET);
+	let offersRequested = false;
+	// Values filled in from the bond offer; replaced by a new offer only while the user has not edited them.
+	let autoRate = '';
+	let autoPrice = '';
+	// Price of a listed instrument comes from its online quote; a newer request makes older ones void.
+	let priceToken = 0;
+	let priceBusy = $state(false);
+	let priceNote = $state('');
 	let priceInputs: Record<string, string> = $state({});
 	let fxForm = $state({ currency: 'EUR', ratePln: '' });
 
@@ -72,6 +89,7 @@
 	async function load() {
 		const portfolios = await db.list<Portfolio>('portfolio');
 		views = await Promise.all(portfolios.map((p) => invoke<PortfolioView>('portfolio_view', { id: p.id })));
+		if (!position.portfolioId && views.length) position.portfolioId = views[0].portfolio.id;
 		instruments = (await db.list<Instrument>('instrument')).sort((a, b) => a.symbol.localeCompare(b.symbol));
 		const q = await invoke<QuoteRow[]>('quote_list');
 		quotes = Object.fromEntries(q.map((x) => [x.instrumentId, x]));
@@ -107,13 +125,18 @@
 			await load();
 		});
 
-	const listed = (k: Instrument['kind']) => ['etf', 'crypto', 'cash', 'bond', 'deposit'].includes(k);
+	const listed = (k: Instrument['kind']) => ['etf', 'stock', 'crypto', 'cash', 'bond', 'deposit'].includes(k);
 	const timed = (k: Instrument['kind']) => k === 'bond' || k === 'deposit';
 	const hasManualRate = (k: Instrument['kind']) => k === 'bond' || k === 'cash' || k === 'deposit';
 
 	/** Second list: concrete ETFs, bond series, coins or currencies for the chosen kind. */
 	function options(kind: Instrument['kind']): { id: string; label: string }[] {
-		if (kind === 'bond') return BOND_SERIES.map((s) => ({ id: s.code, label: `${s.code} · ${t('bond.termMonths', { n: s.months })}` }));
+		if (kind === 'bond')
+			return BOND_SERIES.map((s) => {
+				const offer = offerFor(s.code);
+				const rate = offer ? ` · ${pct(offer.firstPeriodRatePercent)}%` : '';
+				return { id: s.code, label: `${s.code} · ${t('bond.termMonths', { n: s.months })}${rate}` };
+			});
 		if (kind === 'cash' || kind === 'deposit') return CURRENCIES.map((c) => ({ id: c, label: c }));
 		return catalogFor(kind).map((c) => ({ id: c.id, label: `${c.name} (${c.symbol})` }));
 	}
@@ -122,6 +145,15 @@
 
 	function pickKind() {
 		const f = instrumentForm;
+		priceToken++;
+		priceBusy = false;
+		priceNote = '';
+		position.price = '';
+		autoPrice = '';
+		if (f.kind === 'bond' && !offersRequested) {
+			offersRequested = true;
+			loadBondOffers().then((o) => (offerSet = o));
+		}
 		Object.assign(f, {
 			catalogKey: '',
 			symbol: '',
@@ -130,17 +162,76 @@
 			startDate: '',
 			maturityDate: '',
 			termMonths: '',
+			capitalization: '',
 			currency: f.kind === 'bond' ? 'PLN' : settings.baseCurrency,
 			fractional: ['crypto', 'cash', 'deposit'].includes(f.kind),
 			quoteSource: f.kind === 'crypto' ? 'coinGecko' : f.kind === 'stock' ? 'yahoo' : f.kind === 'etf' ? 'yahoo' : 'manual'
 		});
 	}
 
+	function offerFor(series: string): BondOffer | undefined {
+		return offerSet.offers.find((o) => o.series === series);
+	}
+
+	/** Purchase month (YYYY-MM) the offer is valid for. */
+	function offerMonthOf(offer: BondOffer): string | null {
+		const months = BOND_SERIES.find((s) => s.code === offer.series)?.months;
+		return months ? offerMonth(offer.symbol, months) : null;
+	}
+
+	const plain = (v: string) => String(Number(v));
+
+	/** Default rate, capitalization and price from the current offer, only for bonds bought in its month. */
+	function applyOffer() {
+		const f = instrumentForm;
+		if (f.kind !== 'bond' || f.catalogKey === 'custom') return;
+		const offer = offerFor(f.catalogKey);
+		if (!offer || !f.startDate || offerMonthOf(offer) !== f.startDate.slice(0, 7)) return;
+		if (f.interestPercent === '' || f.interestPercent === autoRate) {
+			autoRate = plain(offer.firstPeriodRatePercent);
+			f.interestPercent = autoRate;
+			f.capitalization = offer.capitalization ?? '';
+		}
+		if (position.price === '' || position.price === autoPrice) {
+			autoPrice = plain(offer.price);
+			position.price = autoPrice;
+		}
+	}
+
+	/** Fills the holding's price from the current online quote; a price typed by hand is kept. */
+	async function fetchPrice(force = false) {
+		const f = instrumentForm;
+		if (!isTauri() || f.id || f.quoteSource === 'manual' || !f.symbol.trim()) return;
+		if (!['etf', 'stock', 'crypto'].includes(f.kind)) return;
+		const token = ++priceToken;
+		priceBusy = true;
+		priceNote = '';
+		try {
+			const q = await invoke<{ price: string; currency: string; source: string }>('quote_preview', {
+				symbol: f.symbol.trim(),
+				source: f.quoteSource,
+				currency: f.currency
+			});
+			if (token !== priceToken) return;
+			if (q.currency !== f.currency) {
+				priceNote = t('position.priceCurrency', { currency: q.currency });
+			} else if (force || position.price === '' || position.price === autoPrice) {
+				autoPrice = q.price;
+				position.price = q.price;
+				priceNote = t('position.priceAuto', { source: q.source });
+			}
+		} catch {
+			if (token === priceToken) priceNote = t('position.priceFailed');
+		} finally {
+			if (token === priceToken) priceBusy = false;
+		}
+	}
+
 	function pickCatalog() {
 		const f = instrumentForm;
 		const key = f.catalogKey;
 		if (key === 'custom') return;
-		if (f.kind === 'etf' || f.kind === 'crypto') {
+		if (f.kind === 'etf' || f.kind === 'stock' || f.kind === 'crypto') {
 			const c = CATALOG.find((x) => x.id === key && x.kind === f.kind);
 			if (!c) return;
 			Object.assign(f, {
@@ -150,12 +241,16 @@
 				fractional: c.fractional,
 				currency: f.kind === 'crypto' ? settings.baseCurrency : c.currency
 			});
+			fetchPrice();
 		} else if (f.kind === 'cash') {
 			Object.assign(f, { symbol: key, name: `${t('kind.cash')} ${key}`, currency: key });
+			position.price ||= '1';
+			autoPrice = '1';
 		} else if (f.kind === 'deposit') {
 			f.currency = key;
 			f.startDate ||= today();
 			f.termMonths ||= '12';
+			position.price ||= '1';
 			refreshTerm();
 		} else if (f.kind === 'bond') {
 			const series = BOND_SERIES.find((x) => x.code === key);
@@ -163,6 +258,7 @@
 			f.currency = 'PLN';
 			f.startDate ||= today();
 			f.termMonths = String(series.months);
+			position.price ||= '100';
 			refreshTerm();
 		}
 	}
@@ -171,8 +267,11 @@
 	function refreshTerm() {
 		const f = instrumentForm;
 		const n = Number(f.termMonths);
-		f.maturityDate = (f.startDate && Number.isInteger(n) && n > 0 && addMonths(f.startDate, n)) || '';
+		const end = f.startDate && Number.isInteger(n) && n > 0 ? addMonths(f.startDate, n) : null;
+		// Retail bonds mature on the 1st of the month; deposits on the same day-of-month.
+		f.maturityDate = (f.kind === 'bond' && end ? firstOfMonth(end) : end) || '';
 		autoName();
+		applyOffer();
 	}
 
 	function autoName() {
@@ -190,17 +289,45 @@
 		return r ? t('bond.remaining', { y: r.years, m: r.months, d: r.days }) : t('bond.matured');
 	}
 
+	const positionQty = $derived(Number(toDecimal(position.quantity)) || 0);
+	const positionPrice = $derived(Number(toDecimal(position.price)) || 0);
+	// A holding is optional; when a quantity is typed it needs a portfolio, a price and a date.
+	const positionValid = $derived(
+		!!instrumentForm.id || !position.quantity.trim() || (!!position.portfolioId && positionQty > 0 && positionPrice > 0 && !!position.date)
+	);
 	const canSave = $derived(
 		!!instrumentForm.symbol.trim() &&
 			!!instrumentForm.name.trim() &&
-			(!timed(instrumentForm.kind) || instrumentForm.catalogKey === 'custom' || !!instrumentForm.maturityDate)
+			(!timed(instrumentForm.kind) || instrumentForm.catalogKey === 'custom' || !!instrumentForm.maturityDate) &&
+			positionValid
 	);
+
+	const positionTotal = $derived(positionQty > 0 && positionPrice > 0 ? positionQty * positionPrice : 0);
+	const quantityLabel = $derived(
+		instrumentForm.kind === 'bond'
+			? t('position.quantityBonds')
+			: instrumentForm.kind === 'cash' || instrumentForm.kind === 'deposit'
+				? t('position.quantityMoney')
+				: t('trades.quantity')
+	);
+
+	const offerNote = $derived.by(() => {
+		const f = instrumentForm;
+		if (f.kind !== 'bond' || !f.catalogKey || f.catalogKey === 'custom') return '';
+		if (offerSet.skipped.some((x) => x.startsWith(f.catalogKey))) return t('bond.offerSkipped');
+		const offer = offerFor(f.catalogKey);
+		if (!offer) return '';
+		const source = offerSet.source === 'snapshot' ? t('bond.offerSnapshot', { month: offerSet.month ?? '' }) : t('bond.offerOnline');
+		const month = offerMonthOf(offer);
+		const other = f.startDate && month && f.startDate.slice(0, 7) !== month ? ` ${t('bond.offerOther', { month })}` : '';
+		return `${source} ${t('bond.rateNote')}${other}`;
+	});
 
 	const saveInstrument = () =>
 		run(async () => {
 			const f = instrumentForm;
 			const existing = instruments.find((i) => i.id === f.id);
-			await db.save<Instrument>('instrument', {
+			const saved = await db.save<Instrument>('instrument', {
 				...existing,
 				symbol: f.symbol.trim(),
 				name: f.name.trim(),
@@ -209,9 +336,30 @@
 				quoteSource: f.quoteSource,
 				fractional: f.fractional,
 				interestPercent: hasManualRate(f.kind) && f.interestPercent.trim() ? toDecimal(f.interestPercent) : null,
+				capitalization: timed(f.kind) && f.capitalization ? f.capitalization : null,
 				startDate: timed(f.kind) && f.startDate ? f.startDate : null,
 				maturityDate: timed(f.kind) && f.maturityDate ? f.maturityDate : null
 			} as Instrument);
+			if (!f.id && position.portfolioId && position.quantity.trim()) {
+				await db.save<Trade>('trade', {
+					portfolioId: position.portfolioId,
+					instrumentId: saved.id,
+					date: position.date,
+					side: 'buy',
+					quantity: toDecimal(position.quantity),
+					price: toDecimal(position.price),
+					fee: '0'
+				} as Trade);
+			}
+			// A new instrument with an online source gets its quote now instead of at the next scheduled refresh.
+			if (!f.id && f.quoteSource !== 'manual') void refreshQuotes();
+			const keepPortfolio = position.portfolioId;
+			position = { ...emptyPosition(), portfolioId: keepPortfolio };
+			autoRate = '';
+			autoPrice = '';
+			priceToken++;
+			priceBusy = false;
+			priceNote = '';
 			instrumentForm = emptyInstrument();
 			await load();
 		});
@@ -236,7 +384,8 @@
 			startDate: i.startDate ?? '',
 			maturityDate: i.maturityDate ?? '',
 			catalogKey: inferCatalogKey(i),
-			termMonths: i.startDate && i.maturityDate ? String(termBetween(i.startDate, i.maturityDate) ?? '') : ''
+			termMonths: i.startDate && i.maturityDate ? String(termBetween(i.startDate, i.maturityDate) ?? '') : '',
+			capitalization: i.capitalization ?? ''
 		};
 	};
 
@@ -403,19 +552,25 @@
 				</select>
 			</label>
 			{#if listed(instrumentForm.kind)}
-				<label class="field grow">
-					{instrumentForm.kind === 'bond' ? t('instruments.pickBond') : t('instruments.catalog')}
-					<select bind:value={instrumentForm.catalogKey} onchange={pickCatalog}>
-						<option value="" disabled>—</option>
-						{#each options(instrumentForm.kind) as o (o.id)}<option value={o.id}>{o.label}</option>{/each}
-						<option value="custom">{t('instruments.custom')}</option>
-					</select>
-				</label>
+				<div class="field grow">
+					<span>{instrumentForm.kind === 'bond' ? t('instruments.pickBond') : t('instruments.catalog')}</span>
+					<SearchSelect
+						options={options(instrumentForm.kind)}
+						value={instrumentForm.catalogKey}
+						ariaLabel={instrumentForm.kind === 'bond' ? t('instruments.pickBond') : t('instruments.catalog')}
+						placeholder={t('instruments.search')}
+						pinned={{ id: 'custom', label: t('instruments.custom') }}
+						onchange={(id) => {
+							instrumentForm.catalogKey = id;
+							pickCatalog();
+						}}
+					/>
+				</div>
 			{/if}
 			{#if instrumentForm.kind === 'crypto' && instrumentForm.catalogKey && !typedByHand}
 				<label class="field">
 					{t('instruments.currency')}
-					<select bind:value={instrumentForm.currency}>
+					<select bind:value={instrumentForm.currency} onchange={() => fetchPrice(true)}>
 						{#each CURRENCIES as c (c)}<option value={c}>{c}</option>{/each}
 					</select>
 				</label>
@@ -509,10 +664,58 @@
 					{t('instruments.interest')}
 					<input class="short" inputmode="decimal" bind:value={instrumentForm.interestPercent} />
 				</label>
+				{#if timed(instrumentForm.kind)}
+					<label class="field">
+						{t('instruments.capitalization')}
+						<select bind:value={instrumentForm.capitalization}>
+							<option value="">{t('capitalization.none')}</option>
+							{#each CAPITALIZATIONS as c (c)}<option value={c}>{t(`capitalization.${c}`)}</option>{/each}
+						</select>
+					</label>
+				{/if}
 			</div>
-			<p class="muted small">{t('instruments.rateHint.manual')}</p>
+			<p class="muted small">{offerNote || t('instruments.rateHint.manual')}</p>
 		{:else if instrumentForm.kind === 'etf' || instrumentForm.kind === 'crypto'}
 			<p class="muted small">{t('instruments.rateHint.auto')}</p>
+		{/if}
+		{#if !instrumentForm.id}
+			<h4>{t('position.title')}</h4>
+			<div class="row">
+				<label class="field">
+					{t('position.portfolio')}
+					<select bind:value={position.portfolioId}>
+						<option value="">{t('position.none')}</option>
+						{#each views as v (v.portfolio.id)}<option value={v.portfolio.id}>{v.portfolio.name}</option>{/each}
+					</select>
+				</label>
+				{#if position.portfolioId}
+					<label class="field">
+						{quantityLabel}
+						<input class="short" inputmode="decimal" bind:value={position.quantity} />
+					</label>
+					<label class="field">
+						{t('trades.price')} ({instrumentForm.currency})
+						<input class="short" inputmode="decimal" bind:value={position.price} />
+					</label>
+					{#if ['etf', 'stock', 'crypto'].includes(instrumentForm.kind) && instrumentForm.quoteSource !== 'manual' && instrumentForm.symbol.trim()}
+						<button class="btn" type="button" disabled={priceBusy} onclick={() => fetchPrice(true)}>
+							{t('position.priceFetch')}
+						</button>
+					{/if}
+					<label class="field">
+						{t('trades.date')}
+						<input type="date" bind:value={position.date} />
+					</label>
+				{/if}
+			</div>
+			{#if priceBusy}
+				<p class="muted small">{t('position.priceLoading')}</p>
+			{:else if priceNote}
+				<p class="muted small">{priceNote}</p>
+			{/if}
+			{#if positionTotal}
+				<p class="muted small">{t('trades.total')}: {fmtMoney(positionTotal, instrumentForm.currency)}</p>
+			{/if}
 		{/if}
 		<div class="row">
 			<button

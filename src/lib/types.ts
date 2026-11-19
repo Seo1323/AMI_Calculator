@@ -4,6 +4,8 @@ import type { Meta } from '$lib/db';
 export type InstrumentKind = 'stock' | 'etf' | 'bond' | 'crypto' | 'cash' | 'deposit' | 'other';
 export type QuoteSource = 'yahoo' | 'coinGecko' | 'manual';
 export type TradeSide = 'buy' | 'sell';
+export type Capitalization = 'monthly' | 'quarterly' | 'annual';
+export const CAPITALIZATIONS: Capitalization[] = ['monthly', 'quarterly', 'annual'];
 
 export const INSTRUMENT_KINDS: InstrumentKind[] = ['etf', 'stock', 'bond', 'crypto', 'cash', 'deposit', 'other'];
 export const QUOTE_SOURCES: QuoteSource[] = ['yahoo', 'coinGecko', 'manual'];
@@ -18,6 +20,8 @@ export interface Instrument extends Meta {
 	fractional: boolean;
 	/** Annual rate in percent, entered by hand (bonds, cash). */
 	interestPercent: string | null;
+	/** Interest capitalization of a bond or deposit; null: none. */
+	capitalization: Capitalization | null;
 	/** Bond/deposit start, YYYY-MM-DD; maturity is start plus the term. */
 	startDate: string | null;
 	/** Bond/deposit maturity, YYYY-MM-DD. */

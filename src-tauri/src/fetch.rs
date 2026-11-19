@@ -7,10 +7,12 @@ use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 
 use ami_core::model::{FxRate, Instrument, Quote, QuoteSource};
+use ami_core::money::Currency;
 use ami_core::providers;
 use ami_core::store::Store;
 use chrono::Utc;
 use futures::future::join_all;
+use rust_decimal::Decimal;
 use serde::Serialize;
 
 const USER_AGENT: &str = concat!("AMI_Calculator/", env!("CARGO_PKG_VERSION"));
@@ -37,14 +39,32 @@ fn client() -> reqwest::Result<reqwest::Client> {
         .build()
 }
 
+/// Largest response body accepted; real pages and API answers are tens of kilobytes.
+const MAX_BODY: usize = 4 * 1024 * 1024;
+
 async fn get(client: &reqwest::Client, url: &str) -> Result<String, String> {
-    let resp = client
+    let mut resp = client
         .get(url)
         .send()
         .await
         .map_err(|e| e.without_url().to_string())?;
     let status = resp.status();
-    let body = resp.text().await.map_err(|e| e.without_url().to_string())?;
+    let too_large = || "response too large".to_string();
+    if resp.content_length().is_some_and(|n| n > MAX_BODY as u64) {
+        return Err(too_large());
+    }
+    let mut body: Vec<u8> = Vec::new();
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| e.without_url().to_string())?
+    {
+        if body.len() + chunk.len() > MAX_BODY {
+            return Err(too_large());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let body = String::from_utf8_lossy(&body).into_owned();
     // Yahoo answers 404 with a JSON error body worth parsing; other errors are just HTTP.
     if status.is_success() || status == reqwest::StatusCode::NOT_FOUND {
         Ok(body)
@@ -107,10 +127,150 @@ async fn fetch_coingecko_returns(
     .collect()
 }
 
+/// Client for the bond pages: redirects are followed only within the same host (and at most
+/// three times), so the page cannot send the app to another site.
+fn bond_client() -> reqwest::Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            let same_host =
+                attempt.previous().first().and_then(|u| u.host_str()) == attempt.url().host_str();
+            if same_host && attempt.previous().len() < 3 {
+                attempt.follow()
+            } else {
+                attempt.stop()
+            }
+        }))
+        .build()
+}
+
+/// Symbol (`EDO1136`) from a series page path (`/oferta-obligacji/obligacje-10-letnie-edo/edo1136/`).
+fn symbol_of_path(path: &str) -> String {
+    path.trim_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_uppercase()
+}
+
+/// Pure part of the bond download: every page is either parsed into an offer or reported as
+/// skipped. Series that cannot be read never vanish silently; only if none can be read it is an
+/// error, and it carries the first reason.
+fn offers_from_pages(
+    pages: Vec<(String, Result<String, String>)>,
+) -> Result<providers::BondOffers, String> {
+    let mut out = providers::BondOffers::default();
+    let mut first_error: Option<String> = None;
+    for (symbol, page) in pages {
+        match page.and_then(|body| providers::parse_bond_offer(&body).map_err(|e| e.to_string())) {
+            Ok(offer) => out.offers.push(offer),
+            Err(reason) => {
+                first_error.get_or_insert(format!("{symbol}: {reason}"));
+                out.skipped.push(symbol);
+            }
+        }
+    }
+    if out.offers.is_empty() {
+        Err(format!(
+            "obligacjeskarbowe.pl: could not read any series ({})",
+            first_error.unwrap_or_else(|| "no series".into())
+        ))
+    } else {
+        Ok(out)
+    }
+}
+
+/// Series pages fetched per refresh; more than this is reported as skipped.
+const MAX_SERIES: usize = 16;
+
+/// The current monthly offer of Polish retail treasury bonds (public page of the Ministry of Finance).
+pub async fn bond_offers() -> Result<providers::BondOffers, String> {
+    let client = bond_client().map_err(|e| e.to_string())?;
+    let overview = get(&client, providers::BOND_OFFER_URL).await?;
+    let paths = providers::bond_series_paths(&overview);
+    if paths.is_empty() {
+        return Err("obligacjeskarbowe.pl: no series found".into());
+    }
+    let (fetch, extra) = paths.split_at(paths.len().min(MAX_SERIES));
+    let bodies = join_all(fetch.iter().map(|path| {
+        let client = &client;
+        async move { get(client, &format!("{}{path}", providers::BOND_SITE)).await }
+    }))
+    .await;
+    let mut result = offers_from_pages(
+        fetch
+            .iter()
+            .map(|p| symbol_of_path(p))
+            .zip(bodies)
+            .collect(),
+    )?;
+    result
+        .skipped
+        .extend(extra.iter().map(|p| symbol_of_path(p)));
+    Ok(result)
+}
+
 pub struct Downloaded {
     fx: Vec<FxRate>,
     quotes: Vec<Quote>,
     failures: Vec<Failure>,
+}
+
+/// Current price of one instrument, for prefilling a holding before it is saved.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotePreview {
+    pub price: Decimal,
+    /// Currency of the price: Yahoo's listing currency, or the one asked for from CoinGecko.
+    pub currency: Currency,
+    pub source: String,
+}
+
+/// Pure part of [`quote_preview`]: reads the price out of a provider response.
+fn preview_from_body(
+    source: QuoteSource,
+    body: &str,
+    symbol: &str,
+    currency: &Currency,
+) -> Result<QuotePreview, String> {
+    match source {
+        QuoteSource::Yahoo => {
+            let q = providers::parse_yahoo(body).map_err(|e| e.to_string())?;
+            Ok(QuotePreview {
+                price: q.price,
+                currency: q.currency,
+                source: "yahoo".into(),
+            })
+        }
+        QuoteSource::CoinGecko => providers::parse_coingecko(body, symbol, currency.code())
+            .map_err(|e| e.to_string())?
+            .map(|price| QuotePreview {
+                price,
+                currency: currency.clone(),
+                source: "coingecko".into(),
+            })
+            .ok_or_else(|| "CoinGecko: unknown id".to_string()),
+        QuoteSource::Manual => Err("no online source for a manually priced instrument".into()),
+    }
+}
+
+/// Fetches the current price of a single instrument (no database access).
+pub async fn quote_preview(
+    source: QuoteSource,
+    symbol: &str,
+    currency: &Currency,
+) -> Result<QuotePreview, String> {
+    let url = match source {
+        QuoteSource::Yahoo => providers::yahoo_url(symbol),
+        QuoteSource::CoinGecko => providers::coingecko_url(&[symbol], &[currency.code()]),
+        QuoteSource::Manual => {
+            return Err("no online source for a manually priced instrument".into());
+        }
+    };
+    let client = client().map_err(|e| e.to_string())?;
+    let body = get(&client, &url).await?;
+    preview_from_body(source, &body, symbol, currency)
 }
 
 pub async fn download(plan: Plan) -> Downloaded {
@@ -273,6 +433,7 @@ mod tests {
             quote_source: source,
             fractional: false,
             interest_percent: None,
+            capitalization: None,
             start_date: None,
             maturity_date: None,
         }
@@ -290,6 +451,154 @@ mod tests {
         assert_eq!(groups["PLN"], ["bitcoin", "ethereum"]);
         assert_eq!(groups["USD"], ["solana"]);
         assert!(coingecko_groups(&[]).is_empty());
+    }
+
+    const REAL_EDO: &str =
+        include_str!("../../crates/ami-core/tests/fixtures/obligacjeskarbowe_edo1136.html");
+    const REAL_COI: &str =
+        include_str!("../../crates/ami-core/tests/fixtures/obligacjeskarbowe_coi1130.html");
+
+    #[test]
+    fn unreadable_series_are_reported_not_dropped() {
+        let pages = vec![
+            ("EDO1136".to_string(), Ok(REAL_EDO.to_string())),
+            ("COI1130".to_string(), Err("HTTP 500".to_string())),
+            (
+                "ROR1127".to_string(),
+                Ok("<html>cookie wall</html>".to_string()),
+            ),
+            (
+                "TOS1129".to_string(),
+                Ok(REAL_COI.replace("brak", "półroczna")),
+            ),
+        ];
+        let out = offers_from_pages(pages).unwrap();
+        assert_eq!(out.offers.len(), 1);
+        assert_eq!(out.offers[0].symbol, "EDO1136");
+        assert_eq!(out.skipped, ["COI1130", "ROR1127", "TOS1129"]);
+    }
+
+    #[test]
+    fn no_readable_series_is_an_error_with_the_first_reason() {
+        let pages = vec![
+            ("COI1130".to_string(), Err("HTTP 500".to_string())),
+            ("ROR1127".to_string(), Ok("<html></html>".to_string())),
+        ];
+        let err = offers_from_pages(pages).unwrap_err();
+        assert!(err.contains("COI1130: HTTP 500"), "{err}");
+        assert!(offers_from_pages(vec![]).unwrap_err().contains("no series"));
+    }
+
+    #[test]
+    fn a_preview_reads_yahoo_and_coingecko_bodies() {
+        let pln = Currency::new("PLN").unwrap();
+        let yahoo = r#"{"chart":{"result":[{"meta":{"currency":"EUR","regularMarketPrice":166.88}}],"error":null}}"#;
+        let p = preview_from_body(QuoteSource::Yahoo, yahoo, "VWCE.DE", &pln).unwrap();
+        // The price keeps the listing currency Yahoo reports, not the one asked for.
+        assert_eq!(
+            (p.price.to_string(), p.currency.code(), p.source.as_str()),
+            ("166.88".into(), "EUR", "yahoo")
+        );
+
+        let pence = r#"{"chart":{"result":[{"meta":{"currency":"GBp","regularMarketPrice":8123.5}}],"error":null}}"#;
+        let p = preview_from_body(QuoteSource::Yahoo, pence, "X.L", &pln).unwrap();
+        assert_eq!(
+            (p.price.to_string(), p.currency.code()),
+            ("81.235".into(), "GBP")
+        );
+
+        let gecko = r#"{"bitcoin":{"pln":256088}}"#;
+        let p = preview_from_body(QuoteSource::CoinGecko, gecko, "bitcoin", &pln).unwrap();
+        assert_eq!(
+            (p.price.to_string(), p.currency.code(), p.source.as_str()),
+            ("256088".into(), "PLN", "coingecko")
+        );
+    }
+
+    #[test]
+    fn a_preview_fails_clearly_when_there_is_no_price() {
+        let pln = Currency::new("PLN").unwrap();
+        let missing = r#"{"chart":{"result":null,"error":{"code":"Not Found","description":"No data found"}}}"#;
+        assert!(
+            preview_from_body(QuoteSource::Yahoo, missing, "NOPE", &pln)
+                .unwrap_err()
+                .contains("No data found")
+        );
+        assert!(
+            preview_from_body(QuoteSource::CoinGecko, "{}", "nope", &pln)
+                .unwrap_err()
+                .contains("unknown id")
+        );
+        let limited = r#"{"status":{"error_message":"rate limit"}}"#;
+        assert!(
+            preview_from_body(QuoteSource::CoinGecko, limited, "bitcoin", &pln)
+                .unwrap_err()
+                .contains("rate limit")
+        );
+        assert!(preview_from_body(QuoteSource::Manual, "{}", "x", &pln).is_err());
+        assert!(preview_from_body(QuoteSource::Yahoo, "<html>", "x", &pln).is_err());
+    }
+
+    #[test]
+    fn symbols_come_from_the_page_path() {
+        assert_eq!(
+            symbol_of_path("/oferta-obligacji/obligacje-10-letnie-edo/edo1136/"),
+            "EDO1136"
+        );
+        assert_eq!(symbol_of_path(""), "");
+    }
+
+    /// Reads real prices: `cargo test -p ami-calculator -- --ignored live_preview --nocapture`
+    #[tokio::test]
+    #[ignore = "network: Yahoo Finance, CoinGecko"]
+    async fn live_preview() {
+        let pln = Currency::new("PLN").unwrap();
+        let etf = quote_preview(QuoteSource::Yahoo, "VWCE.DE", &pln)
+            .await
+            .unwrap();
+        let stock = quote_preview(QuoteSource::Yahoo, "PKN.WA", &pln)
+            .await
+            .unwrap();
+        let coin = quote_preview(QuoteSource::CoinGecko, "bitcoin", &pln)
+            .await
+            .unwrap();
+        println!(
+            "VWCE.DE {} {} | PKN.WA {} {} | bitcoin {} {}",
+            etf.price, etf.currency, stock.price, stock.currency, coin.price, coin.currency
+        );
+        assert!(
+            etf.price > Decimal::ZERO && stock.price > Decimal::ZERO && coin.price > Decimal::ZERO
+        );
+        assert!(
+            quote_preview(QuoteSource::Yahoo, "NOPE123.WA", &pln)
+                .await
+                .is_err()
+        );
+    }
+
+    /// Reads the real bond offer: `cargo test -p ami-calculator -- --ignored live_bond --nocapture`
+    #[tokio::test]
+    #[ignore = "network: obligacjeskarbowe.pl"]
+    async fn live_bond_offers() {
+        let set = bond_offers().await.unwrap();
+        for o in &set.offers {
+            println!(
+                "{} {} rate={} cap={:?} price={}",
+                o.series, o.symbol, o.first_period_rate_percent, o.capitalization, o.price
+            );
+            assert_eq!(o.price, rust_decimal::Decimal::ONE_HUNDRED);
+            assert!(
+                o.first_period_rate_percent > rust_decimal::Decimal::ZERO
+                    && o.first_period_rate_percent < rust_decimal::Decimal::from(20)
+            );
+            assert_eq!(o.symbol.len(), 7);
+        }
+        println!("skipped: {:?}", set.skipped);
+        assert!(
+            set.offers.len() >= 6,
+            "expected most series, got {}",
+            set.offers.len()
+        );
     }
 
     /// Hits the real services: `cargo test -p ami-calculator -- --ignored live`
