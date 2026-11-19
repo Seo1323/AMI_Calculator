@@ -261,7 +261,7 @@
 						<thead>
 							<tr>
 								<th>{t('instruments.symbol')}</th>
-								<th class="num">{t('pf.quantity')}</th>
+								<th class="num hide-xxs">{t('pf.quantity')}</th>
 								<th class="num hide-sm">{t('pf.avgCost')}</th>
 								<th class="num hide-xs">{t('pf.price')}</th>
 								<th class="num">{t('pf.value')}</th>
@@ -275,7 +275,7 @@
 								{@const dev = p.currentPercent === null ? 0 : Number(p.currentPercent) - Number(p.targetPercent)}
 								<tr>
 									<td class="instr"><strong>{p.instrument.symbol}</strong><span class="muted">{p.instrument.name}</span></td>
-									<td class="num">{fmtNumber(p.quantity, 8)}</td>
+									<td class="num hide-xxs">{fmtNumber(p.quantity, 8)}</td>
 									<td class="num hide-sm">{p.avgCost === null ? '—' : fmtMoney(p.avgCost, p.instrument.currency)}</td>
 									<td class="num hide-xs">{p.price === null ? '—' : fmtMoney(p.price, p.instrument.currency)}</td>
 									<td class="num">{p.value === null ? '—' : fmtMoney(p.value, currency)}</td>

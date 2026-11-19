@@ -146,7 +146,7 @@ const uk: Record<keyof typeof pl, string> = {
 	'rebalance.after': 'Після',
 	'rebalance.buy': 'Купити {units}',
 	'rebalance.sell': 'Продати {units}',
-	'rebalance.hold': 'Утримувати',
+	'rebalance.hold': 'Тримати',
 	'rebalance.totalBefore': 'Вартість до',
 	'rebalance.totalAfter': 'Вартість після',
 	'rebalance.cashLeft': 'Залишок готівки',

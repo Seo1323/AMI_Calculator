@@ -17,7 +17,7 @@
 	let systemReducedMotion = $state(motionQuery?.matches ?? false);
 	let ready = $state(false);
 	// Medium windows collapse the sidebar to icons so the content keeps its room.
-	const narrowQuery = typeof window !== 'undefined' ? window.matchMedia('(max-width: 900px)') : null;
+	const narrowQuery = typeof window !== 'undefined' ? window.matchMedia('(max-width: 1024px)') : null;
 	let narrow = $state(narrowQuery?.matches ?? false);
 	const collapsed = $derived(settings.sidebarCollapsed || narrow);
 	const animate = $derived(!settings.reduceMotion && !systemReducedMotion);
@@ -402,6 +402,11 @@
 			max-width: 100%;
 			overflow: hidden;
 			text-overflow: ellipsis;
+		}
+		@media (max-width: 400px) {
+			.sidebar a {
+				font-size: 0.62rem;
+			}
 		}
 		main {
 			padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(5.5rem + env(safe-area-inset-bottom))

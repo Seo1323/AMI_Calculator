@@ -258,6 +258,11 @@ th.num {
 		padding-inline: calc(var(--space) * 0.35);
 	}
 }
+@media (max-width: 400px) {
+	.hide-xxs {
+		display: none;
+	}
+}
 @media (max-width: 480px) {
 	.card {
 		padding: var(--space);

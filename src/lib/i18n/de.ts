@@ -40,7 +40,7 @@ const de: Record<keyof typeof pl, string> = {
 	'settings.quotes': 'Kurse online',
 	'settings.autoRefresh': 'Kurse automatisch laden',
 	'settings.refreshMinutes': 'Alle (Minuten)',
-	'settings.quotesHint': 'Quellen: NBP (Wechselkurse), Yahoo Finance (Warschauer und ausländische Börsen), CoinGecko (Krypto). Es werden nur Symbole der Instrumente gesendet, keine deiner Daten.',
+	'settings.quotesHint': 'Quellen: NBP (Wechselkurse), Yahoo Finance (Warschauer und ausländische Börsen), CoinGecko (Krypto). Es werden nur die Symbole der Instrumente gesendet, keine persönlichen Daten.',
 	'instruments.symbolHint.yahoo': 'Yahoo-Finance-Symbol: Warschau mit .WA (PKN.WA, ETFBW20TR.WA), Ausland z. B. VWCE.DE, AAPL.',
 	'instruments.symbolHint.coinGecko': 'CoinGecko-ID, z. B. bitcoin, ethereum, solana.',
 	'instruments.symbolHint.manual': 'Beliebiges Symbol; den Kurs gibst du selbst ein.',
