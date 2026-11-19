@@ -1,3 +1,12 @@
+## Co nowego w 0.4.8
+- **Poprawka: zamykanie aplikacji po literówce w kwocie.** Wpisanie absurdalnie dużej ilości, ceny, opłaty, wpłaty lub kursu (np. za dużo zer) mogło zamknąć aplikację, także przy każdym kolejnym uruchomieniu. Takie wartości (powyżej 1 000 000 000 000) są teraz odrzucane z komunikatem.
+- **Poprawka: import `.ami`** sprawdza rekordy tak samo jak zwykły zapis, więc ręcznie zmieniony plik nie wprowadzi niepoprawnych danych.
+- **Poprawka: kursy** — odświeżenie, w którym dostawca nie zwrócił stopy zwrotu z 12 miesięcy lub dywidendy, nie kasuje już wcześniej znanych wartości.
+- **Poprawka: cele alokacji** zapisują się w całości albo wcale, a ten sam instrument nie może pojawić się dwa razy.
+- **Poprawka: duplikaty.** Gdy zapis portfela z celami albo instrumentu z pierwszą pozycją nie powiódł się w drugim kroku, ponowne kliknięcie tworzyło kopię. Teraz pierwszy krok jest cofany.
+- **Poprawka: wygląd** — czarny styl ciemnego motywu (AMOLED) ma teraz też czarny pasek boczny, a strona portfela ładuje się szybciej i nie pokazuje wyniku po przejściu do innego portfela.
+- **Do wiedzenia**: portfel z absurdalną transakcją zapisaną w starszej wersji pokaże błąd zamiast widoku (pulpit też), a takiej transakcji nie da się wtedy usunąć w interfejsie.
+
 ## Co nowego w 0.4.7
 - **Więcej opcji wyglądu** (Ustawienia → Wygląd): czcionka (domyślna, szeryfowa, monospace), cienie kart (brak, delikatne, wyraźne), styl ciemnego motywu (miękki albo czarny AMOLED), szerokość treści (wąska, normalna, pełna), poświata koloru akcentu w tle, paleta dla daltonistów (niebieski i pomarańczowy zamiast zieleni i czerwieni) oraz pokazywanie groszy w kwotach.
 - **Do wiedzenia**: opcje zapisują się razem z resztą ustawień, więc trafiają też do kopii `.ami`. Tłumaczenia nowych tekstów (de/es/fr/uk) nie były sprawdzone przez osobę znającą język.
