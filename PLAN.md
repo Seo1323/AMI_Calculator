@@ -75,21 +75,23 @@ npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 | 5 | Pulpit i wykresy, animowany pasek boczny, tryb prywatny, skróty Alt+1…4/H/B, układ pulpitu | 0.2.1, 0.3.0 |
 | 6 (start) | Zapis plików przez `plugin-fs` (Android), commit `fa6097e` | 0.4.0 |
 | 7 | Wycięcie budżetu i raportów: aplikacja to sam kalkulator portfela (Pulpit, Portfele, Rebalansowanie, Ustawienia) | 0.4.0 |
-| 8 | Oprocentowanie: stopa zwrotu z 12 mies. i dywidenda (Yahoo, CoinGecko), ręczne oprocentowanie obligacji/gotówki/lokat, nowy rodzaj „lokata bankowa”, gotówka wyceniana po 1 | po 0.4.3 (PR #4) |
-| 9 | Skala interfejsu 50-200% (zoom webview, na Androidzie i w przeglądarce CSS `zoom`) | po 0.4.3 (PR #5) |
-| 10 | Listy zamiast wpisywania (ETF-y, 32 akcje, krypto, waluty, serie obligacji) z wyszukiwaniem; obligacje: oprocentowanie 1. okresu, kapitalizacja i cena 100 zł z oficjalnej oferty MF (obligacjeskarbowe.pl, z wbudowaną migawką z 2026-11), wykup 1. dnia miesiąca, czas do wykupu; okno ilości (instrument + pozycja w jednym kroku); cena pozycji akcji/ETF-ów/krypto sama z bieżącego kursu (komenda `quote_preview`) | gałąź `feat/asset-picker`, bez PR |
-| 11 | Wykres kołowy „Podział aktywów” na stronie portfela (udziały według rodzaju liczy Rust: `kind_shares`); poprawki znalezione w prawdziwej aplikacji: data wykupu bez godziny, obligacja bez ceny wyceniana po koszcie zamiast 0 | gałąź `feat/portfolio-pie`, bez PR; tag `v0.4.4` ich **nie ma** |
+| 8 | Oprocentowanie: stopa zwrotu z 12 mies. i dywidenda (Yahoo, CoinGecko), ręczne oprocentowanie obligacji/gotówki/lokat, nowy rodzaj „lokata bankowa”, gotówka wyceniana po 1 | 0.4.5 (PR #4) |
+| 9 | Skala interfejsu 50-200% (zoom webview, na Androidzie i w przeglądarce CSS `zoom`) | 0.4.5 (PR #5) |
+| 10 | Listy zamiast wpisywania (ETF-y, 32 akcje, krypto, waluty, serie obligacji) z wyszukiwaniem; obligacje: oprocentowanie 1. okresu, kapitalizacja i cena 100 zł z oficjalnej oferty MF (obligacjeskarbowe.pl, z wbudowaną migawką z 2026-11), wykup 1. dnia miesiąca, czas do wykupu; okno ilości (instrument + pozycja w jednym kroku); cena pozycji akcji/ETF-ów/krypto sama z bieżącego kursu (komenda `quote_preview`) | 0.4.5 |
+| 11 | Wykres kołowy „Podział aktywów” na stronie portfela (udziały według rodzaju liczy Rust: `kind_shares`); poprawki znalezione w prawdziwej aplikacji: data wykupu bez godziny, obligacja bez ceny wyceniana po koszcie zamiast 0 | 0.4.5 (tag `v0.4.4` jest osierocony, nie wydano go) |
+| 12 | Suwaki celu balansu (zablokowane/odblokowane wiersze, sumują się do 100%), stylowszy wygląd (UI pokazuje „AMI Calculator”, na GitHubie i w instalatorach zostaje `AMI_Calculator`), poprawka strony startowej pod `tauri://localhost` | 0.4.6 |
+| 13 | Wydajność: na niri start przez XWayland (natywny Wayland nie ma GL, rysowanie programowe 3 fps → 58-60), `src-tauri/src/display.rs`, `AMI_DISPLAY=wayland\|x11`; „Tryb wydajny” w Ustawieniach (auto/włączony/wyłączony, `src/lib/perf.ts`) | 0.4.6 |
 
 (Etap 3, budżet domowy, był w 0.2.0 i 0.3.0, a w 0.4.0 został usunięty.)
 
-Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podpisany) działa. Opublikowane pre-release: **0.1.2, 0.2.0, 0.2.1, 0.3.0**, każde z 6 plikami. Właściciel potwierdził, że APK działa na telefonie.
+Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podpisany) działa. Opublikowane pre-release: **0.1.2, 0.2.0, 0.2.1, 0.3.0, 0.4.5, 0.4.6**, każde z 6 plikami. Właściciel potwierdził, że APK działa na telefonie.
 
 ## 6. Do zrobienia (w tej kolejności)
 
 0. **Z etapów 8-10 (najpilniejsze):**
    - Skala UI (50-200%), tabela instrumentów i wykres kołowy były oglądane w prawdziwej aplikacji na Linuksie (WebKitGTK, jasny i ciemny motyw, tryb prywatny). **Formularz dodawania instrumentu** (listy, obligacje, okno ilości, cena z kursu) był sprawdzany tylko w Firefoksie na atrapie backendu; WebView2 (Windows) i Android nie były sprawdzane wcale.
    - Cena pozycji z kursu to **cena bieżąca**: przy wpisaniu wcześniejszej daty zakupu trzeba poprawić ją ręcznie (aplikacja nie ma kursów historycznych).
-   - Wydanie 0.4.4 (tag `v0.4.4`) zawiera dwa błędy poprawione dopiero w `feat/portfolio-pie`: data wykupu z godziną i obligacja bez ceny liczona jako 0.
+   - **Wydajność (etap 13):** zmierzono tylko ekran 60 Hz (eDP-1). Właściciel ma monitor 240 Hz: po podłączeniu zmierzyć przewijanie (budżet klatki ok. 4 ms) i sprawdzić, czy tryb wydajny nie jest potrzebny; automatyczne wykrywanie reaguje dopiero poniżej ok. 22 fps. Przełączenie na XWayland sprawdzono tylko na niri. Jałowy CPU ok. 0,1%, start ok. 2,3 s CPU. Jak mierzyć: wbudowany benchmark przewijania z gałęzi `bench/frames` (usunięta, odtwarzalna: rAF, okno szerokie, dpr z `window.devicePixelRatio`).
    - Oprocentowanie i kapitalizacja są tylko zapisywane i wyświetlane w tabeli instrumentów; **nie powiększają wartości portfela** ani nie są pokazane w widoku portfela i na pulpicie (pomysł: średnie ważone oprocentowanie).
    - Stawka z oferty MF to stawka **pierwszego okresu**; kolejne okresy zależą od inflacji lub stopy NBP. Podpowiedź działa tylko dla obligacji kupionych w miesiącu oferty.
    - Migawka ofert w `src/lib/bondOffers.ts` (listopad 2026) jest zapasem bez sieci; odświeżać przy wydaniach. Gdy MF zmieni układ strony, parser zgłosi serię jako pominiętą i formularz poprosi o ręczne oprocentowanie (testy: fixtures w `crates/ami-core/tests/fixtures/`).
