@@ -1,4 +1,5 @@
 import { invoke, isTauri } from '$lib/tauri';
+import { clampUiScale } from '$lib/uiScale';
 
 export type Locale = 'pl' | 'en' | 'de' | 'es' | 'fr' | 'uk';
 export type Theme = 'system' | 'light' | 'dark';
@@ -12,6 +13,8 @@ export interface Settings {
 	accent: string;
 	density: Density;
 	fontScale: number;
+	/** Whole-interface zoom, 0.5 to 2 (see uiScale.ts). */
+	uiScale: number;
 	radius: number;
 	numberLocale: NumberLocale;
 	baseCurrency: string;
@@ -32,6 +35,7 @@ export const DEFAULTS: Settings = {
 	accent: ACCENTS[0],
 	density: 'comfortable',
 	fontScale: 1,
+	uiScale: 1,
 	radius: 10,
 	numberLocale: 'auto',
 	baseCurrency: 'PLN',
@@ -54,6 +58,7 @@ function sanitize(raw: unknown): Partial<Settings> {
 		const v = (raw as Record<string, unknown>)[k];
 		if (v !== undefined && typeof v === typeof DEFAULTS[k]) (out as Record<string, unknown>)[k] = v;
 	}
+	if (out.uiScale !== undefined) out.uiScale = clampUiScale(out.uiScale);
 	// Start pages of the removed budget/reports sections go back to the dashboard.
 	if (!['/', '/portfolio', '/rebalance'].includes(out.startPage ?? '/')) out.startPage = '/';
 	return out;

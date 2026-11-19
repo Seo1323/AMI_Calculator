@@ -12,6 +12,7 @@
 		widgetList,
 		setWidgetList
 	} from '$lib/settings.svelte';
+	import { UI_SCALE_MIN, UI_SCALE_MAX, UI_SCALE_PRESETS } from '$lib/uiScale';
 	import { invoke, isTauri, type DataLocation, type ImportMode, type ImportReport } from '$lib/tauri';
 
 	const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'];
@@ -128,6 +129,24 @@
 					>
 				{/each}
 			</div>
+		</div>
+
+		<div class="field">
+			<span>{t('settings.uiScale')} ({Math.round(settings.uiScale * 100)}%)</span>
+			<input
+				type="range"
+				min={UI_SCALE_MIN}
+				max={UI_SCALE_MAX}
+				step="0.05"
+				bind:value={settings.uiScale}
+				aria-label={t('settings.uiScale')}
+			/>
+			<div class="segmented" role="group" aria-label={t('settings.uiScale')}>
+				{#each UI_SCALE_PRESETS as p (p)}
+					<button class:on={settings.uiScale === p} onclick={() => (settings.uiScale = p)}>{Math.round(p * 100)}%</button>
+				{/each}
+			</div>
+			<span class="muted small">{t('settings.uiScaleHint')}</span>
 		</div>
 
 		<label class="field">

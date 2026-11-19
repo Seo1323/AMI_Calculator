@@ -166,6 +166,8 @@ const uk: Record<keyof typeof pl, string> = {
 	'settings.density.comfortable': 'Зручна',
 	'settings.density.spacious': 'Просторна',
 	'settings.fontScale': 'Розмір тексту',
+	'settings.uiScale': 'Масштаб інтерфейсу',
+	'settings.uiScaleHint': 'Збільшує або зменшує весь інтерфейс. Діє разом із розміром тексту.',
 	'settings.radius': 'Заокруглення кутів',
 	'settings.reduceMotion': 'Зменшити анімації',
 	'settings.regional': 'Мова та формати',
