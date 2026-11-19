@@ -390,6 +390,27 @@ tbody tr:hover {
 	border-left-color: var(--warning);
 }
 
+/* ---------- Performance mode ---------- */
+/* Where painting is done in software the glow, shadows, gradients and transitions dominate the frame
+   time (measured: a long page scrolled at 3 fps with them, 21 fps without). This switches them off. */
+:root[data-perf='on'] body::before {
+	display: none;
+}
+:root[data-perf='on'] *,
+:root[data-perf='on'] *::before,
+:root[data-perf='on'] *::after {
+	box-shadow: none !important;
+	transition: none !important;
+	animation: none !important;
+}
+:root[data-perf='on'] .sidebar {
+	background: var(--surface) !important;
+}
+:root[data-perf='on'] .btn.primary,
+:root[data-perf='on'] .logo {
+	background: var(--accent) !important;
+}
+
 /* ---------- Small screens and touch ---------- */
 /* .hide-sm / .hide-xs mark secondary table columns, hidden on small windows / phones */
 :root[data-lt820] .hide-sm,
