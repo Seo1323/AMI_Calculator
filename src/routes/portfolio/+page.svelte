@@ -10,6 +10,8 @@
 	import { quotes as quoteState, refreshQuotes } from '$lib/quotes.svelte';
 	import { BOND_SERIES, addMonths, bondSymbol, firstOfMonth, offerMonth, remaining, termBetween } from '$lib/bond';
 	import SearchSelect from '$lib/components/SearchSelect.svelte';
+	import TargetSliders from '$lib/components/TargetSliders.svelte';
+	import { fromUnits, type TargetRow } from '$lib/targets';
 	import { loadBondOffers, SNAPSHOT_SET, type BondOffer, type OfferSet } from '$lib/bondOffers';
 	import { CATALOG, catalogFor, DEPOSIT_TERMS } from '$lib/catalog';
 	import {
@@ -62,6 +64,8 @@
 	});
 	const emptyPosition = () => ({ portfolioId: '', quantity: '', price: '', date: today() });
 	let newPortfolio = $state(emptyPortfolio());
+	// Optional target allocation chosen while creating the portfolio.
+	let newTargets: TargetRow[] = $state([]);
 	let instrumentForm = $state(emptyInstrument());
 	let position = $state(emptyPosition());
 	let offerSet: OfferSet = $state(SNAPSHOT_SET);
@@ -110,11 +114,16 @@
 
 	const createPortfolio = () =>
 		run(async () => {
-			await db.save<Portfolio>('portfolio', {
+			const created = await db.save<Portfolio>('portfolio', {
 				...newPortfolio,
 				tolerancePercent: toDecimal(newPortfolio.tolerancePercent)
 			});
+			const targets = newTargets
+				.filter((r) => r.units > 0)
+				.map((r) => ({ instrumentId: r.id, targetPercent: String(fromUnits(r.units)) }));
+			if (targets.length) await invoke('portfolio_set_targets', { id: created.id, targets });
 			newPortfolio = emptyPortfolio();
+			newTargets = [];
 			await load();
 		});
 
@@ -475,9 +484,20 @@
 				</select>
 			</label>
 			<label class="field">
-				{t('portfolio.tolerance')}
-				<input class="short" inputmode="decimal" bind:value={newPortfolio.tolerancePercent} />
+				{t('portfolio.tolerance')}: {fmtNumber(Number(newPortfolio.tolerancePercent) || 0)}
+				<input
+					type="range"
+					min="0"
+					max="20"
+					step="0.5"
+					value={Number(newPortfolio.tolerancePercent) || 0}
+					oninput={(e) => (newPortfolio.tolerancePercent = e.currentTarget.value)}
+				/>
 			</label>
+		</div>
+		<h3>{t('targets.optional')}</h3>
+		<TargetSliders bind:rows={newTargets} options={instruments.map((i) => ({ id: i.id, label: `${i.symbol} · ${i.name}` }))} />
+		<div class="row">
 			<button class="btn primary" disabled={!newPortfolio.name.trim()} onclick={createPortfolio}>
 				{t('portfolio.create')}
 			</button>
