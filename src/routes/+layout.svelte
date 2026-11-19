@@ -9,6 +9,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import { startAutoRefresh } from '$lib/quotes.svelte';
 	import { applyUiScale } from '$lib/uiScale';
+	import { isActivePath, isRoot } from '$lib/route';
 
 	let { children } = $props();
 
@@ -48,7 +49,7 @@
 		{ href: '/settings', key: 'nav.settings', icon: 'settings' }
 	];
 
-	const isActive = (href: string) => (href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(href));
+	const isActive = (href: string) => isActivePath(href, page.url.pathname);
 
 	function onKey(e: KeyboardEvent) {
 		// Alt+1..4 jumps between sections; Alt+H hides amounts; Alt+B toggles the sidebar.
@@ -73,7 +74,8 @@
 		motionQuery?.addEventListener('change', onMotion);
 		hydrateSettings().then(() => {
 			ready = true;
-			if (page.url.pathname === '/' && settings.startPage !== '/') goto(settings.startPage, { replaceState: true });
+			// isRoot: the root page has an empty pathname under tauri://localhost (Linux, macOS).
+			if (isRoot(page.url.pathname) && settings.startPage !== '/') goto(settings.startPage, { replaceState: true });
 		});
 		return () => {
 			media?.removeEventListener('change', onDark);
