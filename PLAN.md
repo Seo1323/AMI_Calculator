@@ -1,6 +1,6 @@
 # AMI_Calculator: plan wdrożenia
 
-Stan na 2026-11-19. Plik czyta Claude Code na początku sesji (patrz `CLAUDE.md`). Po każdym etapie zaktualizuj sekcje „Zrobione” i „Do zrobienia”.
+Stan na 2026-11-19 (wydanie 0.4.7). Plik czyta Claude Code na początku sesji (patrz `CLAUDE.md`). Po każdym etapie zaktualizuj sekcje „Zrobione” i „Do zrobienia”.
 
 ## 1. Co robimy
 
@@ -81,17 +81,19 @@ npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 | 11 | Wykres kołowy „Podział aktywów” na stronie portfela (udziały według rodzaju liczy Rust: `kind_shares`); poprawki znalezione w prawdziwej aplikacji: data wykupu bez godziny, obligacja bez ceny wyceniana po koszcie zamiast 0 | 0.4.5 (tag `v0.4.4` jest osierocony, nie wydano go) |
 | 12 | Suwaki celu balansu (zablokowane/odblokowane wiersze, sumują się do 100%), stylowszy wygląd (UI pokazuje „AMI Calculator”, na GitHubie i w instalatorach zostaje `AMI_Calculator`), poprawka strony startowej pod `tauri://localhost` | 0.4.6 |
 | 13 | Wydajność: na niri start przez XWayland (natywny Wayland nie ma GL, rysowanie programowe 3 fps → 58-60), `src-tauri/src/display.rs`, `AMI_DISPLAY=wayland\|x11`; „Tryb wydajny” w Ustawieniach (auto/włączony/wyłączony, `src/lib/perf.ts`) | 0.4.6 |
+| 14 | Więcej opcji wyglądu (Ustawienia → Wygląd): czcionka (domyślna, szeryfowa, monospace), cienie kart (brak, delikatne, wyraźne), styl ciemnego motywu (miękki, czarny AMOLED), szerokość treści, poświata akcentu w tle, paleta dla daltonistów, grosze w kwotach. Działa przez atrybuty `data-*` na `<html>` i zmienne CSS (`src/app.css`, efekt w `+layout.svelte`), nowe pola w `settings.svelte.ts` (nieznana wartość wraca do domyślnej) | 0.4.7 (PR #17) |
 
 (Etap 3, budżet domowy, był w 0.2.0 i 0.3.0, a w 0.4.0 został usunięty.)
 
-Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podpisany) działa. Opublikowane pre-release: **0.1.2, 0.2.0, 0.2.1, 0.3.0, 0.4.5, 0.4.6**, każde z 6 plikami. Właściciel potwierdził, że APK działa na telefonie.
+Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podpisany) działa. Opublikowane pre-release: **0.1.2, 0.2.0, 0.2.1, 0.3.0, 0.4.5, 0.4.6, 0.4.7**, każde z 6 plikami. Właściciel potwierdził, że APK działa na telefonie.
 
 ## 6. Do zrobienia (w tej kolejności)
 
 0. **Z etapów 8-10 (najpilniejsze):**
    - Skala UI (50-200%), tabela instrumentów i wykres kołowy były oglądane w prawdziwej aplikacji na Linuksie (WebKitGTK, jasny i ciemny motyw, tryb prywatny). **Formularz dodawania instrumentu** (listy, obligacje, okno ilości, cena z kursu) był sprawdzany tylko w Firefoksie na atrapie backendu; WebView2 (Windows) i Android nie były sprawdzane wcale.
    - Cena pozycji z kursu to **cena bieżąca**: przy wpisaniu wcześniejszej daty zakupu trzeba poprawić ją ręcznie (aplikacja nie ma kursów historycznych).
-   - **Wydajność (etap 13):** zmierzono tylko ekran 60 Hz (eDP-1). Właściciel ma monitor 240 Hz: po podłączeniu zmierzyć przewijanie (budżet klatki ok. 4 ms) i sprawdzić, czy tryb wydajny nie jest potrzebny; automatyczne wykrywanie reaguje dopiero poniżej ok. 22 fps. Przełączenie na XWayland sprawdzono tylko na niri. Jałowy CPU ok. 0,1%, start ok. 2,3 s CPU. Jak mierzyć: wbudowany benchmark przewijania z gałęzi `bench/frames` (usunięta, odtwarzalna: rAF, okno szerokie, dpr z `window.devicePixelRatio`).
+   - **Wydajność (etap 13):** zmierzono tylko ekran 60 Hz (eDP-1). Właściciel ma monitor 240 Hz: po podłączeniu zmierzyć przewijanie (budżet klatki ok. 4 ms) i sprawdzić, czy tryb wydajny nie jest potrzebny; automatyczne wykrywanie reaguje dopiero poniżej ok. 22 fps. Przełączenie na XWayland sprawdzono tylko na niri. Jak mierzyć: wbudowany benchmark przewijania z gałęzi `bench/frames` (usunięta, odtwarzalna: rAF, okno szerokie, dpr z `window.devicePixelRatio`).
+   - **Zużycie zasobów (pomiar 2026-11-19, release z etapu 13, niri/XWayland, PSS):** jałowo ok. 210 MB (proces Rusta 61, WebProcess 121, NetworkProcess 28), CPU ok. 0%; portfel z 60 pozycjami ok. 220 MB. Większość to WebKit, kodu aplikacji nie opłaca się już odchudzać. Sprawdzone i odrzucone: `WEBKIT_DISABLE_DMABUF_RENDERER=1` (-30 MB RAM, ale CPU przy przewijaniu 10 razy większe), tryb wydajny (przy działającym GL bez różnicy w CPU, więc cienie i przejścia nic nie kosztują), `MALLOC_ARENA_MAX=2` (bez efektu). Debugowy plik z `npm run tauri dev` zużywa ok. 390 MB: do codziennego używania budować release. Jak mierzyć: uruchomić z `XDG_*` na katalog tymczasowy, odczytać `Pss` z `/proc/<pid>/smaps_rollup` dla aplikacji i jej dzieci; przewijanie przez `xdotool click 5` w oknie XWayland, zrzut przez `niri msg action screenshot-window --id` (id okna o `app_id` dokładnie `Ami-calculator`, nie `ami-calculator`, to okno właściciela).
    - Oprocentowanie i kapitalizacja są tylko zapisywane i wyświetlane w tabeli instrumentów; **nie powiększają wartości portfela** ani nie są pokazane w widoku portfela i na pulpicie (pomysł: średnie ważone oprocentowanie).
    - Stawka z oferty MF to stawka **pierwszego okresu**; kolejne okresy zależą od inflacji lub stopy NBP. Podpowiedź działa tylko dla obligacji kupionych w miesiącu oferty.
    - Migawka ofert w `src/lib/bondOffers.ts` (listopad 2026) jest zapasem bez sieci; odświeżać przy wydaniach. Gdy MF zmieni układ strony, parser zgłosi serię jako pominiętą i formularz poprosi o ręczne oprocentowanie (testy: fixtures w `crates/ami-core/tests/fixtures/`).
