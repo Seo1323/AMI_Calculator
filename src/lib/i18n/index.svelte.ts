@@ -1,3 +1,4 @@
+import { localDate } from '$lib/bond';
 import pl from './pl';
 import en from './en';
 import de from './de';
@@ -44,6 +45,12 @@ export function fmtMoney(value: string | number, currency = settings.baseCurrenc
 
 export function fmtDate(value: string | Date): string {
 	return new Intl.DateTimeFormat(numberLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+}
+
+/** A calendar date (YYYY-MM-DD) without a time of day; unlike `fmtDate` it never shows an hour or shifts the day. */
+export function fmtDay(iso: string): string {
+	const d = localDate(iso);
+	return d ? new Intl.DateTimeFormat(numberLocale(), { dateStyle: 'medium' }).format(d) : iso;
 }
 
 interface ErrorPayload {

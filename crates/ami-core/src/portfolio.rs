@@ -35,6 +35,10 @@ pub fn holdings(trades: &[Trade]) -> Result<BTreeMap<Uuid, Holding>> {
     sorted.sort_by_key(|t| (t.date, t.meta.created_at));
     let mut map: BTreeMap<Uuid, Holding> = BTreeMap::new();
     for t in sorted {
+        // A zero-quantity trade changes nothing (and a sell of 0 would divide the cost by a zero quantity).
+        if t.quantity.is_zero() {
+            continue;
+        }
         let h = map.entry(t.instrument_id).or_default();
         match t.side {
             TradeSide::Buy => {
@@ -80,6 +84,51 @@ pub struct PositionView {
     pub current_percent: Option<Decimal>,
 }
 
+/// Share of one asset kind (ETF, bonds, cash...) in the portfolio value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KindShare {
+    pub kind: InstrumentKind,
+    /// Value in the portfolio base currency.
+    pub value: Decimal,
+    /// Percent of `total_value`.
+    pub percent: Decimal,
+}
+
+/// Fixed order, so a kind keeps its place (and its chart color) whatever the amounts are.
+const KIND_ORDER: [InstrumentKind; 7] = [
+    InstrumentKind::Etf,
+    InstrumentKind::Stock,
+    InstrumentKind::Bond,
+    InstrumentKind::Crypto,
+    InstrumentKind::Cash,
+    InstrumentKind::Deposit,
+    InstrumentKind::Other,
+];
+
+/// Value per asset kind for the allocation chart: only valued positions count, kinds without value
+/// are left out.
+fn kind_shares(positions: &[PositionView], total: Decimal) -> Vec<KindShare> {
+    if total <= Decimal::ZERO {
+        return Vec::new();
+    }
+    KIND_ORDER
+        .iter()
+        .filter_map(|kind| {
+            let value: Decimal = positions
+                .iter()
+                .filter(|p| p.instrument.kind == *kind)
+                .filter_map(|p| p.value)
+                .sum();
+            (value > Decimal::ZERO).then(|| KindShare {
+                kind: *kind,
+                value: value.round_dp(2),
+                percent: (value / total * HUNDRED).round_dp(2),
+            })
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PortfolioView {
@@ -95,6 +144,10 @@ pub struct PortfolioView {
     pub missing_rates: Vec<String>,
     pub max_deviation: Option<Decimal>,
     pub needs_rebalance: bool,
+    /// Split of the value by asset kind, for the pie chart.
+    pub kind_shares: Vec<KindShare>,
+    /// Symbols valued at their purchase cost because no price was entered (bonds): an estimate.
+    pub estimated_prices: Vec<String>,
 }
 
 struct Inputs {
@@ -135,10 +188,34 @@ fn load(store: &Store, portfolio_id: Uuid) -> Result<Inputs> {
             dividend_yield_percent: None,
         });
     }
+    let holdings = holdings(&store.trades_of(portfolio_id)?)?;
+    // A bond has no market feed: until its price is entered it is valued at what it cost, not at zero.
+    // The cost basis includes buy fees, so the unit price is slightly above the entered purchase price
+    // and the gain shows 0 rather than minus the fees.
+    for (id, h) in &holdings {
+        let Some(i) = instruments
+            .get(id)
+            .filter(|i| i.kind == InstrumentKind::Bond)
+        else {
+            continue;
+        };
+        let Some(unit_cost) = h.cost.checked_div(h.quantity) else {
+            continue;
+        };
+        quotes.entry(*id).or_insert_with(|| Quote {
+            instrument_id: *id,
+            price: unit_cost.round_dp(6),
+            currency: i.currency.clone(),
+            source: "cost".into(),
+            fetched_at: chrono::Utc::now(),
+            return_12m_percent: None,
+            dividend_yield_percent: None,
+        });
+    }
     Ok(Inputs {
         portfolio,
         instruments,
-        holdings: holdings(&store.trades_of(portfolio_id)?)?,
+        holdings,
         targets: store
             .targets_of(portfolio_id)?
             .into_iter()
@@ -235,7 +312,15 @@ pub fn view(store: &Store, portfolio_id: Uuid) -> Result<PortfolioView> {
         })
         .flatten();
 
+    let kind_shares = kind_shares(&positions, total_value);
+    let estimated_prices = positions
+        .iter()
+        .filter(|p| p.price_source.as_deref() == Some("cost"))
+        .map(|p| p.instrument.symbol.clone())
+        .collect();
     Ok(PortfolioView {
+        kind_shares,
+        estimated_prices,
         needs_rebalance: max_deviation.is_some_and(|d| d > inp.portfolio.tolerance_percent),
         total_gain: positions.iter().filter_map(|p| p.gain).sum(),
         targets_sum: inp.targets.values().copied().sum(),
@@ -331,6 +416,28 @@ mod tests {
         let sell = trade(a, 2, TradeSide::Sell, dec!(1), dec!(10));
         let buy = trade(a, 1, TradeSide::Buy, dec!(1), dec!(10));
         assert!(holdings(&[sell, buy]).is_ok());
+    }
+
+    #[test]
+    fn a_zero_quantity_trade_is_a_no_op_not_a_division_by_zero() {
+        let a = Uuid::now_v7();
+        // Selling 0 of something never held used to pass the oversell check and divide by zero.
+        let h = holdings(&[trade(a, 1, TradeSide::Sell, dec!(0), dec!(10))]).unwrap();
+        assert!(
+            h.get(&a)
+                .is_none_or(|h| h.quantity.is_zero() && h.cost.is_zero())
+        );
+        // The same on a real holding changes nothing.
+        let h = holdings(&[
+            trade(a, 1, TradeSide::Buy, dec!(10), dec!(100)),
+            trade(a, 2, TradeSide::Sell, dec!(0), dec!(150)),
+            trade(a, 3, TradeSide::Buy, dec!(0), dec!(150)),
+        ])
+        .unwrap();
+        assert_eq!(
+            (h[&a].quantity, h[&a].cost, h[&a].realized),
+            (dec!(10), dec!(1000), dec!(0))
+        );
     }
 
     #[test]
@@ -452,6 +559,7 @@ mod tests {
         kind: InstrumentKind,
         currency: &str,
         quantity: Decimal,
+        price: Decimal,
     ) -> (Store, Portfolio) {
         let store = Store::open_in_memory().unwrap();
         let portfolio = store
@@ -477,7 +585,7 @@ mod tests {
                 maturity_date: None,
             })
             .unwrap();
-        let mut deposit = trade(cash.meta.id, 1, TradeSide::Buy, quantity, dec!(1));
+        let mut deposit = trade(cash.meta.id, 1, TradeSide::Buy, quantity, price);
         deposit.portfolio_id = portfolio.meta.id;
         store.save_trade(deposit).unwrap();
         (store, portfolio)
@@ -485,7 +593,8 @@ mod tests {
 
     #[test]
     fn cash_is_worth_one_unit_of_its_currency_without_a_price_entry() {
-        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "PLN", dec!(1000.50));
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Cash, "PLN", dec!(1000.50), dec!(1));
         let v = view(&store, portfolio.meta.id).unwrap();
         assert!(v.missing_prices.is_empty());
         assert!(v.missing_rates.is_empty());
@@ -495,7 +604,8 @@ mod tests {
 
     #[test]
     fn a_bank_deposit_is_valued_at_its_principal() {
-        let (store, portfolio) = money_in_portfolio(InstrumentKind::Deposit, "PLN", dec!(5000));
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Deposit, "PLN", dec!(5000), dec!(1));
         let v = view(&store, portfolio.meta.id).unwrap();
         assert!(v.missing_prices.is_empty());
         assert_eq!(v.total_value, dec!(5000));
@@ -504,8 +614,269 @@ mod tests {
     }
 
     #[test]
+    fn a_bond_without_a_price_is_valued_at_cost_not_zero() {
+        // 30 bonds bought at 100 PLN each.
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Bond, "PLN", dec!(30), dec!(100));
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert!(v.missing_prices.is_empty());
+        assert_eq!(v.total_value, dec!(3000));
+        assert_eq!(v.positions[0].price, Some(dec!(100)));
+        assert_eq!(v.positions[0].gain, Some(dec!(0)));
+    }
+
+    #[test]
+    fn an_entered_bond_price_wins_over_the_cost() {
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Bond, "PLN", dec!(30), dec!(100));
+        let bond_id = store.list::<Instrument>().unwrap()[0].meta.id;
+        store
+            .set_quote(&quote(bond_id, dec!(101.5), "PLN"))
+            .unwrap();
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert_eq!(v.total_value, dec!(3045));
+        assert_eq!(v.positions[0].gain, Some(dec!(45)));
+    }
+
+    #[test]
+    fn a_sold_out_bond_is_not_valued() {
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Bond, "PLN", dec!(30), dec!(100));
+        let bond_id = store.list::<Instrument>().unwrap()[0].meta.id;
+        let mut sell = trade(bond_id, 2, TradeSide::Sell, dec!(30), dec!(100));
+        sell.portfolio_id = portfolio.meta.id;
+        store.save_trade(sell).unwrap();
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert_eq!(v.total_value, dec!(0));
+        assert!(v.missing_prices.is_empty());
+    }
+
+    fn plain_instrument(kind: InstrumentKind, symbol: &str, currency: &str) -> Instrument {
+        Instrument {
+            meta: Meta::new(),
+            symbol: symbol.into(),
+            name: symbol.into(),
+            kind,
+            currency: Currency::new(currency).unwrap(),
+            quote_source: QuoteSource::Manual,
+            fractional: true,
+            interest_percent: None,
+            capitalization: None,
+            start_date: None,
+            maturity_date: None,
+        }
+    }
+
+    #[test]
+    fn value_is_split_by_asset_kind_in_a_fixed_order() {
+        let f = fixture(); // 10 VWCE (ETF, EUR) and a BTC target without units
+        f.store
+            .set_quote(&quote(f.etf.meta.id, dec!(110), "EUR"))
+            .unwrap();
+        f.store
+            .set_fx_rate(&FxRate {
+                currency: Currency::new("EUR").unwrap(),
+                rate_pln: dec!(4),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
+            .unwrap();
+        // Saved cash first, bond second: the result must still come out ETF, bond, cash.
+        for (kind, symbol, qty, price) in [
+            (InstrumentKind::Cash, "PLN", dec!(2200), dec!(1)),
+            (InstrumentKind::Bond, "EDO1136", dec!(10), dec!(100)),
+        ] {
+            let i = f.store.save(plain_instrument(kind, symbol, "PLN")).unwrap();
+            let mut t = trade(i.meta.id, 5, TradeSide::Buy, qty, price);
+            t.portfolio_id = f.portfolio.meta.id;
+            f.store.save_trade(t).unwrap();
+        }
+        let v = view(&f.store, f.portfolio.meta.id).unwrap();
+        let shares: Vec<_> = v
+            .kind_shares
+            .iter()
+            .map(|s| (s.kind, s.value, s.percent))
+            .collect();
+        // ETF 4400 + bond 1000 (at cost) + cash 2200 = 7600; the empty BTC position is left out.
+        assert_eq!(
+            shares,
+            [
+                (InstrumentKind::Etf, dec!(4400), dec!(57.89)),
+                (InstrumentKind::Bond, dec!(1000), dec!(13.16)),
+                (InstrumentKind::Cash, dec!(2200), dec!(28.95)),
+            ]
+        );
+        assert_eq!(v.total_value, dec!(7600));
+    }
+
+    #[test]
+    fn nothing_valued_gives_no_shares() {
+        let f = fixture(); // the ETF has no price yet, so nothing has a value
+        let v = view(&f.store, f.portfolio.meta.id).unwrap();
+        assert!(v.kind_shares.is_empty());
+        let json = serde_json::to_value(&v).unwrap();
+        assert_eq!(json["kindShares"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn a_share_serializes_as_a_whole_object() {
+        let share = KindShare {
+            kind: InstrumentKind::Deposit,
+            value: dec!(5000),
+            percent: dec!(12.5),
+        };
+        // Decimals travel as strings, the kind as camelCase: the frontend reads exactly this.
+        assert_eq!(
+            serde_json::to_value(&share).unwrap(),
+            serde_json::json!({"kind": "deposit", "value": "5000", "percent": "12.5"})
+        );
+    }
+
+    fn bond_in_portfolio(
+        currency: &str,
+        quantity: Decimal,
+        price: Decimal,
+        fee: Decimal,
+    ) -> (Store, Portfolio, Instrument) {
+        let store = Store::open_in_memory().unwrap();
+        let portfolio = store
+            .save(Portfolio {
+                meta: Meta::new(),
+                name: "Obligacje".into(),
+                base_currency: Currency::new("PLN").unwrap(),
+                tolerance_percent: dec!(5),
+            })
+            .unwrap();
+        let bond = store
+            .save(plain_instrument(InstrumentKind::Bond, "EDO1136", currency))
+            .unwrap();
+        let mut buy = trade(bond.meta.id, 1, TradeSide::Buy, quantity, price);
+        buy.portfolio_id = portfolio.meta.id;
+        buy.fee = fee;
+        store.save_trade(buy).unwrap();
+        (store, portfolio, bond)
+    }
+
+    #[test]
+    fn a_bond_bought_with_a_fee_is_valued_at_cost_including_the_fee() {
+        let (store, portfolio, _) = bond_in_portfolio("PLN", dec!(10), dec!(100), dec!(10));
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert_eq!(v.positions[0].price, Some(dec!(101))); // (10 x 100 + 10) / 10
+        assert_eq!(v.total_value, dec!(1010));
+        assert_eq!(v.positions[0].gain, Some(dec!(0)));
+        // It is an estimate and says so.
+        assert_eq!(v.estimated_prices, ["EDO1136"]);
+    }
+
+    #[test]
+    fn an_entered_price_removes_the_estimate_flag() {
+        let (store, portfolio, bond) = bond_in_portfolio("PLN", dec!(10), dec!(100), dec!(0));
+        assert_eq!(
+            view(&store, portfolio.meta.id).unwrap().estimated_prices,
+            ["EDO1136"]
+        );
+        store
+            .set_quote(&quote(bond.meta.id, dec!(102), "PLN"))
+            .unwrap();
+        assert!(
+            view(&store, portfolio.meta.id)
+                .unwrap()
+                .estimated_prices
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn a_foreign_currency_bond_needs_an_exchange_rate() {
+        let (store, portfolio, _) = bond_in_portfolio("EUR", dec!(10), dec!(100), dec!(0));
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert_eq!(v.missing_rates, ["EUR"]);
+        assert_eq!(v.total_value, dec!(0));
+        assert!(v.kind_shares.is_empty());
+        store
+            .set_fx_rate(&FxRate {
+                currency: Currency::new("EUR").unwrap(),
+                rate_pln: dec!(4),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
+            .unwrap();
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert_eq!(v.total_value, dec!(4000)); // 10 x 100 EUR x 4
+        assert_eq!(v.kind_shares.len(), 1);
+        assert_eq!(
+            (v.kind_shares[0].kind, v.kind_shares[0].percent),
+            (InstrumentKind::Bond, dec!(100))
+        );
+    }
+
+    #[test]
+    fn a_partly_sold_bond_keeps_its_average_cost() {
+        let (store, portfolio, bond) = bond_in_portfolio("PLN", dec!(30), dec!(100), dec!(0));
+        let mut sell = trade(bond.meta.id, 2, TradeSide::Sell, dec!(10), dec!(120));
+        sell.portfolio_id = portfolio.meta.id;
+        store.save_trade(sell).unwrap();
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert_eq!(v.positions[0].quantity, dec!(20));
+        assert_eq!(v.positions[0].price, Some(dec!(100)));
+        assert_eq!(v.total_value, dec!(2000));
+        assert_eq!(v.positions[0].realized, dec!(200)); // 10 x (120 - 100)
+    }
+
+    #[test]
+    fn a_held_but_unpriced_position_is_left_out_of_the_split() {
+        let f = fixture(); // 10 VWCE (ETF, EUR); BTC is only a target
+        f.store
+            .set_quote(&quote(f.etf.meta.id, dec!(110), "EUR"))
+            .unwrap();
+        f.store
+            .set_fx_rate(&FxRate {
+                currency: Currency::new("EUR").unwrap(),
+                rate_pln: dec!(4),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
+            .unwrap();
+        let mut held = trade(f.btc.meta.id, 5, TradeSide::Buy, dec!(1), dec!(250000));
+        held.portfolio_id = f.portfolio.meta.id;
+        f.store.save_trade(held).unwrap(); // BTC is now held but has no price
+        let v = view(&f.store, f.portfolio.meta.id).unwrap();
+        assert_eq!(v.missing_prices, ["BTC"]);
+        let kinds: Vec<_> = v.kind_shares.iter().map(|s| (s.kind, s.percent)).collect();
+        // The percentages are of the valued part only.
+        assert_eq!(kinds, [(InstrumentKind::Etf, dec!(100))]);
+    }
+
+    #[test]
+    fn three_equal_kinds_show_the_rounded_shares_not_a_forced_hundred() {
+        let store = Store::open_in_memory().unwrap();
+        let portfolio = store
+            .save(Portfolio {
+                meta: Meta::new(),
+                name: "Trzy".into(),
+                base_currency: Currency::new("PLN").unwrap(),
+                tolerance_percent: dec!(5),
+            })
+            .unwrap();
+        for (kind, symbol) in [
+            (InstrumentKind::Cash, "PLN"),
+            (InstrumentKind::Deposit, "LOK"),
+            (InstrumentKind::Bond, "EDO"),
+        ] {
+            let i = store.save(plain_instrument(kind, symbol, "PLN")).unwrap();
+            let mut t = trade(i.meta.id, 1, TradeSide::Buy, dec!(1000), dec!(1));
+            t.portfolio_id = portfolio.meta.id;
+            store.save_trade(t).unwrap();
+        }
+        let v = view(&store, portfolio.meta.id).unwrap();
+        let shares: Vec<_> = v.kind_shares.iter().map(|s| s.percent).collect();
+        assert_eq!(shares, [dec!(33.33), dec!(33.33), dec!(33.33)]); // 99.99 in total, by design
+    }
+
+    #[test]
     fn foreign_cash_still_needs_an_exchange_rate() {
-        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "EUR", dec!(100));
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Cash, "EUR", dec!(100), dec!(1));
         let v = view(&store, portfolio.meta.id).unwrap();
         assert!(v.missing_prices.is_empty());
         assert_eq!(v.missing_rates, ["EUR"]);
@@ -523,7 +894,7 @@ mod tests {
 
     #[test]
     fn an_entered_cash_price_wins_over_the_default() {
-        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "PLN", dec!(10));
+        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "PLN", dec!(10), dec!(1));
         let cash_id = store.list::<Instrument>().unwrap()[0].meta.id;
         store.set_quote(&quote(cash_id, dec!(2), "PLN")).unwrap();
         let v = view(&store, portfolio.meta.id).unwrap();

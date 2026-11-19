@@ -5,6 +5,7 @@
 	import { db } from '$lib/db';
 	import { invoke, isTauri, type Mode, type RebalanceResult } from '$lib/tauri';
 	import Icon from '$lib/components/Icon.svelte';
+	import AllocationPie from '$lib/components/AllocationPie.svelte';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import { quotes as quoteState } from '$lib/quotes.svelte';
 	import RebalanceResultView from '$lib/components/RebalanceResultView.svelte';
@@ -210,9 +211,23 @@
 		{#if view.missingPrices.length}
 			<div class="notice warn">{t('pf.missingPrices', { list: view.missingPrices.join(', ') })}</div>
 		{/if}
+		{#if view.estimatedPrices.length}
+			<div class="notice">{t('pf.estimatedPrices', { list: view.estimatedPrices.join(', ') })}</div>
+		{/if}
 		{#if view.missingRates.length}
 			<div class="notice warn">{t('pf.missingRates', { list: view.missingRates.join(', ') })}</div>
 		{/if}
+
+		<!-- Split of the value by asset kind -->
+		<section class="card stack">
+			<h2>{t('pf.allocation.title')}</h2>
+			<AllocationPie
+				shares={view.kindShares}
+				total={view.totalValue}
+				{currency}
+				unvalued={view.positions.filter((p) => p.value === null && Number(p.quantity) > 0).length}
+			/>
+		</section>
 
 		<!-- Positions & targets -->
 		<section class="card stack">

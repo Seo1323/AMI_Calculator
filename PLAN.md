@@ -55,6 +55,8 @@ npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 
 **Test interfejsu na żywo:** debugowy plik binarny ładuje frontend z `http://localhost:1420`, więc najpierw `npm run dev`. Zrzut okna: `niri msg action screenshot-window --id <id>`, potem `wl-paste --type image/png`. **Przed wstawieniem danych demo zrób kopię `ami.db*` i potem ją przywróć.**
 
+**Test w prawdziwej aplikacji bez ruszania własnych danych** (tak sprawdzano skalę i wykres): uruchom z `XDG_DATA_HOME`, `XDG_CACHE_HOME` i `XDG_CONFIG_HOME` wskazującymi na katalog tymczasowy (baza i ustawienia powstają tam), dane testowe wstaw `sqlite3` (tabele `portfolios`, `instruments`, `trades`, `quotes`, `fx_rates`, `settings` z kluczem `ui`, np. `{"uiScale":1.5,"theme":"dark","startPage":"/portfolio","autoRefreshQuotes":false}`). Skala UI i strona startowa wchodzą przez `settings`. Strony szczegółów portfela nie da się ustawić jako startowej, więc uruchom okno z `GDK_BACKEND=x11` i kliknij kartę przez `xdotool` (okno Wayland nie przyjmuje syntetycznych kliknięć). Okno XWayland nie ma PID-u aplikacji w `niri msg windows`, więc rozpoznaj je po `app_id` (`Ami-calculator`); `niri msg action screenshot-window` **bez poprawnego `--id` nic nie robi**, a `wl-paste` zwróci stary obraz ze schowka. Zrzut nadpisuje schowek. Serwer `npm run dev` na porcie 1420 może już działać (np. z innej sesji): nie zabijaj go ani cudzych okien, zatrzymuj tylko własne procesy po PID.
+
 **Pułapki:**
 - Nie używaj `pkill -f <wzorzec>`, jeśli wzorzec występuje w samym poleceniu: zabija własną powłokę. Używaj `pkill -x ami-calculator`.
 - Anulowane przebiegi CI są normalne (nowszy push anuluje starszy).
@@ -76,6 +78,7 @@ npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 | 8 | Oprocentowanie: stopa zwrotu z 12 mies. i dywidenda (Yahoo, CoinGecko), ręczne oprocentowanie obligacji/gotówki/lokat, nowy rodzaj „lokata bankowa”, gotówka wyceniana po 1 | po 0.4.3 (PR #4) |
 | 9 | Skala interfejsu 50-200% (zoom webview, na Androidzie i w przeglądarce CSS `zoom`) | po 0.4.3 (PR #5) |
 | 10 | Listy zamiast wpisywania (ETF-y, 32 akcje, krypto, waluty, serie obligacji) z wyszukiwaniem; obligacje: oprocentowanie 1. okresu, kapitalizacja i cena 100 zł z oficjalnej oferty MF (obligacjeskarbowe.pl, z wbudowaną migawką z 2026-11), wykup 1. dnia miesiąca, czas do wykupu; okno ilości (instrument + pozycja w jednym kroku); cena pozycji akcji/ETF-ów/krypto sama z bieżącego kursu (komenda `quote_preview`) | gałąź `feat/asset-picker`, bez PR |
+| 11 | Wykres kołowy „Podział aktywów” na stronie portfela (udziały według rodzaju liczy Rust: `kind_shares`); poprawki znalezione w prawdziwej aplikacji: data wykupu bez godziny, obligacja bez ceny wyceniana po koszcie zamiast 0 | gałąź `feat/portfolio-pie`, bez PR; tag `v0.4.4` ich **nie ma** |
 
 (Etap 3, budżet domowy, był w 0.2.0 i 0.3.0, a w 0.4.0 został usunięty.)
 
@@ -84,8 +87,9 @@ Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podp
 ## 6. Do zrobienia (w tej kolejności)
 
 0. **Z etapów 8-10 (najpilniejsze):**
-   - Formularz instrumentu (listy, obligacje, okno ilości) i skala UI były sprawdzane tylko w Firefoksie na atrapie backendu Tauri i przez `svelte-check`; **nie widziane w prawdziwej aplikacji** (WebKitGTK, WebView2, Android). Przed wydaniem obejrzeć w `npm run tauri dev` (najpierw kopia `ami.db*`).
+   - Skala UI (50-200%), tabela instrumentów i wykres kołowy były oglądane w prawdziwej aplikacji na Linuksie (WebKitGTK, jasny i ciemny motyw, tryb prywatny). **Formularz dodawania instrumentu** (listy, obligacje, okno ilości, cena z kursu) był sprawdzany tylko w Firefoksie na atrapie backendu; WebView2 (Windows) i Android nie były sprawdzane wcale.
    - Cena pozycji z kursu to **cena bieżąca**: przy wpisaniu wcześniejszej daty zakupu trzeba poprawić ją ręcznie (aplikacja nie ma kursów historycznych).
+   - Wydanie 0.4.4 (tag `v0.4.4`) zawiera dwa błędy poprawione dopiero w `feat/portfolio-pie`: data wykupu z godziną i obligacja bez ceny liczona jako 0.
    - Oprocentowanie i kapitalizacja są tylko zapisywane i wyświetlane w tabeli instrumentów; **nie powiększają wartości portfela** ani nie są pokazane w widoku portfela i na pulpicie (pomysł: średnie ważone oprocentowanie).
    - Stawka z oferty MF to stawka **pierwszego okresu**; kolejne okresy zależą od inflacji lub stopy NBP. Podpowiedź działa tylko dla obligacji kupionych w miesiącu oferty.
    - Migawka ofert w `src/lib/bondOffers.ts` (listopad 2026) jest zapasem bez sieci; odświeżać przy wydaniach. Gdy MF zmieni układ strony, parser zgłosi serię jako pominiętą i formularz poprosi o ręczne oprocentowanie (testy: fixtures w `crates/ami-core/tests/fixtures/`).
