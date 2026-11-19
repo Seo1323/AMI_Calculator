@@ -1,6 +1,6 @@
 # AMI_Calculator: plan wdrożenia
 
-Stan na 2026-11-18. Plik czyta Claude Code na początku sesji (patrz `CLAUDE.md`). Po każdym etapie zaktualizuj sekcje „Zrobione” i „Do zrobienia”.
+Stan na 2026-11-19. Plik czyta Claude Code na początku sesji (patrz `CLAUDE.md`). Po każdym etapie zaktualizuj sekcje „Zrobione” i „Do zrobienia”.
 
 ## 1. Co robimy
 
@@ -47,6 +47,7 @@ npm run tauri dev                 # aplikacja desktopowa (dev, odświeża na ży
 cargo test --workspace            # testy logiki
 cargo clippy --workspace --all-targets -- -D warnings
 npm run check                     # typy frontendu
+npm test                          # testy rachunku dat obligacji (node:test, bez zależności; działa też w CI)
 npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 ```
 
@@ -73,11 +74,23 @@ npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 | 6 (start) | Zapis plików przez `plugin-fs` (Android), commit `fa6097e` | 0.4.0 |
 | 7 | Wycięcie budżetu i raportów: aplikacja to sam kalkulator portfela (Pulpit, Portfele, Rebalansowanie, Ustawienia) | 0.4.0 |
 
+| 8 | Oprocentowanie: stopa zwrotu z 12 mies. i dywidenda (Yahoo, CoinGecko), ręczne oprocentowanie obligacji/gotówki/lokat, nowy rodzaj „lokata bankowa”, gotówka wyceniana po 1 | po 0.4.3 (PR #4) |
+| 9 | Skala interfejsu 50-200% (zoom webview, na Androidzie i w przeglądarce CSS `zoom`) | po 0.4.3 (PR #5) |
+| 10 | Listy zamiast wpisywania (ETF-y, 32 akcje, krypto, waluty, serie obligacji) z wyszukiwaniem; obligacje: oprocentowanie 1. okresu, kapitalizacja i cena 100 zł z oficjalnej oferty MF (obligacjeskarbowe.pl, z wbudowaną migawką z 2026-11), wykup 1. dnia miesiąca, czas do wykupu; okno ilości (instrument + pozycja w jednym kroku) | gałąź `feat/asset-picker`, bez PR |
+
 (Etap 3, budżet domowy, był w 0.2.0 i 0.3.0, a w 0.4.0 został usunięty.)
 
 Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podpisany) działa. Opublikowane pre-release: **0.1.2, 0.2.0, 0.2.1, 0.3.0**, każde z 6 plikami. Właściciel potwierdził, że APK działa na telefonie.
 
 ## 6. Do zrobienia (w tej kolejności)
+
+0. **Z etapów 8-10 (najpilniejsze):**
+   - Formularz instrumentu (listy, obligacje, okno ilości) i skala UI były sprawdzane tylko w Firefoksie na atrapie backendu Tauri i przez `svelte-check`; **nie widziane w prawdziwej aplikacji** (WebKitGTK, WebView2, Android). Przed wydaniem obejrzeć w `npm run tauri dev` (najpierw kopia `ami.db*`).
+   - Oprocentowanie i kapitalizacja są tylko zapisywane i wyświetlane w tabeli instrumentów; **nie powiększają wartości portfela** ani nie są pokazane w widoku portfela i na pulpicie (pomysł: średnie ważone oprocentowanie).
+   - Stawka z oferty MF to stawka **pierwszego okresu**; kolejne okresy zależą od inflacji lub stopy NBP. Podpowiedź działa tylko dla obligacji kupionych w miesiącu oferty.
+   - Migawka ofert w `src/lib/bondOffers.ts` (listopad 2026) jest zapasem bez sieci; odświeżać przy wydaniach. Gdy MF zmieni układ strony, parser zgłosi serię jako pominiętą i formularz poprosi o ręczne oprocentowanie (testy: fixtures w `crates/ami-core/tests/fixtures/`).
+   - Limit rozmiaru odpowiedzi HTTP i polityka przekierowań (`fetch.rs`) nie mają testów jednostkowych. Brak limitu rozmiaru dla zapisu poprzednich wartości 12 mies. po nieudanym odświeżeniu (nieudane odświeżenie zeruje znane wartości).
+   - Tłumaczenia nowych tekstów (de/es/fr/uk) zrobił Claude, bez weryfikacji native speakera.
 
 1. **Ikona aplikacji**: zrobiona (waga na niebieskim tle, źródło `assets/icon.svg`, odtworzenie: `rsvg-convert -w 1024 -h 1024 assets/icon.svg -o /tmp/i.png && npm run tauri icon /tmp/i.png`, potem usuń `src-tauri/icons/ios`). Sprawdzić w kolejnym wydaniu, że APK i instalatory ją pokazują.
 2. **Edycja rekordów**: zrobiona (transakcje giełdowe: ołówek w tabeli, formularz zmienia się w tryb edycji; nazwa i tolerancja portfela: ołówek przy nazwie). Backend sprawdza historię (brak nadsprzedaży) także przy edycji.
