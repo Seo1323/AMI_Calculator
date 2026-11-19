@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { confirm } from '@tauri-apps/plugin-dialog';
-	import { t, fmtMoney, fmtNumber, fmtDate, errorText } from '$lib/i18n/index.svelte';
+	import { t, fmtMoney, fmtNumber, fmtDate, fmtDay, errorText } from '$lib/i18n/index.svelte';
 	import { settings } from '$lib/settings.svelte';
 	import { db } from '$lib/db';
 	import { invoke, isTauri } from '$lib/tauri';
@@ -530,7 +530,7 @@
 									{rateText(i)}
 									{#if timed(i.kind) && i.maturityDate}
 										<div class="muted">
-											{t('instruments.maturity')}: {fmtDate(i.maturityDate)} · {remainingText(i.maturityDate)}
+											{t('instruments.maturity')}: {fmtDay(i.maturityDate)} · {remainingText(i.maturityDate)}
 										</div>
 									{/if}
 								</td>

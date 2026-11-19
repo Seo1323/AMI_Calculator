@@ -1,7 +1,7 @@
 // Run with: npm test  (Node strips the TypeScript types itself, no extra dependency)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addMonths, remaining, bondSymbol, daysInMonth, termBetween, firstOfMonth, offerMonth, BOND_SERIES } from '../../src/lib/bond.ts';
+import { addMonths, remaining, bondSymbol, daysInMonth, termBetween, firstOfMonth, offerMonth, localDate, BOND_SERIES } from '../../src/lib/bond.ts';
 
 test('addMonths keeps the day when it exists', () => {
 	assert.equal(addMonths('2026-04-15', 120), '2036-04-15');
@@ -74,4 +74,11 @@ test('offerMonth recovers the month an offer is sold in', () => {
 	assert.equal(offerMonth('ROD1138', 144), '2026-11');
 	assert.equal(offerMonth('COI1130', 48), '2026-11');
 	assert.equal(offerMonth('bad', 12), null);
+});
+
+test('localDate is a local calendar day with no time of day, in any time zone', () => {
+	const d = localDate('2036-11-01');
+	assert.deepEqual([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes()], [2036, 10, 1, 0, 0]);
+	assert.equal(localDate('2026-02-30'), null);
+	assert.equal(localDate('nope'), null);
 });

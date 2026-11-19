@@ -96,3 +96,12 @@ export function offerMonth(symbol: string, termMonths: number): string | null {
 	const matured = addMonths(`20${m[2]}-${m[1]}-01`, -termMonths);
 	return matured ? matured.slice(0, 7) : null;
 }
+
+/**
+ * A calendar date (YYYY-MM-DD) as a local Date at midnight, built from its parts. `new Date('2036-11-01')`
+ * would be UTC midnight, which shows as 01:00 or 02:00 in Europe and as the previous day west of Greenwich.
+ */
+export function localDate(iso: string): Date | null {
+	const p = parse(iso);
+	return p ? new Date(p.y, p.m - 1, p.d) : null;
+}
