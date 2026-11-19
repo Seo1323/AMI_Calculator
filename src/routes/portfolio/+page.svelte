@@ -7,7 +7,7 @@
 	import { invoke, isTauri } from '$lib/tauri';
 	import Icon from '$lib/components/Icon.svelte';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
-	import { quotes as quoteState } from '$lib/quotes.svelte';
+	import { quotes as quoteState, refreshQuotes } from '$lib/quotes.svelte';
 	import { BOND_SERIES, addMonths, bondSymbol, firstOfMonth, offerMonth, remaining, termBetween } from '$lib/bond';
 	import SearchSelect from '$lib/components/SearchSelect.svelte';
 	import { loadBondOffers, SNAPSHOT_SET, type BondOffer, type OfferSet } from '$lib/bondOffers';
@@ -69,6 +69,10 @@
 	// Values filled in from the bond offer; replaced by a new offer only while the user has not edited them.
 	let autoRate = '';
 	let autoPrice = '';
+	// Price of a listed instrument comes from its online quote; a newer request makes older ones void.
+	let priceToken = 0;
+	let priceBusy = $state(false);
+	let priceNote = $state('');
 	let priceInputs: Record<string, string> = $state({});
 	let fxForm = $state({ currency: 'EUR', ratePln: '' });
 
@@ -141,6 +145,11 @@
 
 	function pickKind() {
 		const f = instrumentForm;
+		priceToken++;
+		priceBusy = false;
+		priceNote = '';
+		position.price = '';
+		autoPrice = '';
 		if (f.kind === 'bond' && !offersRequested) {
 			offersRequested = true;
 			loadBondOffers().then((o) => (offerSet = o));
@@ -189,6 +198,35 @@
 		}
 	}
 
+	/** Fills the holding's price from the current online quote; a price typed by hand is kept. */
+	async function fetchPrice(force = false) {
+		const f = instrumentForm;
+		if (!isTauri() || f.id || f.quoteSource === 'manual' || !f.symbol.trim()) return;
+		if (!['etf', 'stock', 'crypto'].includes(f.kind)) return;
+		const token = ++priceToken;
+		priceBusy = true;
+		priceNote = '';
+		try {
+			const q = await invoke<{ price: string; currency: string; source: string }>('quote_preview', {
+				symbol: f.symbol.trim(),
+				source: f.quoteSource,
+				currency: f.currency
+			});
+			if (token !== priceToken) return;
+			if (q.currency !== f.currency) {
+				priceNote = t('position.priceCurrency', { currency: q.currency });
+			} else if (force || position.price === '' || position.price === autoPrice) {
+				autoPrice = q.price;
+				position.price = q.price;
+				priceNote = t('position.priceAuto', { source: q.source });
+			}
+		} catch {
+			if (token === priceToken) priceNote = t('position.priceFailed');
+		} finally {
+			if (token === priceToken) priceBusy = false;
+		}
+	}
+
 	function pickCatalog() {
 		const f = instrumentForm;
 		const key = f.catalogKey;
@@ -203,9 +241,11 @@
 				fractional: c.fractional,
 				currency: f.kind === 'crypto' ? settings.baseCurrency : c.currency
 			});
+			fetchPrice();
 		} else if (f.kind === 'cash') {
 			Object.assign(f, { symbol: key, name: `${t('kind.cash')} ${key}`, currency: key });
 			position.price ||= '1';
+			autoPrice = '1';
 		} else if (f.kind === 'deposit') {
 			f.currency = key;
 			f.startDate ||= today();
@@ -311,10 +351,15 @@
 					fee: '0'
 				} as Trade);
 			}
+			// A new instrument with an online source gets its quote now instead of at the next scheduled refresh.
+			if (!f.id && f.quoteSource !== 'manual') void refreshQuotes();
 			const keepPortfolio = position.portfolioId;
 			position = { ...emptyPosition(), portfolioId: keepPortfolio };
 			autoRate = '';
 			autoPrice = '';
+			priceToken++;
+			priceBusy = false;
+			priceNote = '';
 			instrumentForm = emptyInstrument();
 			await load();
 		});
@@ -525,7 +570,7 @@
 			{#if instrumentForm.kind === 'crypto' && instrumentForm.catalogKey && !typedByHand}
 				<label class="field">
 					{t('instruments.currency')}
-					<select bind:value={instrumentForm.currency}>
+					<select bind:value={instrumentForm.currency} onchange={() => fetchPrice(true)}>
 						{#each CURRENCIES as c (c)}<option value={c}>{c}</option>{/each}
 					</select>
 				</label>
@@ -652,12 +697,22 @@
 						{t('trades.price')} ({instrumentForm.currency})
 						<input class="short" inputmode="decimal" bind:value={position.price} />
 					</label>
+					{#if ['etf', 'stock', 'crypto'].includes(instrumentForm.kind) && instrumentForm.quoteSource !== 'manual' && instrumentForm.symbol.trim()}
+						<button class="btn" type="button" disabled={priceBusy} onclick={() => fetchPrice(true)}>
+							{t('position.priceFetch')}
+						</button>
+					{/if}
 					<label class="field">
 						{t('trades.date')}
 						<input type="date" bind:value={position.date} />
 					</label>
 				{/if}
 			</div>
+			{#if priceBusy}
+				<p class="muted small">{t('position.priceLoading')}</p>
+			{:else if priceNote}
+				<p class="muted small">{priceNote}</p>
+			{/if}
 			{#if positionTotal}
 				<p class="muted small">{t('trades.total')}: {fmtMoney(positionTotal, instrumentForm.currency)}</p>
 			{/if}
