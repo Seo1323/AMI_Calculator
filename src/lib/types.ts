@@ -16,6 +16,10 @@ export interface Instrument extends Meta {
 	currency: string;
 	quoteSource: QuoteSource;
 	fractional: boolean;
+	/** Annual rate in percent, entered by hand (bonds, cash). */
+	interestPercent: string | null;
+	/** Bond maturity, YYYY-MM-DD. */
+	maturityDate: string | null;
 }
 
 export interface Portfolio extends Meta {

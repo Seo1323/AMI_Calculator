@@ -275,7 +275,10 @@ mod tests {
         };
         let d = download(plan).await;
         for q in &d.quotes {
-            println!("quote {} {} {}", q.source, q.price, q.currency);
+            println!(
+                "quote {} {} {} 12m={:?} div={:?}",
+                q.source, q.price, q.currency, q.return_12m_percent, q.dividend_yield_percent
+            );
         }
         for f in &d.failures {
             println!("failure {}: {}", f.symbol, f.reason);

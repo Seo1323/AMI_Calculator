@@ -24,6 +24,8 @@
 		price: string;
 		currency: string;
 		fetchedAt: string;
+		return12mPercent: string | null;
+		dividendYieldPercent: string | null;
 	}
 
 	let views: PortfolioView[] = $state([]);
@@ -40,7 +42,9 @@
 		kind: 'etf' as Instrument['kind'],
 		currency: 'PLN',
 		quoteSource: 'yahoo' as Instrument['quoteSource'],
-		fractional: false
+		fractional: false,
+		interestPercent: '',
+		maturityDate: ''
 	});
 	let newPortfolio = $state(emptyPortfolio());
 	let instrumentForm = $state(emptyInstrument());
@@ -99,7 +103,13 @@
 		run(async () => {
 			const { id, ...rest } = instrumentForm;
 			const existing = instruments.find((i) => i.id === id);
-			await db.save<Instrument>('instrument', { ...existing, ...rest, symbol: rest.symbol.trim() });
+			await db.save<Instrument>('instrument', {
+				...existing,
+				...rest,
+				symbol: rest.symbol.trim(),
+				interestPercent: rest.interestPercent.trim() ? toDecimal(rest.interestPercent) : null,
+				maturityDate: rest.kind === 'bond' && rest.maturityDate ? rest.maturityDate : null
+			});
 			instrumentForm = emptyInstrument();
 			await load();
 		});
@@ -112,9 +122,28 @@
 			kind: i.kind,
 			currency: i.currency,
 			quoteSource: i.quoteSource,
-			fractional: i.fractional
+			fractional: i.fractional,
+			interestPercent: i.interestPercent ?? '',
+			maturityDate: i.maturityDate ?? ''
 		};
 	};
+
+	const pct = (v: string, signed = false) => {
+		const n = Number(v);
+		return (signed && n > 0 ? '+' : '') + fmtNumber(n, 2);
+	};
+
+	/** Manual rate for bonds and cash, exchange figures (12-month return, dividend) for the rest. */
+	function rateText(i: Instrument): string {
+		if (i.kind === 'bond' || i.kind === 'cash') {
+			return i.interestPercent ? t('instruments.perYear', { rate: pct(i.interestPercent) }) : '—';
+		}
+		const q = quotes[i.id];
+		const parts: string[] = [];
+		if (q?.return12mPercent) parts.push(t('instruments.return12m', { value: pct(q.return12mPercent, true) }));
+		if (q?.dividendYieldPercent) parts.push(t('instruments.dividend', { value: pct(q.dividendYieldPercent) }));
+		return parts.join(' · ') || '—';
+	}
 
 	const savePrice = (i: Instrument) =>
 		run(async () => {
@@ -209,6 +238,7 @@
 							<th>{t('instruments.kind')}</th>
 							<th>{t('instruments.currency')}</th>
 							<th class="num">{t('instruments.price')}</th>
+							<th>{t('instruments.rate')}</th>
 							<th>{t('instruments.priceAt')}</th>
 							<th></th>
 						</tr>
@@ -220,6 +250,9 @@
 								<td>{t(`kind.${i.kind}`)}{i.fractional ? ' · ½' : ''}</td>
 								<td>{i.currency}</td>
 								<td class="num">
+									{#if i.kind === 'cash' && !quotes[i.id]}
+										<span class="muted small">{t('instruments.cashPrice')}</span>
+									{:else}
 									<form
 										class="inline"
 										onsubmit={(e) => {
@@ -230,6 +263,13 @@
 										<input class="price" inputmode="decimal" bind:value={priceInputs[i.id]} aria-label={t('instruments.price')} />
 										<button class="btn" type="submit">{t('common.save')}</button>
 									</form>
+									{/if}
+								</td>
+								<td class="small">
+									{rateText(i)}
+									{#if i.kind === 'bond' && i.maturityDate}
+										<div class="muted">{t('instruments.maturity')}: {fmtDate(i.maturityDate)}</div>
+									{/if}
 								</td>
 								<td class="muted small">{quotes[i.id] ? fmtDate(quotes[i.id].fetchedAt) : '—'}</td>
 								<td><button class="btn ghost" onclick={() => editInstrument(i)}>{t('common.edit')}</button></td>
@@ -262,6 +302,9 @@
 						if (instrumentForm.kind === 'crypto') {
 							instrumentForm.fractional = true;
 							instrumentForm.quoteSource = 'coinGecko';
+						} else if (instrumentForm.kind === 'cash' || instrumentForm.kind === 'bond') {
+							instrumentForm.quoteSource = 'manual';
+							instrumentForm.fractional = instrumentForm.kind === 'cash';
 						} else if (instrumentForm.quoteSource === 'coinGecko') {
 							instrumentForm.quoteSource = 'yahoo';
 						}
@@ -287,6 +330,23 @@
 				{t('instruments.fractional')}
 			</label>
 		</div>
+		{#if instrumentForm.kind === 'bond' || instrumentForm.kind === 'cash'}
+			<div class="row">
+				<label class="field">
+					{t('instruments.interest')}
+					<input class="short" inputmode="decimal" bind:value={instrumentForm.interestPercent} />
+				</label>
+				{#if instrumentForm.kind === 'bond'}
+					<label class="field">
+						{t('instruments.maturity')}
+						<input type="date" bind:value={instrumentForm.maturityDate} />
+					</label>
+				{/if}
+			</div>
+			<p class="muted small">{t('instruments.rateHint.manual')}</p>
+		{:else if instrumentForm.kind === 'etf' || instrumentForm.kind === 'crypto'}
+			<p class="muted small">{t('instruments.rateHint.auto')}</p>
+		{/if}
 		<p class="muted small">{t(`instruments.symbolHint.${instrumentForm.quoteSource}`)}</p>
 		<div class="row">
 			<button
