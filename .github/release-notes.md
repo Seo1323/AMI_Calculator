@@ -1,3 +1,6 @@
+## Co nowego w 0.4.9
+- **Poprawka: portfel z uszkodzoną historią transakcji** (np. sprzedaż większa niż liczba posiadanych jednostek po scaleniu kopii z dwóch urządzeń) nie wyłącza już pulpitu ani listy portfeli. Taki portfel jest oznaczony „Problem z danymi portfela”, a na jego stronie widać baner i tabelę transakcji, w której błędną transakcję można poprawić lub usunąć.
+
 ## Co nowego w 0.4.8
 - **Poprawka: zamykanie aplikacji po literówce w kwocie.** Wpisanie absurdalnie dużej ilości, ceny, opłaty, wpłaty lub kursu (np. za dużo zer) mogło zamknąć aplikację, także przy każdym kolejnym uruchomieniu. Takie wartości (powyżej 1 000 000 000 000) są teraz odrzucane z komunikatem.
 - **Poprawka: import `.ami`** sprawdza rekordy tak samo jak zwykły zapis, więc ręcznie zmieniony plik nie wprowadzi niepoprawnych danych.
