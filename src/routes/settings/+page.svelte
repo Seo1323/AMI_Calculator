@@ -6,6 +6,10 @@
 	import {
 		settings,
 		ACCENTS,
+		FONT_FAMILIES,
+		SHADOWS,
+		DARK_STYLES,
+		CONTENT_WIDTHS,
 		resetSettings,
 		replaceSettings,
 		flushSettings,
@@ -159,6 +163,49 @@
 		<label class="field">
 			{t('settings.radius')} ({settings.radius}px)
 			<input type="range" min="0" max="20" step="1" bind:value={settings.radius} />
+		</label>
+
+		<label class="field">
+			{t('settings.font')}
+			<select bind:value={settings.fontFamily}>
+				{#each FONT_FAMILIES as f (f)}<option value={f}>{t(`settings.font.${f}`)}</option>{/each}
+			</select>
+		</label>
+
+		<label class="field">
+			{t('settings.shadows')}
+			<select bind:value={settings.shadows}>
+				{#each SHADOWS as s (s)}<option value={s}>{t(`settings.shadows.${s}`)}</option>{/each}
+			</select>
+		</label>
+
+		<label class="field">
+			{t('settings.darkStyle')}
+			<select bind:value={settings.darkStyle}>
+				{#each DARK_STYLES as d (d)}<option value={d}>{t(`settings.darkStyle.${d}`)}</option>{/each}
+			</select>
+		</label>
+
+		<label class="field">
+			{t('settings.contentWidth')}
+			<select bind:value={settings.contentWidth}>
+				{#each CONTENT_WIDTHS as w (w)}<option value={w}>{t(`settings.contentWidth.${w}`)}</option>{/each}
+			</select>
+		</label>
+
+		<label class="check">
+			<input type="checkbox" bind:checked={settings.glow} />
+			{t('settings.glow')}
+		</label>
+
+		<label class="check">
+			<input type="checkbox" bind:checked={settings.colorblind} />
+			{t('settings.colorblind')}
+		</label>
+
+		<label class="check">
+			<input type="checkbox" bind:checked={settings.showCents} />
+			{t('settings.showCents')}
 		</label>
 
 		<label class="check">

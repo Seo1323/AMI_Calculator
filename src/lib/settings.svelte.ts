@@ -6,6 +6,10 @@ export type Locale = 'pl' | 'en' | 'de' | 'es' | 'fr' | 'uk';
 export type Theme = 'system' | 'light' | 'dark';
 export type Density = 'compact' | 'comfortable' | 'spacious';
 export type NumberLocale = 'auto' | 'pl-PL' | 'en-US' | 'en-GB' | 'de-DE' | 'fr-FR' | 'es-ES' | 'uk-UA';
+export type FontFamily = 'default' | 'serif' | 'mono';
+export type Shadows = 'none' | 'soft' | 'strong';
+export type DarkStyle = 'soft' | 'black';
+export type ContentWidth = 'narrow' | 'normal' | 'full';
 export type StartPage = '/' | '/portfolio' | '/rebalance';
 
 export interface Settings {
@@ -19,6 +23,16 @@ export interface Settings {
 	/** Switches off glow, shadows, gradients and animations; 'auto' does it once slow painting is seen. */
 	perfMode: PerfMode;
 	radius: number;
+	fontFamily: FontFamily;
+	shadows: Shadows;
+	/** Soft wash of the accent colour behind the page. */
+	glow: boolean;
+	/** Blue/orange instead of green/red for gains and losses. */
+	colorblind: boolean;
+	/** 'black' is a pure-black dark theme (saves power on OLED screens). */
+	darkStyle: DarkStyle;
+	contentWidth: ContentWidth;
+	showCents: boolean;
 	numberLocale: NumberLocale;
 	baseCurrency: string;
 	startPage: StartPage;
@@ -32,6 +46,11 @@ export interface Settings {
 
 export const ACCENTS = ['#2f6fed', '#0f9d76', '#c2410c', '#9333ea', '#db2777', '#0891b2', '#ca8a04', '#475569'];
 
+export const FONT_FAMILIES: FontFamily[] = ['default', 'serif', 'mono'];
+export const SHADOWS: Shadows[] = ['none', 'soft', 'strong'];
+export const DARK_STYLES: DarkStyle[] = ['soft', 'black'];
+export const CONTENT_WIDTHS: ContentWidth[] = ['narrow', 'normal', 'full'];
+
 export const DEFAULTS: Settings = {
 	locale: 'pl',
 	theme: 'system',
@@ -41,6 +60,13 @@ export const DEFAULTS: Settings = {
 	uiScale: 1,
 	perfMode: 'auto',
 	radius: 14,
+	fontFamily: 'default',
+	shadows: 'soft',
+	glow: true,
+	colorblind: false,
+	darkStyle: 'soft',
+	contentWidth: 'normal',
+	showCents: true,
 	numberLocale: 'auto',
 	baseCurrency: 'PLN',
 	startPage: '/',
@@ -63,6 +89,14 @@ function sanitize(raw: unknown): Partial<Settings> {
 		if (v !== undefined && typeof v === typeof DEFAULTS[k]) (out as Record<string, unknown>)[k] = v;
 	}
 	if (out.uiScale !== undefined) out.uiScale = clampUiScale(out.uiScale);
+	// A value from an older or hand-edited backup that is not in the list falls back to the default.
+	const oneOf = <K extends 'fontFamily' | 'shadows' | 'darkStyle' | 'contentWidth'>(k: K, list: Settings[K][]) => {
+		if (out[k] !== undefined && !list.includes(out[k] as Settings[K])) delete out[k];
+	};
+	oneOf('fontFamily', FONT_FAMILIES);
+	oneOf('shadows', SHADOWS);
+	oneOf('darkStyle', DARK_STYLES);
+	oneOf('contentWidth', CONTENT_WIDTHS);
 	if (out.perfMode !== undefined) out.perfMode = asPerfMode(out.perfMode);
 	// Start pages of the removed budget/reports sections go back to the dashboard.
 	if (!['/', '/portfolio', '/rebalance'].includes(out.startPage ?? '/')) out.startPage = '/';
