@@ -1,3 +1,10 @@
+## Co nowego w 0.4.6
+- **Płynniejsze przewijanie na Linuksie (niri)**: na natywnym Waylandzie GL się nie uruchamiał, a strona była rysowana programowo w czterokrotnie większej rozdzielczości (ok. 3 klatki na sekundę). Aplikacja startuje teraz przez XWayland (ok. 60 klatek na sekundę). Wyłączysz to zmienną `AMI_DISPLAY=wayland`.
+- **Tryb wydajny** (Ustawienia): wyłącza poświatę, cienie, gradienty i animacje. W trybie automatycznym włącza się sam, gdy wykryje bardzo wolne klatki.
+- **Suwaki celu balansu** przy zakładaniu i w ustawieniach portfela, nowy, bardziej stylowy wygląd, nazwa „AMI Calculator” w interfejsie.
+- **Poprawka**: strona startowa i podświetlenie aktywnej pozycji menu w zainstalowanej aplikacji.
+- **Do wiedzenia**: efekt przełączenia na XWayland sprawdzony tylko na niri; na innych pulpitach nic się nie zmienia.
+
 ## Co nowego w 0.4.5
 - **Wykres kołowy na stronie portfela**: „Podział aktywów” pokazuje, ile wartości portfela jest w ETF-ach, akcjach, obligacjach, krypto, gotówce i lokatach, z dokładnymi udziałami i kwotami w tabeli obok. Najechanie na wycinek pokazuje szczegóły. Działa w trybie jasnym, ciemnym i prywatnym.
 - **Poprawka: data wykupu** obligacji i lokat nie pokazuje już godziny („1 lis 2036, 01:00”) i nie przesuwa się o dzień w innych strefach czasowych.
