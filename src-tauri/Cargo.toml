@@ -30,5 +30,5 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util"] }
 rust_decimal_macros.workspace = true

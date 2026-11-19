@@ -438,6 +438,91 @@ mod tests {
     use ami_core::model::{InstrumentKind, Meta};
     use ami_core::money::Currency;
 
+    /// Serves canned HTTP responses on localhost, chosen by request path; returns the base URL.
+    async fn serve(routes: Vec<(&'static str, Vec<u8>)>) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    return;
+                };
+                let mut buf = vec![0u8; 4096];
+                let n = sock.read(&mut buf).await.unwrap_or(0);
+                let head = String::from_utf8_lossy(&buf[..n]).into_owned();
+                let path = head.split_whitespace().nth(1).unwrap_or("/");
+                let reply = routes
+                    .iter()
+                    .find(|(p, _)| *p == path)
+                    .map(|(_, r)| r.clone());
+                let _ = sock.write_all(&reply.unwrap_or_default()).await;
+            }
+        });
+        base
+    }
+
+    fn http(status: &str, extra: &str, body: &[u8]) -> Vec<u8> {
+        let mut r = format!(
+            "HTTP/1.1 {status}\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
+        r.extend_from_slice(body);
+        r
+    }
+
+    #[tokio::test]
+    async fn get_returns_the_body_and_maps_http_errors() {
+        let base = serve(vec![
+            ("/ok", http("200 OK", "", b"hello")),
+            ("/missing", http("404 Not Found", "", b"{\"error\":1}")),
+            ("/boom", http("500 Internal Server Error", "", b"oops")),
+        ])
+        .await;
+        let c = client().unwrap();
+        assert_eq!(get(&c, &format!("{base}/ok")).await.unwrap(), "hello");
+        // Yahoo's 404 carries a JSON error worth parsing.
+        assert_eq!(
+            get(&c, &format!("{base}/missing")).await.unwrap(),
+            "{\"error\":1}"
+        );
+        assert!(
+            get(&c, &format!("{base}/boom"))
+                .await
+                .unwrap_err()
+                .contains("500")
+        );
+    }
+
+    #[tokio::test]
+    async fn get_refuses_a_response_over_the_size_limit() {
+        let big = vec![b'x'; MAX_BODY + 1];
+        let base = serve(vec![("/big", http("200 OK", "", &big))]).await;
+        let err = get(&client().unwrap(), &format!("{base}/big"))
+            .await
+            .unwrap_err();
+        assert_eq!(err, "response too large");
+    }
+
+    #[tokio::test]
+    async fn bond_client_follows_redirects_on_the_same_host_only() {
+        let base = serve(vec![
+            ("/start", http("302 Found", "Location: /final\r\n", b"")),
+            ("/final", http("200 OK", "", b"arrived")),
+            // Same server, but reached through another host name.
+            (
+                "/away",
+                http("302 Found", "Location: http://localhost:1/x\r\n", b""),
+            ),
+        ])
+        .await;
+        let c = bond_client().unwrap();
+        assert_eq!(get(&c, &format!("{base}/start")).await.unwrap(), "arrived");
+        let err = get(&c, &format!("{base}/away")).await.unwrap_err();
+        assert!(err.contains("302"), "{err}");
+    }
+
     #[test]
     fn a_fresh_price_without_figures_keeps_the_known_ones() {
         use rust_decimal_macros::dec;
