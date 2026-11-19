@@ -118,7 +118,30 @@ pub async fn download(plan: Plan) -> Downloaded {
         let vs: Vec<&str> = plan.coingecko.iter().map(|i| i.currency.code()).collect();
         get(&client, &providers::coingecko_url(&ids, &vs)).await
     };
-    let (nbp, yahoo, coingecko) = futures::join!(nbp, yahoo, coingecko);
+    let coingecko_returns = async {
+        let mut currencies: Vec<&str> = plan.coingecko.iter().map(|i| i.currency.code()).collect();
+        currencies.sort_unstable();
+        currencies.dedup();
+        join_all(currencies.into_iter().map(|cur| {
+            let client = &client;
+            let ids: Vec<&str> = plan
+                .coingecko
+                .iter()
+                .filter(|i| i.currency.code() == cur)
+                .map(|i| i.symbol.as_str())
+                .collect();
+            async move {
+                // A failure here only means "no 12-month figure"; the price is fetched separately.
+                let body = get(client, &providers::coingecko_markets_url(&ids, cur)).await;
+                (cur.to_string(), body.unwrap_or_default())
+            }
+        }))
+        .await
+        .into_iter()
+        .collect::<HashMap<String, String>>()
+    };
+    let (nbp, yahoo, coingecko, coingecko_returns) =
+        futures::join!(nbp, yahoo, coingecko, coingecko_returns);
 
     match nbp {
         Ok(rates) => {
@@ -146,6 +169,8 @@ pub async fn download(plan: Plan) -> Downloaded {
                 currency: q.currency,
                 source: "yahoo".into(),
                 fetched_at: now,
+                return_12m_percent: q.return_12m_percent,
+                dividend_yield_percent: q.dividend_yield_percent,
             }),
             Err(reason) => out.failures.push(Failure {
                 symbol: instrument.symbol.clone(),
@@ -164,6 +189,14 @@ pub async fn download(plan: Plan) -> Downloaded {
                         currency: i.currency.clone(),
                         source: "coingecko".into(),
                         fetched_at: now,
+                        return_12m_percent: coingecko_returns.get(i.currency.code()).and_then(
+                            |b| {
+                                providers::parse_coingecko_return(b, &i.symbol)
+                                    .ok()
+                                    .flatten()
+                            },
+                        ),
+                        dividend_yield_percent: None,
                     }),
                     Ok(None) => out.failures.push(Failure {
                         symbol: i.symbol.clone(),
@@ -223,6 +256,8 @@ mod tests {
             currency: Currency::new(currency).unwrap(),
             quote_source: source,
             fractional: false,
+            interest_percent: None,
+            maturity_date: None,
         }
     }
 

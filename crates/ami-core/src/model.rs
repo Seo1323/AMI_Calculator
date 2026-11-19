@@ -80,6 +80,13 @@ pub struct Instrument {
     pub quote_source: QuoteSource,
     /// Whether fractional units can be bought (crypto: yes, GPW: no).
     pub fractional: bool,
+    /// Annual interest rate in percent, entered by hand (bonds, cash). Market-quoted
+    /// instruments get their rates from the exchange instead (see `Quote`).
+    #[serde(default)]
+    pub interest_percent: Option<Decimal>,
+    /// Maturity date of a bond.
+    #[serde(default)]
+    pub maturity_date: Option<NaiveDate>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,6 +144,12 @@ pub struct Quote {
     #[serde(default = "manual")]
     pub source: String,
     pub fetched_at: DateTime<Utc>,
+    /// Price change over the last 12 months in percent (from the exchange), if known.
+    #[serde(default)]
+    pub return_12m_percent: Option<Decimal>,
+    /// Dividends paid over the last 12 months as a percent of the price (ETFs), if known.
+    #[serde(default)]
+    pub dividend_yield_percent: Option<Decimal>,
 }
 
 /// Exchange rate: how many PLN one unit of `currency` is worth (NBP convention).
@@ -152,4 +165,50 @@ pub struct FxRate {
 
 fn manual() -> String {
     "manual".into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal_macros::dec;
+
+    fn bond() -> Instrument {
+        Instrument {
+            meta: Meta::new(),
+            symbol: "EDO0436".into(),
+            name: "Obligacje 10-letnie".into(),
+            kind: InstrumentKind::Bond,
+            currency: Currency::new("PLN").unwrap(),
+            quote_source: QuoteSource::Manual,
+            fractional: false,
+            interest_percent: Some(dec!(5.75)),
+            maturity_date: NaiveDate::from_ymd_opt(2036, 4, 1),
+        }
+    }
+
+    #[test]
+    fn manual_rate_and_maturity_round_trip() {
+        let b = bond();
+        let back: Instrument = serde_json::from_str(&serde_json::to_string(&b).unwrap()).unwrap();
+        assert_eq!(back.interest_percent, Some(dec!(5.75)));
+        assert_eq!(back.maturity_date, b.maturity_date);
+    }
+
+    #[test]
+    fn data_saved_before_rates_existed_still_loads() {
+        let mut v = serde_json::to_value(bond()).unwrap();
+        let o = v.as_object_mut().unwrap();
+        o.remove("interestPercent");
+        o.remove("maturityDate");
+        let old: Instrument = serde_json::from_value(v).unwrap();
+        assert_eq!((old.interest_percent, old.maturity_date), (None, None));
+
+        let quote = r#"{"instrumentId":"018f0000-0000-7000-8000-000000000000","price":"10","currency":"PLN",
+            "source":"yahoo","fetchedAt":"2026-11-19T10:00:00Z"}"#;
+        let q: Quote = serde_json::from_str(quote).unwrap();
+        assert_eq!(
+            (q.return_12m_percent, q.dividend_yield_percent),
+            (None, None)
+        );
+    }
 }

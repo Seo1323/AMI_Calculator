@@ -110,14 +110,22 @@ fn quote_set(
     price: Decimal,
     currency: Currency,
 ) -> CmdResult<()> {
+    let store = state.store();
+    // A hand-entered price keeps the 12-month figures from the last online refresh.
+    let previous = store
+        .quotes()?
+        .into_iter()
+        .find(|q| q.instrument_id == instrument_id);
     let quote = Quote {
         instrument_id,
         price,
         currency,
         source: "manual".into(),
         fetched_at: Utc::now(),
+        return_12m_percent: previous.as_ref().and_then(|q| q.return_12m_percent),
+        dividend_yield_percent: previous.and_then(|q| q.dividend_yield_percent),
     };
-    Ok(state.store().set_quote(&quote)?)
+    Ok(store.set_quote(&quote)?)
 }
 
 /// Downloads NBP rates and quotes for all instruments with an online source.

@@ -110,24 +110,41 @@ fn load(store: &Store, portfolio_id: Uuid) -> Result<Inputs> {
     let portfolio = store
         .get::<Portfolio>(portfolio_id)?
         .ok_or(CoreError::NotFound)?;
+    let instruments: HashMap<Uuid, Instrument> = store
+        .list::<Instrument>()?
+        .into_iter()
+        .map(|i| (i.meta.id, i))
+        .collect();
+    let mut quotes: HashMap<Uuid, Quote> = store
+        .quotes()?
+        .into_iter()
+        .map(|q| (q.instrument_id, q))
+        .collect();
+    // Cash needs no price entry: one unit is one unit of its own currency.
+    for i in instruments
+        .values()
+        .filter(|i| i.kind == InstrumentKind::Cash)
+    {
+        quotes.entry(i.meta.id).or_insert_with(|| Quote {
+            instrument_id: i.meta.id,
+            price: Decimal::ONE,
+            currency: i.currency.clone(),
+            source: "cash".into(),
+            fetched_at: chrono::Utc::now(),
+            return_12m_percent: None,
+            dividend_yield_percent: None,
+        });
+    }
     Ok(Inputs {
         portfolio,
-        instruments: store
-            .list::<Instrument>()?
-            .into_iter()
-            .map(|i| (i.meta.id, i))
-            .collect(),
+        instruments,
         holdings: holdings(&store.trades_of(portfolio_id)?)?,
         targets: store
             .targets_of(portfolio_id)?
             .into_iter()
             .map(|t| (t.instrument_id, t.target_percent))
             .collect(),
-        quotes: store
-            .quotes()?
-            .into_iter()
-            .map(|q| (q.instrument_id, q))
-            .collect(),
+        quotes,
         fx: store.fx_table()?,
     })
 }
@@ -352,6 +369,8 @@ mod tests {
             currency: Currency::new(currency).unwrap(),
             quote_source: QuoteSource::Manual,
             fractional,
+            interest_percent: None,
+            maturity_date: None,
         };
         let etf = store
             .save(mk("VWCE", InstrumentKind::Etf, "EUR", false))
@@ -383,6 +402,8 @@ mod tests {
             currency: Currency::new(currency).unwrap(),
             source: "manual".into(),
             fetched_at: Utc::now(),
+            return_12m_percent: None,
+            dividend_yield_percent: None,
         }
     }
 
@@ -423,6 +444,72 @@ mod tests {
         assert_eq!(v.total_value, dec!(4400));
         assert_eq!(v.max_deviation, Some(dec!(20)));
         assert!(v.needs_rebalance);
+    }
+
+    fn cash_in_portfolio(currency: &str, quantity: Decimal) -> (Store, Portfolio) {
+        let store = Store::open_in_memory().unwrap();
+        let portfolio = store
+            .save(Portfolio {
+                meta: Meta::new(),
+                name: "Gotówka".into(),
+                base_currency: Currency::new("PLN").unwrap(),
+                tolerance_percent: dec!(5),
+            })
+            .unwrap();
+        let cash = store
+            .save(Instrument {
+                meta: Meta::new(),
+                symbol: currency.into(),
+                name: format!("Cash {currency}"),
+                kind: InstrumentKind::Cash,
+                currency: Currency::new(currency).unwrap(),
+                quote_source: QuoteSource::Manual,
+                fractional: true,
+                interest_percent: Some(dec!(3.5)),
+                maturity_date: None,
+            })
+            .unwrap();
+        let mut deposit = trade(cash.meta.id, 1, TradeSide::Buy, quantity, dec!(1));
+        deposit.portfolio_id = portfolio.meta.id;
+        store.save_trade(deposit).unwrap();
+        (store, portfolio)
+    }
+
+    #[test]
+    fn cash_is_worth_one_unit_of_its_currency_without_a_price_entry() {
+        let (store, portfolio) = cash_in_portfolio("PLN", dec!(1000.50));
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert!(v.missing_prices.is_empty());
+        assert!(v.missing_rates.is_empty());
+        assert_eq!(v.total_value, dec!(1000.50));
+        assert_eq!(v.positions[0].price, Some(dec!(1)));
+    }
+
+    #[test]
+    fn foreign_cash_still_needs_an_exchange_rate() {
+        let (store, portfolio) = cash_in_portfolio("EUR", dec!(100));
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert!(v.missing_prices.is_empty());
+        assert_eq!(v.missing_rates, ["EUR"]);
+        store
+            .set_fx_rate(&FxRate {
+                currency: Currency::new("EUR").unwrap(),
+                rate_pln: dec!(4),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
+            .unwrap();
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert_eq!(v.total_value, dec!(400));
+    }
+
+    #[test]
+    fn an_entered_cash_price_wins_over_the_default() {
+        let (store, portfolio) = cash_in_portfolio("PLN", dec!(10));
+        let cash_id = store.list::<Instrument>().unwrap()[0].meta.id;
+        store.set_quote(&quote(cash_id, dec!(2), "PLN")).unwrap();
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert_eq!(v.total_value, dec!(20));
     }
 
     #[test]
