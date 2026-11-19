@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::error::{CoreError, Result};
 use crate::fx::FxTable;
 use crate::model::*;
-use crate::money::Money;
+use crate::money::{MAX_AMOUNT, Money};
 use crate::rebalance::{self, Mode, Position, RebalanceInput, RebalanceResult};
 use crate::store::Store;
 
@@ -38,6 +38,10 @@ pub fn holdings(trades: &[Trade]) -> Result<BTreeMap<Uuid, Holding>> {
         // A zero-quantity trade changes nothing (and a sell of 0 would divide the cost by a zero quantity).
         if t.quantity.is_zero() {
             continue;
+        }
+        // Saved before the limit existed? A product of absurd values would panic, so refuse it here.
+        if t.quantity.max(t.price).max(t.fee) > MAX_AMOUNT {
+            return Err(CoreError::Validation("trade value is too large".into()));
         }
         let h = map.entry(t.instrument_id).or_default();
         match t.side {
@@ -1053,5 +1057,27 @@ mod tests {
             target.list::<Portfolio>().unwrap().is_empty(),
             "nothing imported"
         );
+    }
+
+    #[test]
+    fn holdings_refuses_a_stored_trade_with_absurd_values() {
+        let f = fixture();
+        let mut t = Trade {
+            meta: Meta::new(),
+            portfolio_id: f.portfolio.meta.id,
+            instrument_id: f.etf.meta.id,
+            date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            side: TradeSide::Buy,
+            quantity: MAX_AMOUNT * dec!(1000),
+            price: MAX_AMOUNT * dec!(1000),
+            fee: dec!(0),
+        };
+        assert!(matches!(
+            holdings(&[t.clone()]),
+            Err(CoreError::Validation(_))
+        ));
+        t.quantity = dec!(1);
+        t.price = dec!(1);
+        assert!(holdings(&[t]).is_ok());
     }
 }
