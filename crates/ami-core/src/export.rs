@@ -53,7 +53,8 @@ impl ExportBundle {
     }
 
     pub fn from_json(json: &str) -> Result<Self> {
-        let value: serde_json::Value = serde_json::from_str(json).map_err(|_| CoreError::NotAnExport)?;
+        let value: serde_json::Value =
+            serde_json::from_str(json).map_err(|_| CoreError::NotAnExport)?;
         if value.get("format").and_then(|f| f.as_str()) != Some(FORMAT_ID) {
             return Err(CoreError::NotAnExport);
         }
@@ -104,14 +105,29 @@ mod tests {
     fn ignores_unknown_sections_from_older_files() {
         let old = r#"{"format":"ami-calculator-export","version":1,"appVersion":"0.3.0",
             "exportedAt":"2026-11-18T10:00:00Z","data":{"accounts":[{"x":1}],"budgetLimits":[],"portfolios":[]}}"#;
-        assert!(ExportBundle::from_json(old).unwrap().data.portfolios.is_empty());
+        assert!(
+            ExportBundle::from_json(old)
+                .unwrap()
+                .data
+                .portfolios
+                .is_empty()
+        );
     }
 
     #[test]
     fn rejects_foreign_and_future_files() {
-        assert!(matches!(ExportBundle::from_json("{}"), Err(CoreError::NotAnExport)));
-        assert!(matches!(ExportBundle::from_json("nope"), Err(CoreError::NotAnExport)));
+        assert!(matches!(
+            ExportBundle::from_json("{}"),
+            Err(CoreError::NotAnExport)
+        ));
+        assert!(matches!(
+            ExportBundle::from_json("nope"),
+            Err(CoreError::NotAnExport)
+        ));
         let future = r#"{"format":"ami-calculator-export","version":999}"#;
-        assert!(matches!(ExportBundle::from_json(future), Err(CoreError::UnsupportedVersion(999))));
+        assert!(matches!(
+            ExportBundle::from_json(future),
+            Err(CoreError::UnsupportedVersion(999))
+        ));
     }
 }

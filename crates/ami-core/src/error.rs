@@ -80,6 +80,9 @@ pub struct ErrorPayload {
 
 impl From<CoreError> for ErrorPayload {
     fn from(e: CoreError) -> Self {
-        ErrorPayload { code: e.code(), message: e.to_string() }
+        ErrorPayload {
+            code: e.code(),
+            message: e.to_string(),
+        }
     }
 }

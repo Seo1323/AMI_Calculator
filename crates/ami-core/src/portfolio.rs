@@ -28,7 +28,10 @@ pub struct Holding {
 
 /// Replays trades in date order. Fails if a sell exceeds the quantity held.
 pub fn holdings(trades: &[Trade]) -> Result<BTreeMap<Uuid, Holding>> {
-    let mut sorted: Vec<&Trade> = trades.iter().filter(|t| t.meta.deleted_at.is_none()).collect();
+    let mut sorted: Vec<&Trade> = trades
+        .iter()
+        .filter(|t| t.meta.deleted_at.is_none())
+        .collect();
     sorted.sort_by_key(|t| (t.date, t.meta.created_at));
     let mut map: BTreeMap<Uuid, Holding> = BTreeMap::new();
     for t in sorted {
@@ -40,7 +43,9 @@ pub fn holdings(trades: &[Trade]) -> Result<BTreeMap<Uuid, Holding>> {
             }
             TradeSide::Sell => {
                 if t.quantity > h.quantity {
-                    return Err(CoreError::Oversold { date: t.date.to_string() });
+                    return Err(CoreError::Oversold {
+                        date: t.date.to_string(),
+                    });
                 }
                 let avg = h.cost / h.quantity;
                 let cost_out = avg * t.quantity;
@@ -102,13 +107,27 @@ struct Inputs {
 }
 
 fn load(store: &Store, portfolio_id: Uuid) -> Result<Inputs> {
-    let portfolio = store.get::<Portfolio>(portfolio_id)?.ok_or(CoreError::NotFound)?;
+    let portfolio = store
+        .get::<Portfolio>(portfolio_id)?
+        .ok_or(CoreError::NotFound)?;
     Ok(Inputs {
         portfolio,
-        instruments: store.list::<Instrument>()?.into_iter().map(|i| (i.meta.id, i)).collect(),
+        instruments: store
+            .list::<Instrument>()?
+            .into_iter()
+            .map(|i| (i.meta.id, i))
+            .collect(),
         holdings: holdings(&store.trades_of(portfolio_id)?)?,
-        targets: store.targets_of(portfolio_id)?.into_iter().map(|t| (t.instrument_id, t.target_percent)).collect(),
-        quotes: store.quotes()?.into_iter().map(|q| (q.instrument_id, q)).collect(),
+        targets: store
+            .targets_of(portfolio_id)?
+            .into_iter()
+            .map(|t| (t.instrument_id, t.target_percent))
+            .collect(),
+        quotes: store
+            .quotes()?
+            .into_iter()
+            .map(|q| (q.instrument_id, q))
+            .collect(),
         fx: store.fx_table()?,
     })
 }
@@ -131,7 +150,10 @@ impl Inputs {
 
     fn to_base(&self, amount: Decimal, from: &crate::money::Currency) -> Option<Decimal> {
         self.fx
-            .convert(&Money::new(amount, from.clone()), &self.portfolio.base_currency)
+            .convert(
+                &Money::new(amount, from.clone()),
+                &self.portfolio.base_currency,
+            )
             .ok()
             .map(|m| m.amount)
     }
@@ -188,7 +210,12 @@ pub fn view(store: &Store, portfolio_id: Uuid) -> Result<PortfolioView> {
         }
     }
     let max_deviation = (complete && total_value > Decimal::ZERO)
-        .then(|| positions.iter().filter_map(|p| p.current_percent.map(|c| (c - p.target_percent).abs())).max())
+        .then(|| {
+            positions
+                .iter()
+                .filter_map(|p| p.current_percent.map(|c| (c - p.target_percent).abs()))
+                .max()
+        })
         .flatten();
 
     Ok(PortfolioView {
@@ -205,15 +232,26 @@ pub fn view(store: &Store, portfolio_id: Uuid) -> Result<PortfolioView> {
 }
 
 /// Rebalance a stored portfolio. Result position ids are instrument ids.
-pub fn rebalance(store: &Store, portfolio_id: Uuid, contribution: Decimal, mode: Mode) -> Result<RebalanceResult> {
+pub fn rebalance(
+    store: &Store,
+    portfolio_id: Uuid,
+    contribution: Decimal,
+    mode: Mode,
+) -> Result<RebalanceResult> {
     let inp = load(store, portfolio_id)?;
     let mut positions = Vec::new();
     for id in inp.instrument_ids() {
         let instrument = &inp.instruments[&id];
-        let price = inp.price_in_base(id).ok_or_else(|| CoreError::MissingPrice(instrument.symbol.clone()))?;
+        let price = inp
+            .price_in_base(id)
+            .ok_or_else(|| CoreError::MissingPrice(instrument.symbol.clone()))?;
         positions.push(Position {
             id: id.to_string(),
-            quantity: inp.holdings.get(&id).map(|h| h.quantity).unwrap_or_default(),
+            quantity: inp
+                .holdings
+                .get(&id)
+                .map(|h| h.quantity)
+                .unwrap_or_default(),
             price,
             target_percent: inp.targets.get(&id).copied().unwrap_or_default(),
             fractional: instrument.fractional,
@@ -235,7 +273,13 @@ mod tests {
     use chrono::NaiveDate;
     use rust_decimal_macros::dec;
 
-    fn trade(instrument_id: Uuid, day: u32, side: TradeSide, quantity: Decimal, price: Decimal) -> Trade {
+    fn trade(
+        instrument_id: Uuid,
+        day: u32,
+        side: TradeSide,
+        quantity: Decimal,
+        price: Decimal,
+    ) -> Trade {
         Trade {
             meta: Meta::new(),
             portfolio_id: Uuid::nil(),
@@ -275,7 +319,10 @@ mod tests {
     #[test]
     fn overselling_is_rejected() {
         let a = Uuid::now_v7();
-        let r = holdings(&[trade(a, 1, TradeSide::Buy, dec!(1), dec!(10)), trade(a, 2, TradeSide::Sell, dec!(2), dec!(10))]);
+        let r = holdings(&[
+            trade(a, 1, TradeSide::Buy, dec!(1), dec!(10)),
+            trade(a, 2, TradeSide::Sell, dec!(2), dec!(10)),
+        ]);
         assert!(matches!(r, Err(CoreError::Oversold { .. })));
     }
 
@@ -290,7 +337,12 @@ mod tests {
         let store = Store::open_in_memory().unwrap();
         let pln = Currency::new("PLN").unwrap();
         let portfolio = store
-            .save(Portfolio { meta: Meta::new(), name: "IKE".into(), base_currency: pln.clone(), tolerance_percent: dec!(5) })
+            .save(Portfolio {
+                meta: Meta::new(),
+                name: "IKE".into(),
+                base_currency: pln.clone(),
+                tolerance_percent: dec!(5),
+            })
             .unwrap();
         let mk = |symbol: &str, kind, currency: &str, fractional| Instrument {
             meta: Meta::new(),
@@ -301,19 +353,37 @@ mod tests {
             quote_source: QuoteSource::Manual,
             fractional,
         };
-        let etf = store.save(mk("VWCE", InstrumentKind::Etf, "EUR", false)).unwrap();
-        let btc = store.save(mk("BTC", InstrumentKind::Crypto, "PLN", true)).unwrap();
+        let etf = store
+            .save(mk("VWCE", InstrumentKind::Etf, "EUR", false))
+            .unwrap();
+        let btc = store
+            .save(mk("BTC", InstrumentKind::Crypto, "PLN", true))
+            .unwrap();
         store
-            .set_targets(portfolio.meta.id, &[(etf.meta.id, dec!(80)), (btc.meta.id, dec!(20))])
+            .set_targets(
+                portfolio.meta.id,
+                &[(etf.meta.id, dec!(80)), (btc.meta.id, dec!(20))],
+            )
             .unwrap();
         let mut t = trade(etf.meta.id, 1, TradeSide::Buy, dec!(10), dec!(100));
         t.portfolio_id = portfolio.meta.id;
         store.save_trade(t).unwrap();
-        Fixture { store, portfolio, etf, btc }
+        Fixture {
+            store,
+            portfolio,
+            etf,
+            btc,
+        }
     }
 
     fn quote(id: Uuid, price: Decimal, currency: &str) -> Quote {
-        Quote { instrument_id: id, price, currency: Currency::new(currency).unwrap(), source: "manual".into(), fetched_at: Utc::now() }
+        Quote {
+            instrument_id: id,
+            price,
+            currency: Currency::new(currency).unwrap(),
+            source: "manual".into(),
+            fetched_at: Utc::now(),
+        }
     }
 
     #[test]
@@ -325,16 +395,29 @@ mod tests {
         assert_eq!(v.targets_sum, dec!(100));
         assert!(v.max_deviation.is_none());
 
-        f.store.set_quote(&quote(f.etf.meta.id, dec!(110), "EUR")).unwrap();
+        f.store
+            .set_quote(&quote(f.etf.meta.id, dec!(110), "EUR"))
+            .unwrap();
         let v = view(&f.store, f.portfolio.meta.id).unwrap();
         assert_eq!(v.missing_rates, ["EUR"]);
 
         f.store
-            .set_fx_rate(&FxRate { currency: Currency::new("EUR").unwrap(), rate_pln: dec!(4), source: "manual".into(), fetched_at: Utc::now() })
+            .set_fx_rate(&FxRate {
+                currency: Currency::new("EUR").unwrap(),
+                rate_pln: dec!(4),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
             .unwrap();
-        f.store.set_quote(&quote(f.btc.meta.id, dec!(400000), "PLN")).unwrap();
+        f.store
+            .set_quote(&quote(f.btc.meta.id, dec!(400000), "PLN"))
+            .unwrap();
         let v = view(&f.store, f.portfolio.meta.id).unwrap();
-        let etf = v.positions.iter().find(|p| p.instrument.symbol == "VWCE").unwrap();
+        let etf = v
+            .positions
+            .iter()
+            .find(|p| p.instrument.symbol == "VWCE")
+            .unwrap();
         assert_eq!(etf.value, Some(dec!(4400))); // 10 * 110 EUR * 4
         assert_eq!(etf.gain, Some(dec!(400))); // cost 1000 EUR = 4000 PLN
         assert_eq!(v.total_value, dec!(4400));
@@ -350,13 +433,26 @@ mod tests {
             Err(CoreError::MissingPrice(_))
         ));
         f.store
-            .set_fx_rate(&FxRate { currency: Currency::new("EUR").unwrap(), rate_pln: dec!(4), source: "manual".into(), fetched_at: Utc::now() })
+            .set_fx_rate(&FxRate {
+                currency: Currency::new("EUR").unwrap(),
+                rate_pln: dec!(4),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
             .unwrap();
-        f.store.set_quote(&quote(f.etf.meta.id, dec!(100), "EUR")).unwrap();
-        f.store.set_quote(&quote(f.btc.meta.id, dec!(400000), "PLN")).unwrap();
+        f.store
+            .set_quote(&quote(f.etf.meta.id, dec!(100), "EUR"))
+            .unwrap();
+        f.store
+            .set_quote(&quote(f.btc.meta.id, dec!(400000), "PLN"))
+            .unwrap();
         // 4000 PLN in ETF, 0 in BTC, +1000 PLN: total 5000, BTC target 1000.
         let r = rebalance(&f.store, f.portfolio.meta.id, dec!(1000), Mode::BuyOnly).unwrap();
-        let btc = r.positions.iter().find(|p| p.id == f.btc.meta.id.to_string()).unwrap();
+        let btc = r
+            .positions
+            .iter()
+            .find(|p| p.id == f.btc.meta.id.to_string())
+            .unwrap();
         assert_eq!(btc.units_to_trade, dec!(0.0025));
     }
 
@@ -365,12 +461,24 @@ mod tests {
         let f = fixture();
         let mut sell = trade(f.etf.meta.id, 2, TradeSide::Sell, dec!(11), dec!(100));
         sell.portfolio_id = f.portfolio.meta.id;
-        assert!(matches!(f.store.save_trade(sell.clone()), Err(CoreError::Oversold { .. })));
+        assert!(matches!(
+            f.store.save_trade(sell.clone()),
+            Err(CoreError::Oversold { .. })
+        ));
         sell.quantity = dec!(10);
         f.store.save_trade(sell).unwrap();
         // Deleting the original buy would leave a sell of shares never bought.
-        let buy = f.store.trades_of(f.portfolio.meta.id).unwrap().into_iter().find(|t| t.side == TradeSide::Buy).unwrap();
-        assert!(matches!(f.store.delete_trade(buy.meta.id), Err(CoreError::Oversold { .. })));
+        let buy = f
+            .store
+            .trades_of(f.portfolio.meta.id)
+            .unwrap()
+            .into_iter()
+            .find(|t| t.side == TradeSide::Buy)
+            .unwrap();
+        assert!(matches!(
+            f.store.delete_trade(buy.meta.id),
+            Err(CoreError::Oversold { .. })
+        ));
     }
 
     #[test]
@@ -380,7 +488,13 @@ mod tests {
         let mut sell = trade(f.etf.meta.id, 2, TradeSide::Sell, dec!(5), dec!(100));
         sell.portfolio_id = pid;
         let sell = f.store.save_trade(sell).unwrap();
-        let buy = f.store.trades_of(pid).unwrap().into_iter().find(|t| t.side == TradeSide::Buy).unwrap();
+        let buy = f
+            .store
+            .trades_of(pid)
+            .unwrap()
+            .into_iter()
+            .find(|t| t.side == TradeSide::Buy)
+            .unwrap();
 
         // Same id: an update, not a new record.
         let mut edited = sell.clone();
@@ -391,14 +505,22 @@ mod tests {
         // Shrinking the buy below the sell would oversell.
         let mut shrunk = buy.clone();
         shrunk.quantity = dec!(9);
-        assert!(matches!(f.store.save_trade(shrunk), Err(CoreError::Oversold { .. })));
-        assert_eq!(f.store.get::<Trade>(buy.meta.id).unwrap().unwrap().quantity, buy.quantity);
+        assert!(matches!(
+            f.store.save_trade(shrunk),
+            Err(CoreError::Oversold { .. })
+        ));
+        assert_eq!(
+            f.store.get::<Trade>(buy.meta.id).unwrap().unwrap().quantity,
+            buy.quantity
+        );
     }
 
     #[test]
     fn set_targets_replaces_allocation() {
         let f = fixture();
-        f.store.set_targets(f.portfolio.meta.id, &[(f.etf.meta.id, dec!(100))]).unwrap();
+        f.store
+            .set_targets(f.portfolio.meta.id, &[(f.etf.meta.id, dec!(100))])
+            .unwrap();
         let targets = f.store.targets_of(f.portfolio.meta.id).unwrap();
         assert_eq!(targets.len(), 1);
         assert_eq!(targets[0].target_percent, dec!(100));

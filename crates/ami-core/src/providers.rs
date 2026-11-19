@@ -24,7 +24,9 @@ fn provider(msg: impl Into<String>) -> CoreError {
 /// JSON number -> exact Decimal (via its shortest decimal representation).
 fn decimal(v: &Value) -> Option<Decimal> {
     match v {
-        Value::Number(n) => Decimal::from_str(&n.to_string()).or_else(|_| Decimal::from_scientific(&n.to_string())).ok(),
+        Value::Number(n) => Decimal::from_str(&n.to_string())
+            .or_else(|_| Decimal::from_scientific(&n.to_string()))
+            .ok(),
         Value::String(s) => Decimal::from_str(s).ok(),
         _ => None,
     }
@@ -43,20 +45,28 @@ pub struct NbpRate {
 }
 
 pub fn parse_nbp_table(body: &str) -> Result<Vec<NbpRate>> {
-    let v: Value = serde_json::from_str(body).map_err(|e| provider(format!("NBP: invalid response ({e})")))?;
+    let v: Value =
+        serde_json::from_str(body).map_err(|e| provider(format!("NBP: invalid response ({e})")))?;
     let table = v.get(0).ok_or_else(|| provider("NBP: empty response"))?;
     let date = table
         .get("effectiveDate")
         .and_then(Value::as_str)
         .and_then(|s| NaiveDate::from_str(s).ok())
         .ok_or_else(|| provider("NBP: missing effectiveDate"))?;
-    let rates = table.get("rates").and_then(Value::as_array).ok_or_else(|| provider("NBP: missing rates"))?;
+    let rates = table
+        .get("rates")
+        .and_then(Value::as_array)
+        .ok_or_else(|| provider("NBP: missing rates"))?;
     Ok(rates
         .iter()
         .filter_map(|r| {
             let currency = Currency::new(r.get("code")?.as_str()?).ok()?;
             let mid = decimal(r.get("mid")?)?;
-            (mid > Decimal::ZERO).then_some(NbpRate { currency, mid, effective_date: date })
+            (mid > Decimal::ZERO).then_some(NbpRate {
+                currency,
+                mid,
+                effective_date: date,
+            })
         })
         .collect())
 }
@@ -68,7 +78,9 @@ pub fn yahoo_url(symbol: &str) -> String {
         .trim()
         .bytes()
         .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'.' | b'-' | b'^' | b'=' => (b as char).to_string(),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'.' | b'-' | b'^' | b'=' => {
+                (b as char).to_string()
+            }
             _ => format!("%{b:02X}"),
         })
         .collect();
@@ -84,9 +96,16 @@ pub struct YahooQuote {
 }
 
 pub fn parse_yahoo(body: &str) -> Result<YahooQuote> {
-    let v: Value = serde_json::from_str(body).map_err(|e| provider(format!("Yahoo: invalid response ({e})")))?;
-    let chart = v.get("chart").ok_or_else(|| provider("Yahoo: invalid response"))?;
-    if let Some(desc) = chart.get("error").and_then(|e| e.get("description")).and_then(Value::as_str) {
+    let v: Value = serde_json::from_str(body)
+        .map_err(|e| provider(format!("Yahoo: invalid response ({e})")))?;
+    let chart = v
+        .get("chart")
+        .ok_or_else(|| provider("Yahoo: invalid response"))?;
+    if let Some(desc) = chart
+        .get("error")
+        .and_then(|e| e.get("description"))
+        .and_then(Value::as_str)
+    {
         return Err(provider(format!("Yahoo: {desc}")));
     }
     let meta = chart
@@ -94,8 +113,14 @@ pub fn parse_yahoo(body: &str) -> Result<YahooQuote> {
         .and_then(|r| r.get(0))
         .and_then(|r| r.get("meta"))
         .ok_or_else(|| provider("Yahoo: symbol not found"))?;
-    let mut price = meta.get("regularMarketPrice").and_then(decimal).ok_or_else(|| provider("Yahoo: no price"))?;
-    let raw_currency = meta.get("currency").and_then(Value::as_str).ok_or_else(|| provider("Yahoo: no currency"))?;
+    let mut price = meta
+        .get("regularMarketPrice")
+        .and_then(decimal)
+        .ok_or_else(|| provider("Yahoo: no price"))?;
+    let raw_currency = meta
+        .get("currency")
+        .and_then(Value::as_str)
+        .ok_or_else(|| provider("Yahoo: no currency"))?;
     // London quotes come in pence ("GBp"); some others use minor units too.
     let currency = match raw_currency {
         "GBp" | "GBX" => {
@@ -117,8 +142,16 @@ pub fn parse_yahoo(body: &str) -> Result<YahooQuote> {
         .and_then(Value::as_i64)
         .and_then(|t| DateTime::from_timestamp(t, 0))
         .unwrap_or_else(Utc::now);
-    let name = ["longName", "shortName"].iter().find_map(|k| meta.get(*k).and_then(Value::as_str)).map(str::to_string);
-    Ok(YahooQuote { price: price.normalize(), currency, time, name })
+    let name = ["longName", "shortName"]
+        .iter()
+        .find_map(|k| meta.get(*k).and_then(Value::as_str))
+        .map(str::to_string);
+    Ok(YahooQuote {
+        price: price.normalize(),
+        currency,
+        time,
+        name,
+    })
 }
 
 // ---------- CoinGecko ----------
@@ -127,7 +160,13 @@ pub fn coingecko_url(ids: &[&str], vs_currencies: &[&str]) -> String {
     let clean = |xs: &[&str]| {
         let mut v: Vec<String> = xs
             .iter()
-            .map(|x| x.trim().to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect())
+            .map(|x| {
+                x.trim()
+                    .to_lowercase()
+                    .chars()
+                    .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+                    .collect()
+            })
             .filter(|x: &String| !x.is_empty())
             .collect();
         v.sort();
@@ -143,11 +182,18 @@ pub fn coingecko_url(ids: &[&str], vs_currencies: &[&str]) -> String {
 
 /// Price of `id` in `vs` (e.g. "bitcoin", "pln") from a simple/price response.
 pub fn parse_coingecko(body: &str, id: &str, vs: &str) -> Result<Option<Decimal>> {
-    let v: Value = serde_json::from_str(body).map_err(|e| provider(format!("CoinGecko: invalid response ({e})")))?;
-    if let Some(status) = v.get("status").and_then(|s| s.get("error_message")).and_then(Value::as_str) {
+    let v: Value = serde_json::from_str(body)
+        .map_err(|e| provider(format!("CoinGecko: invalid response ({e})")))?;
+    if let Some(status) = v
+        .get("status")
+        .and_then(|s| s.get("error_message"))
+        .and_then(Value::as_str)
+    {
         return Err(provider(format!("CoinGecko: {status}")));
     }
-    Ok(v.get(id.trim().to_lowercase()).and_then(|c| c.get(vs.to_lowercase())).and_then(decimal))
+    Ok(v.get(id.trim().to_lowercase())
+        .and_then(|c| c.get(vs.to_lowercase()))
+        .and_then(decimal))
 }
 
 #[cfg(test)]
@@ -166,7 +212,10 @@ mod tests {
         assert_eq!(rates[0].currency.code(), "USD");
         assert_eq!(rates[0].mid, dec!(4.017));
         assert_eq!(rates[1].mid, dec!(4.2731));
-        assert_eq!(rates[1].effective_date, NaiveDate::from_ymd_opt(2026, 11, 18).unwrap());
+        assert_eq!(
+            rates[1].effective_date,
+            NaiveDate::from_ymd_opt(2026, 11, 18).unwrap()
+        );
         assert!(parse_nbp_table("<html>").is_err());
     }
 
@@ -191,19 +240,32 @@ mod tests {
 
     #[test]
     fn yahoo_url_encodes() {
-        assert_eq!(yahoo_url(" PKN.WA "), "https://query1.finance.yahoo.com/v8/finance/chart/PKN.WA?range=1d&interval=1d");
+        assert_eq!(
+            yahoo_url(" PKN.WA "),
+            "https://query1.finance.yahoo.com/v8/finance/chart/PKN.WA?range=1d&interval=1d"
+        );
         assert!(yahoo_url("A B/C").contains("A%20B%2FC"));
     }
 
     #[test]
     fn coingecko() {
         let url = coingecko_url(&["Bitcoin", "ethereum", "bitcoin", "x&y"], &["PLN"]);
-        assert_eq!(url, "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,xy&vs_currencies=pln");
+        assert_eq!(
+            url,
+            "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,xy&vs_currencies=pln"
+        );
         let body = r#"{"bitcoin":{"usd":62763,"pln":252506},"ethereum":{"pln":7061.53}}"#;
-        assert_eq!(parse_coingecko(body, "bitcoin", "PLN").unwrap(), Some(dec!(252506)));
-        assert_eq!(parse_coingecko(body, "ethereum", "pln").unwrap(), Some(dec!(7061.53)));
+        assert_eq!(
+            parse_coingecko(body, "bitcoin", "PLN").unwrap(),
+            Some(dec!(252506))
+        );
+        assert_eq!(
+            parse_coingecko(body, "ethereum", "pln").unwrap(),
+            Some(dec!(7061.53))
+        );
         assert_eq!(parse_coingecko(body, "dogecoin", "pln").unwrap(), None);
-        let limited = r#"{"status":{"error_code":429,"error_message":"You've exceeded the Rate Limit."}}"#;
+        let limited =
+            r#"{"status":{"error_code":429,"error_message":"You've exceeded the Rate Limit."}}"#;
         assert!(parse_coingecko(limited, "bitcoin", "pln").is_err());
     }
 }

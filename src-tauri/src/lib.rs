@@ -11,9 +11,9 @@ use ami_core::model::{FxRate, Quote};
 use ami_core::money::Currency;
 use ami_core::portfolio::{self, PortfolioView};
 use ami_core::rebalance::{self, Mode, RebalanceInput, RebalanceResult};
-use rust_decimal::Decimal;
 use ami_core::store::{EntityKind, ImportMode, ImportStats, Store, UI_SETTINGS_KEY};
 use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{Manager, State};
@@ -69,8 +69,18 @@ fn portfolio_view(state: State<'_, AppState>, id: Uuid) -> CmdResult<PortfolioVi
 }
 
 #[tauri::command]
-fn portfolio_rebalance(state: State<'_, AppState>, id: Uuid, contribution: Decimal, mode: Mode) -> CmdResult<RebalanceResult> {
-    Ok(portfolio::rebalance(&state.store(), id, contribution, mode)?)
+fn portfolio_rebalance(
+    state: State<'_, AppState>,
+    id: Uuid,
+    contribution: Decimal,
+    mode: Mode,
+) -> CmdResult<RebalanceResult> {
+    Ok(portfolio::rebalance(
+        &state.store(),
+        id,
+        contribution,
+        mode,
+    )?)
 }
 
 #[derive(serde::Deserialize)]
@@ -81,14 +91,32 @@ struct TargetInput {
 }
 
 #[tauri::command]
-fn portfolio_set_targets(state: State<'_, AppState>, id: Uuid, targets: Vec<TargetInput>) -> CmdResult<()> {
-    let pairs: Vec<(Uuid, Decimal)> = targets.iter().map(|t| (t.instrument_id, t.target_percent)).collect();
+fn portfolio_set_targets(
+    state: State<'_, AppState>,
+    id: Uuid,
+    targets: Vec<TargetInput>,
+) -> CmdResult<()> {
+    let pairs: Vec<(Uuid, Decimal)> = targets
+        .iter()
+        .map(|t| (t.instrument_id, t.target_percent))
+        .collect();
     Ok(state.store().set_targets(id, &pairs)?)
 }
 
 #[tauri::command]
-fn quote_set(state: State<'_, AppState>, instrument_id: Uuid, price: Decimal, currency: Currency) -> CmdResult<()> {
-    let quote = Quote { instrument_id, price, currency, source: "manual".into(), fetched_at: Utc::now() };
+fn quote_set(
+    state: State<'_, AppState>,
+    instrument_id: Uuid,
+    price: Decimal,
+    currency: Currency,
+) -> CmdResult<()> {
+    let quote = Quote {
+        instrument_id,
+        price,
+        currency,
+        source: "manual".into(),
+        fetched_at: Utc::now(),
+    };
     Ok(state.store().set_quote(&quote)?)
 }
 
@@ -112,14 +140,22 @@ fn fx_list(state: State<'_, AppState>) -> CmdResult<Vec<FxRate>> {
 
 #[tauri::command]
 fn fx_set(state: State<'_, AppState>, currency: Currency, rate_pln: Decimal) -> CmdResult<()> {
-    let rate = FxRate { currency, rate_pln, source: "manual".into(), fetched_at: Utc::now() };
+    let rate = FxRate {
+        currency,
+        rate_pln,
+        source: "manual".into(),
+        fetched_at: Utc::now(),
+    };
     Ok(state.store().set_fx_rate(&rate)?)
 }
 
 // ---------- dashboard ----------
 
 #[tauri::command]
-fn dashboard(state: State<'_, AppState>, currency: Currency) -> CmdResult<ami_core::dashboard::Dashboard> {
+fn dashboard(
+    state: State<'_, AppState>,
+    currency: Currency,
+) -> CmdResult<ami_core::dashboard::Dashboard> {
     Ok(ami_core::dashboard::build(&state.store(), &currency)?)
 }
 
@@ -158,19 +194,32 @@ struct ImportReport {
 
 /// Imports backup contents read by the UI (see `export_json`).
 #[tauri::command]
-fn import_json(state: State<'_, AppState>, contents: String, mode: ImportMode) -> CmdResult<ImportReport> {
+fn import_json(
+    state: State<'_, AppState>,
+    contents: String,
+    mode: ImportMode,
+) -> CmdResult<ImportReport> {
     let bundle = ExportBundle::from_json(&contents)?;
     let mut store = state.store();
     let backup = backup_now(&store, &state.data_dir, "before-import")?;
     let stats = store.import_data(&bundle.data, mode)?;
-    let settings = (mode == ImportMode::Replace && !bundle.data.settings.is_null()).then_some(bundle.data.settings);
-    Ok(ImportReport { exported_at: bundle.exported_at, stats, settings, backup })
+    let settings = (mode == ImportMode::Replace && !bundle.data.settings.is_null())
+        .then_some(bundle.data.settings);
+    Ok(ImportReport {
+        exported_at: bundle.exported_at,
+        stats,
+        settings,
+        backup,
+    })
 }
 
 fn backup_now(store: &Store, data_dir: &Path, prefix: &str) -> Result<PathBuf, CoreError> {
     let dir = data_dir.join(BACKUPS_DIR);
     fs::create_dir_all(&dir)?;
-    let path = dir.join(format!("{prefix}-{}.db", Utc::now().format("%Y%m%d-%H%M%S%.3f")));
+    let path = dir.join(format!(
+        "{prefix}-{}.db",
+        Utc::now().format("%Y%m%d-%H%M%S%.3f")
+    ));
     store.backup_to(&path)?;
     prune_backups(&dir);
     Ok(path)
@@ -178,7 +227,9 @@ fn backup_now(store: &Store, data_dir: &Path, prefix: &str) -> Result<PathBuf, C
 
 /// Keeps the newest KEEP_BACKUPS files (names sort by timestamp).
 fn prune_backups(dir: &Path) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     let mut files: Vec<PathBuf> = entries
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| p.extension().is_some_and(|x| x == "db"))
@@ -222,7 +273,10 @@ pub fn run() {
             let data_dir = app.path().app_data_dir()?;
             fs::create_dir_all(&data_dir)?;
             let store = Store::open(&data_dir.join(DB_FILE))?;
-            app.manage(AppState { store: Mutex::new(store), data_dir });
+            app.manage(AppState {
+                store: Mutex::new(store),
+                data_dir,
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
