@@ -135,6 +135,9 @@ mod tests {
                     currency: cur.clone(),
                     quote_source: QuoteSource::Manual,
                     fractional: false,
+                    interest_percent: None,
+                    start_date: None,
+                    maturity_date: None,
                 })
                 .unwrap();
             s.save(Trade {
@@ -154,6 +157,8 @@ mod tests {
                 currency: cur.clone(),
                 source: "manual".into(),
                 fetched_at: Utc::now(),
+                return_12m_percent: None,
+                dividend_yield_percent: None,
             })
             .unwrap();
             ids.push(p.meta.id);

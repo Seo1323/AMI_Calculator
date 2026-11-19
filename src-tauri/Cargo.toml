@@ -31,3 +31,4 @@ tauri-plugin-fs = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+rust_decimal_macros.workspace = true

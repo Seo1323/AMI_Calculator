@@ -730,6 +730,9 @@ mod tests {
             currency: Currency::new("EUR").unwrap(),
             quote_source: QuoteSource::Yahoo,
             fractional: false,
+            interest_percent: None,
+            start_date: None,
+            maturity_date: None,
         }
     }
 

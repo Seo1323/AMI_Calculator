@@ -8,11 +8,14 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import { quotes as quoteState } from '$lib/quotes.svelte';
+	import { BOND_SERIES, addMonths, bondSymbol, remaining, termBetween } from '$lib/bond';
+	import { CATALOG, catalogFor, DEPOSIT_TERMS } from '$lib/catalog';
 	import {
 		CURRENCIES,
 		INSTRUMENT_KINDS,
 		QUOTE_SOURCES,
 		toDecimal,
+		today,
 		type FxRate,
 		type Instrument,
 		type Portfolio,
@@ -24,6 +27,8 @@
 		price: string;
 		currency: string;
 		fetchedAt: string;
+		return12mPercent: string | null;
+		dividendYieldPercent: string | null;
 	}
 
 	let views: PortfolioView[] = $state([]);
@@ -40,7 +45,14 @@
 		kind: 'etf' as Instrument['kind'],
 		currency: 'PLN',
 		quoteSource: 'yahoo' as Instrument['quoteSource'],
-		fractional: false
+		fractional: false,
+		interestPercent: '',
+		startDate: '',
+		maturityDate: '',
+		/** Form-only: which entry of the second list is chosen ('custom' = typed by hand). */
+		catalogKey: '',
+		/** Form-only: bond/deposit term in months. */
+		termMonths: ''
 	});
 	let newPortfolio = $state(emptyPortfolio());
 	let instrumentForm = $state(emptyInstrument());
@@ -95,14 +107,121 @@
 			await load();
 		});
 
+	const listed = (k: Instrument['kind']) => ['etf', 'crypto', 'cash', 'bond', 'deposit'].includes(k);
+	const timed = (k: Instrument['kind']) => k === 'bond' || k === 'deposit';
+	const hasManualRate = (k: Instrument['kind']) => k === 'bond' || k === 'cash' || k === 'deposit';
+
+	/** Second list: concrete ETFs, bond series, coins or currencies for the chosen kind. */
+	function options(kind: Instrument['kind']): { id: string; label: string }[] {
+		if (kind === 'bond') return BOND_SERIES.map((s) => ({ id: s.code, label: `${s.code} · ${t('bond.termMonths', { n: s.months })}` }));
+		if (kind === 'cash' || kind === 'deposit') return CURRENCIES.map((c) => ({ id: c, label: c }));
+		return catalogFor(kind).map((c) => ({ id: c.id, label: `${c.name} (${c.symbol})` }));
+	}
+
+	const typedByHand = $derived(!listed(instrumentForm.kind) || instrumentForm.catalogKey === 'custom');
+
+	function pickKind() {
+		const f = instrumentForm;
+		Object.assign(f, {
+			catalogKey: '',
+			symbol: '',
+			name: '',
+			interestPercent: '',
+			startDate: '',
+			maturityDate: '',
+			termMonths: '',
+			currency: f.kind === 'bond' ? 'PLN' : settings.baseCurrency,
+			fractional: ['crypto', 'cash', 'deposit'].includes(f.kind),
+			quoteSource: f.kind === 'crypto' ? 'coinGecko' : f.kind === 'stock' ? 'yahoo' : f.kind === 'etf' ? 'yahoo' : 'manual'
+		});
+	}
+
+	function pickCatalog() {
+		const f = instrumentForm;
+		const key = f.catalogKey;
+		if (key === 'custom') return;
+		if (f.kind === 'etf' || f.kind === 'crypto') {
+			const c = CATALOG.find((x) => x.id === key && x.kind === f.kind);
+			if (!c) return;
+			Object.assign(f, {
+				symbol: c.symbol,
+				name: c.name,
+				quoteSource: c.quoteSource,
+				fractional: c.fractional,
+				currency: f.kind === 'crypto' ? settings.baseCurrency : c.currency
+			});
+		} else if (f.kind === 'cash') {
+			Object.assign(f, { symbol: key, name: `${t('kind.cash')} ${key}`, currency: key });
+		} else if (f.kind === 'deposit') {
+			f.currency = key;
+			f.startDate ||= today();
+			f.termMonths ||= '12';
+			refreshTerm();
+		} else if (f.kind === 'bond') {
+			const series = BOND_SERIES.find((x) => x.code === key);
+			if (!series) return;
+			f.currency = 'PLN';
+			f.startDate ||= today();
+			f.termMonths = String(series.months);
+			refreshTerm();
+		}
+	}
+
+	/** Maturity = start + term; symbol (and a bond's name) follow from it. */
+	function refreshTerm() {
+		const f = instrumentForm;
+		const n = Number(f.termMonths);
+		f.maturityDate = (f.startDate && Number.isInteger(n) && n > 0 && addMonths(f.startDate, n)) || '';
+		autoName();
+	}
+
+	function autoName() {
+		const f = instrumentForm;
+		if (!timed(f.kind) || f.catalogKey === 'custom' || !f.maturityDate) return;
+		const symbol = bondSymbol(f.kind === 'bond' ? f.catalogKey : 'LOK', f.maturityDate);
+		if (!symbol) return;
+		f.symbol = symbol;
+		if (f.kind === 'bond') f.name = `${t('kind.bond')} ${symbol}`;
+	}
+
+	function remainingText(maturity: string | null): string {
+		if (!maturity) return '';
+		const r = remaining(today(), maturity);
+		return r ? t('bond.remaining', { y: r.years, m: r.months, d: r.days }) : t('bond.matured');
+	}
+
+	const canSave = $derived(
+		!!instrumentForm.symbol.trim() &&
+			!!instrumentForm.name.trim() &&
+			(!timed(instrumentForm.kind) || instrumentForm.catalogKey === 'custom' || !!instrumentForm.maturityDate)
+	);
+
 	const saveInstrument = () =>
 		run(async () => {
-			const { id, ...rest } = instrumentForm;
-			const existing = instruments.find((i) => i.id === id);
-			await db.save<Instrument>('instrument', { ...existing, ...rest, symbol: rest.symbol.trim() });
+			const f = instrumentForm;
+			const existing = instruments.find((i) => i.id === f.id);
+			await db.save<Instrument>('instrument', {
+				...existing,
+				symbol: f.symbol.trim(),
+				name: f.name.trim(),
+				kind: f.kind,
+				currency: f.currency,
+				quoteSource: f.quoteSource,
+				fractional: f.fractional,
+				interestPercent: hasManualRate(f.kind) && f.interestPercent.trim() ? toDecimal(f.interestPercent) : null,
+				startDate: timed(f.kind) && f.startDate ? f.startDate : null,
+				maturityDate: timed(f.kind) && f.maturityDate ? f.maturityDate : null
+			} as Instrument);
 			instrumentForm = emptyInstrument();
 			await load();
 		});
+
+	function inferCatalogKey(i: Instrument): string {
+		if (!listed(i.kind)) return '';
+		if (i.kind === 'etf' || i.kind === 'crypto') return CATALOG.find((c) => c.kind === i.kind && c.symbol === i.symbol)?.id ?? 'custom';
+		if (i.kind === 'bond') return BOND_SERIES.find((s) => i.symbol.startsWith(s.code))?.code ?? 'custom';
+		return CURRENCIES.includes(i.currency) ? i.currency : 'custom';
+	}
 
 	const editInstrument = (i: Instrument) => {
 		instrumentForm = {
@@ -112,9 +231,31 @@
 			kind: i.kind,
 			currency: i.currency,
 			quoteSource: i.quoteSource,
-			fractional: i.fractional
+			fractional: i.fractional,
+			interestPercent: i.interestPercent ?? '',
+			startDate: i.startDate ?? '',
+			maturityDate: i.maturityDate ?? '',
+			catalogKey: inferCatalogKey(i),
+			termMonths: i.startDate && i.maturityDate ? String(termBetween(i.startDate, i.maturityDate) ?? '') : ''
 		};
 	};
+
+	const pct = (v: string, signed = false) => {
+		const n = Number(v);
+		return (signed && n > 0 ? '+' : '') + fmtNumber(n, 2);
+	};
+
+	/** Manual rate for bonds and cash, exchange figures (12-month return, dividend) for the rest. */
+	function rateText(i: Instrument): string {
+		if (hasManualRate(i.kind)) {
+			return i.interestPercent ? t('instruments.perYear', { rate: pct(i.interestPercent) }) : '—';
+		}
+		const q = quotes[i.id];
+		const parts: string[] = [];
+		if (q?.return12mPercent) parts.push(t('instruments.return12m', { value: pct(q.return12mPercent, true) }));
+		if (q?.dividendYieldPercent) parts.push(t('instruments.dividend', { value: pct(q.dividendYieldPercent) }));
+		return parts.join(' · ') || '—';
+	}
 
 	const savePrice = (i: Instrument) =>
 		run(async () => {
@@ -209,6 +350,7 @@
 							<th>{t('instruments.kind')}</th>
 							<th>{t('instruments.currency')}</th>
 							<th class="num">{t('instruments.price')}</th>
+							<th>{t('instruments.rate')}</th>
 							<th>{t('instruments.priceAt')}</th>
 							<th></th>
 						</tr>
@@ -220,6 +362,9 @@
 								<td>{t(`kind.${i.kind}`)}{i.fractional ? ' · ½' : ''}</td>
 								<td>{i.currency}</td>
 								<td class="num">
+									{#if (i.kind === 'cash' || i.kind === 'deposit') && !quotes[i.id]}
+										<span class="muted small">{t('instruments.cashPrice')}</span>
+									{:else}
 									<form
 										class="inline"
 										onsubmit={(e) => {
@@ -230,6 +375,15 @@
 										<input class="price" inputmode="decimal" bind:value={priceInputs[i.id]} aria-label={t('instruments.price')} />
 										<button class="btn" type="submit">{t('common.save')}</button>
 									</form>
+									{/if}
+								</td>
+								<td class="small">
+									{rateText(i)}
+									{#if timed(i.kind) && i.maturityDate}
+										<div class="muted">
+											{t('instruments.maturity')}: {fmtDate(i.maturityDate)} · {remainingText(i.maturityDate)}
+										</div>
+									{/if}
 								</td>
 								<td class="muted small">{quotes[i.id] ? fmtDate(quotes[i.id].fetchedAt) : '—'}</td>
 								<td><button class="btn ghost" onclick={() => editInstrument(i)}>{t('common.edit')}</button></td>
@@ -243,55 +397,127 @@
 		<h3>{instrumentForm.id ? t('common.edit') : t('instruments.add')}</h3>
 		<div class="row">
 			<label class="field">
-				{t('instruments.symbol')}
-				<input
-					class="mid"
-					bind:value={instrumentForm.symbol}
-					placeholder={instrumentForm.quoteSource === 'coinGecko' ? 'bitcoin' : 'PKN.WA, VWCE.DE'}
-				/>
-			</label>
-			<label class="field grow">
-				{t('instruments.name')}
-				<input bind:value={instrumentForm.name} />
-			</label>
-			<label class="field">
 				{t('instruments.kind')}
-				<select
-					bind:value={instrumentForm.kind}
-					onchange={() => {
-						if (instrumentForm.kind === 'crypto') {
-							instrumentForm.fractional = true;
-							instrumentForm.quoteSource = 'coinGecko';
-						} else if (instrumentForm.quoteSource === 'coinGecko') {
-							instrumentForm.quoteSource = 'yahoo';
-						}
-					}}
-				>
+				<select bind:value={instrumentForm.kind} onchange={pickKind}>
 					{#each INSTRUMENT_KINDS as k (k)}<option value={k}>{t(`kind.${k}`)}</option>{/each}
 				</select>
 			</label>
-			<label class="field">
-				{t('instruments.currency')}
-				<select bind:value={instrumentForm.currency}>
-					{#each CURRENCIES as c (c)}<option value={c}>{c}</option>{/each}
-				</select>
-			</label>
-			<label class="field">
-				{t('instruments.source')}
-				<select bind:value={instrumentForm.quoteSource}>
-					{#each QUOTE_SOURCES as s (s)}<option value={s}>{t(`source.${s}`)}</option>{/each}
-				</select>
-			</label>
-			<label class="check">
-				<input type="checkbox" bind:checked={instrumentForm.fractional} />
-				{t('instruments.fractional')}
-			</label>
+			{#if listed(instrumentForm.kind)}
+				<label class="field grow">
+					{instrumentForm.kind === 'bond' ? t('instruments.pickBond') : t('instruments.catalog')}
+					<select bind:value={instrumentForm.catalogKey} onchange={pickCatalog}>
+						<option value="" disabled>—</option>
+						{#each options(instrumentForm.kind) as o (o.id)}<option value={o.id}>{o.label}</option>{/each}
+						<option value="custom">{t('instruments.custom')}</option>
+					</select>
+				</label>
+			{/if}
+			{#if instrumentForm.kind === 'crypto' && instrumentForm.catalogKey && !typedByHand}
+				<label class="field">
+					{t('instruments.currency')}
+					<select bind:value={instrumentForm.currency}>
+						{#each CURRENCIES as c (c)}<option value={c}>{c}</option>{/each}
+					</select>
+				</label>
+			{/if}
 		</div>
-		<p class="muted small">{t(`instruments.symbolHint.${instrumentForm.quoteSource}`)}</p>
+
+		{#if typedByHand}
+			<div class="row">
+				<label class="field">
+					{t('instruments.symbol')}
+					<input
+						class="mid"
+						bind:value={instrumentForm.symbol}
+						placeholder={instrumentForm.quoteSource === 'coinGecko' ? 'bitcoin' : 'PKN.WA, VWCE.DE'}
+					/>
+				</label>
+				<label class="field grow">
+					{t('instruments.name')}
+					<input bind:value={instrumentForm.name} />
+				</label>
+				<label class="field">
+					{t('instruments.currency')}
+					<select bind:value={instrumentForm.currency}>
+						{#each CURRENCIES as c (c)}<option value={c}>{c}</option>{/each}
+					</select>
+				</label>
+				<label class="field">
+					{t('instruments.source')}
+					<select bind:value={instrumentForm.quoteSource}>
+						{#each QUOTE_SOURCES as s (s)}<option value={s}>{t(`source.${s}`)}</option>{/each}
+					</select>
+				</label>
+				<label class="check">
+					<input type="checkbox" bind:checked={instrumentForm.fractional} />
+					{t('instruments.fractional')}
+				</label>
+			</div>
+			<p class="muted small">{t(`instruments.symbolHint.${instrumentForm.quoteSource}`)}</p>
+		{:else if instrumentForm.catalogKey}
+			<p class="muted small">
+				{instrumentForm.symbol} · {instrumentForm.currency} · {t(`source.${instrumentForm.quoteSource}`)}
+			</p>
+		{/if}
+
+		{#if instrumentForm.kind === 'deposit' && instrumentForm.catalogKey && !typedByHand}
+			<div class="row">
+				<label class="field grow">
+					{t('instruments.bank')}
+					<input bind:value={instrumentForm.name} />
+				</label>
+			</div>
+		{/if}
+
+		{#if timed(instrumentForm.kind) && instrumentForm.catalogKey}
+			<div class="row">
+				<label class="field">
+					{t('bond.start')}
+					<input type="date" bind:value={instrumentForm.startDate} oninput={refreshTerm} />
+				</label>
+				<label class="field">
+					{t('bond.term')}
+					<input
+						class="short"
+						type="number"
+						min="1"
+						step="1"
+						list="term-suggestions"
+						bind:value={instrumentForm.termMonths}
+						oninput={refreshTerm}
+					/>
+					<datalist id="term-suggestions">
+						{#each DEPOSIT_TERMS as n (n)}<option value={n}></option>{/each}
+					</datalist>
+				</label>
+				<label class="field">
+					{t('instruments.maturity')}
+					<input type="date" bind:value={instrumentForm.maturityDate} oninput={autoName} />
+				</label>
+			</div>
+			{#if instrumentForm.maturityDate}
+				<p class="small">
+					{remainingText(instrumentForm.maturityDate)}
+					{#if !typedByHand}<span class="muted"> · {t('bond.symbolAuto')}: {instrumentForm.symbol}</span>{/if}
+				</p>
+			{/if}
+		{/if}
+
+		{#if hasManualRate(instrumentForm.kind) && instrumentForm.catalogKey}
+			<div class="row">
+				<label class="field">
+					{t('instruments.interest')}
+					<input class="short" inputmode="decimal" bind:value={instrumentForm.interestPercent} />
+				</label>
+			</div>
+			<p class="muted small">{t('instruments.rateHint.manual')}</p>
+		{:else if instrumentForm.kind === 'etf' || instrumentForm.kind === 'crypto'}
+			<p class="muted small">{t('instruments.rateHint.auto')}</p>
+		{/if}
 		<div class="row">
 			<button
 				class="btn primary"
-				disabled={!instrumentForm.symbol.trim() || !instrumentForm.name.trim()}
+				disabled={!canSave}
 				onclick={saveInstrument}
 			>
 				{instrumentForm.id ? t('common.save') : t('instruments.add')}

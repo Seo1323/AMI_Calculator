@@ -103,6 +103,27 @@ fn portfolio_set_targets(
     Ok(state.store().set_targets(id, &pairs)?)
 }
 
+/// A hand-entered price. It keeps the 12-month figures of the previous online quote of the same
+/// instrument (they describe the instrument, not the price that was just overwritten).
+fn manual_quote(
+    previous: Option<&Quote>,
+    instrument_id: Uuid,
+    price: Decimal,
+    currency: Currency,
+    now: chrono::DateTime<Utc>,
+) -> Quote {
+    let previous = previous.filter(|q| q.instrument_id == instrument_id);
+    Quote {
+        instrument_id,
+        price,
+        currency,
+        source: "manual".into(),
+        fetched_at: now,
+        return_12m_percent: previous.and_then(|q| q.return_12m_percent),
+        dividend_yield_percent: previous.and_then(|q| q.dividend_yield_percent),
+    }
+}
+
 #[tauri::command]
 fn quote_set(
     state: State<'_, AppState>,
@@ -110,14 +131,19 @@ fn quote_set(
     price: Decimal,
     currency: Currency,
 ) -> CmdResult<()> {
-    let quote = Quote {
+    let store = state.store();
+    let previous = store
+        .quotes()?
+        .into_iter()
+        .find(|q| q.instrument_id == instrument_id);
+    let quote = manual_quote(
+        previous.as_ref(),
         instrument_id,
         price,
         currency,
-        source: "manual".into(),
-        fetched_at: Utc::now(),
-    };
-    Ok(state.store().set_quote(&quote)?)
+        Utc::now(),
+    );
+    Ok(store.set_quote(&quote)?)
 }
 
 /// Downloads NBP rates and quotes for all instruments with an online source.
@@ -302,4 +328,70 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal_macros::dec;
+
+    fn online(id: Uuid) -> Quote {
+        Quote {
+            instrument_id: id,
+            price: dec!(100),
+            currency: Currency::new("EUR").unwrap(),
+            source: "yahoo".into(),
+            fetched_at: Utc::now(),
+            return_12m_percent: Some(dec!(12.5)),
+            dividend_yield_percent: Some(dec!(2.1)),
+        }
+    }
+
+    #[test]
+    fn a_manual_price_keeps_the_twelve_month_figures() {
+        let id = Uuid::now_v7();
+        let q = manual_quote(
+            Some(&online(id)),
+            id,
+            dec!(90),
+            Currency::new("EUR").unwrap(),
+            Utc::now(),
+        );
+        assert_eq!(q.price, dec!(90));
+        assert_eq!(q.source, "manual");
+        assert_eq!(q.return_12m_percent, Some(dec!(12.5)));
+        assert_eq!(q.dividend_yield_percent, Some(dec!(2.1)));
+    }
+
+    #[test]
+    fn a_manual_price_without_history_has_no_figures() {
+        let id = Uuid::now_v7();
+        let q = manual_quote(
+            None,
+            id,
+            dec!(90),
+            Currency::new("EUR").unwrap(),
+            Utc::now(),
+        );
+        assert_eq!(
+            (q.return_12m_percent, q.dividend_yield_percent),
+            (None, None)
+        );
+    }
+
+    #[test]
+    fn figures_of_another_instrument_are_not_borrowed() {
+        let other = online(Uuid::now_v7());
+        let q = manual_quote(
+            Some(&other),
+            Uuid::now_v7(),
+            dec!(90),
+            Currency::new("EUR").unwrap(),
+            Utc::now(),
+        );
+        assert_eq!(
+            (q.return_12m_percent, q.dividend_yield_percent),
+            (None, None)
+        );
+    }
 }

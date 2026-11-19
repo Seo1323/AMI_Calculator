@@ -84,7 +84,9 @@ pub fn yahoo_url(symbol: &str) -> String {
             _ => format!("%{b:02X}"),
         })
         .collect();
-    format!("https://query1.finance.yahoo.com/v8/finance/chart/{encoded}?range=1d&interval=1d")
+    format!(
+        "https://query1.finance.yahoo.com/v8/finance/chart/{encoded}?range=1y&interval=1d&events=div"
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +95,10 @@ pub struct YahooQuote {
     pub currency: Currency,
     pub time: DateTime<Utc>,
     pub name: Option<String>,
+    /// Price change over ~12 months in percent; `None` when the history is shorter.
+    pub return_12m_percent: Option<Decimal>,
+    /// Dividends of the last 12 months as a percent of the price; `None` when none were paid.
+    pub dividend_yield_percent: Option<Decimal>,
 }
 
 pub fn parse_yahoo(body: &str) -> Result<YahooQuote> {
@@ -108,15 +114,19 @@ pub fn parse_yahoo(body: &str) -> Result<YahooQuote> {
     {
         return Err(provider(format!("Yahoo: {desc}")));
     }
-    let meta = chart
+    let result = chart
         .get("result")
         .and_then(|r| r.get(0))
-        .and_then(|r| r.get("meta"))
+        .ok_or_else(|| provider("Yahoo: symbol not found"))?;
+    let meta = result
+        .get("meta")
         .ok_or_else(|| provider("Yahoo: symbol not found"))?;
     let mut price = meta
         .get("regularMarketPrice")
         .and_then(decimal)
         .ok_or_else(|| provider("Yahoo: no price"))?;
+    // Rates are ratios, so they are computed before the minor-unit conversion below.
+    let raw_price = price;
     let raw_currency = meta
         .get("currency")
         .and_then(Value::as_str)
@@ -146,38 +156,141 @@ pub fn parse_yahoo(body: &str) -> Result<YahooQuote> {
         .iter()
         .find_map(|k| meta.get(*k).and_then(Value::as_str))
         .map(str::to_string);
+    let (return_12m_percent, dividend_yield_percent) = yahoo_rates(result, raw_price, time);
     Ok(YahooQuote {
         price: price.normalize(),
         currency,
         time,
         name,
+        return_12m_percent,
+        dividend_yield_percent,
     })
+}
+
+/// Seconds in the window the rates cover.
+const YEAR_SECS: i64 = 365 * 86_400;
+/// A history whose first bar is younger than this is too short to call a "12-month" figure.
+const MIN_HISTORY_SECS: i64 = 350 * 86_400;
+
+/// 12-month return and trailing dividend yield from a `range=1y&interval=1d&events=div` chart.
+///
+/// The input is remote data, so every operation is checked: garbage such as a 1e-28 close must
+/// give `None`, not a panic inside the refresh.
+fn yahoo_rates(
+    result: &Value,
+    price: Decimal,
+    now: DateTime<Utc>,
+) -> (Option<Decimal>, Option<Decimal>) {
+    if price <= Decimal::ZERO {
+        return (None, None);
+    }
+    let first = result
+        .get("timestamp")
+        .and_then(Value::as_array)
+        .zip(
+            result
+                .get("indicators")
+                .and_then(|i| i.get("quote"))
+                .and_then(|q| q.get(0))
+                .and_then(|q| q.get("close"))
+                .and_then(Value::as_array),
+        )
+        .and_then(|(ts, closes)| {
+            ts.iter()
+                .zip(closes)
+                .find_map(|(t, c)| Some((t.as_i64()?, decimal(c)?)))
+        });
+    let return_12m = first
+        .filter(|(t, close)| *t <= now.timestamp() - MIN_HISTORY_SECS && *close > Decimal::ZERO)
+        .and_then(|(_, close)| {
+            price
+                .checked_div(close)?
+                .checked_sub(Decimal::ONE)?
+                .checked_mul(Decimal::ONE_HUNDRED)
+        })
+        .map(|p| p.round_dp(2));
+    let since = now.timestamp() - YEAR_SECS;
+    let paid = result
+        .get("events")
+        .and_then(|e| e.get("dividends"))
+        .and_then(Value::as_object)
+        .and_then(|d| {
+            d.values()
+                // A dividend without a date is trusted to be inside the requested range.
+                .filter(|x| {
+                    x.get("date")
+                        .and_then(Value::as_i64)
+                        .is_none_or(|t| t >= since)
+                })
+                .filter_map(|x| x.get("amount").and_then(decimal))
+                .try_fold(Decimal::ZERO, |sum, amount| sum.checked_add(amount))
+        })
+        .filter(|paid| *paid > Decimal::ZERO);
+    let dividend_yield = paid
+        .and_then(|paid| paid.checked_div(price)?.checked_mul(Decimal::ONE_HUNDRED))
+        .map(|p| p.round_dp(2));
+    (return_12m, dividend_yield)
 }
 
 // ---------- CoinGecko ----------
 
+fn clean_list(xs: &[&str]) -> String {
+    let mut v: Vec<String> = xs
+        .iter()
+        .map(|x| {
+            x.trim()
+                .to_lowercase()
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+                .collect()
+        })
+        .filter(|x: &String| !x.is_empty())
+        .collect();
+    v.sort();
+    v.dedup();
+    v.join(",")
+}
+
 pub fn coingecko_url(ids: &[&str], vs_currencies: &[&str]) -> String {
-    let clean = |xs: &[&str]| {
-        let mut v: Vec<String> = xs
-            .iter()
-            .map(|x| {
-                x.trim()
-                    .to_lowercase()
-                    .chars()
-                    .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
-                    .collect()
-            })
-            .filter(|x: &String| !x.is_empty())
-            .collect();
-        v.sort();
-        v.dedup();
-        v.join(",")
-    };
     format!(
         "https://api.coingecko.com/api/v3/simple/price?ids={}&vs_currencies={}",
-        clean(ids),
-        clean(vs_currencies)
+        clean_list(ids),
+        clean_list(vs_currencies)
     )
+}
+
+/// One currency per request: the market endpoint takes a single `vs_currency`.
+pub fn coingecko_markets_url(ids: &[&str], vs_currency: &str) -> String {
+    format!(
+        "https://api.coingecko.com/api/v3/coins/markets?vs_currency={}&ids={}&price_change_percentage=1y",
+        clean_list(&[vs_currency]),
+        clean_list(ids)
+    )
+}
+
+/// 12-month price change in percent of `id` from a coins/markets response.
+pub fn parse_coingecko_return(body: &str, id: &str) -> Result<Option<Decimal>> {
+    let v: Value = serde_json::from_str(body)
+        .map_err(|e| provider(format!("CoinGecko: invalid response ({e})")))?;
+    if let Some(status) = v
+        .get("status")
+        .and_then(|s| s.get("error_message"))
+        .and_then(Value::as_str)
+    {
+        return Err(provider(format!("CoinGecko: {status}")));
+    }
+    let id = id.trim().to_lowercase();
+    Ok(v.as_array()
+        .and_then(|coins| {
+            coins
+                .iter()
+                .find(|c| c.get("id").and_then(Value::as_str) == Some(id.as_str()))
+        })
+        .and_then(|c| c.get("price_change_percentage_1y_in_currency"))
+        .and_then(decimal)
+        // Below -100 % is impossible and beyond a million percent is garbage.
+        .filter(|p| *p >= Decimal::from(-100) && *p < Decimal::from(1_000_000))
+        .map(|p| p.round_dp(2)))
 }
 
 /// Price of `id` in `vs` (e.g. "bitcoin", "pln") from a simple/price response.
@@ -242,7 +355,7 @@ mod tests {
     fn yahoo_url_encodes() {
         assert_eq!(
             yahoo_url(" PKN.WA "),
-            "https://query1.finance.yahoo.com/v8/finance/chart/PKN.WA?range=1d&interval=1d"
+            "https://query1.finance.yahoo.com/v8/finance/chart/PKN.WA?range=1y&interval=1d&events=div"
         );
         assert!(yahoo_url("A B/C").contains("A%20B%2FC"));
     }
@@ -267,5 +380,183 @@ mod tests {
         let limited =
             r#"{"status":{"error_code":429,"error_message":"You've exceeded the Rate Limit."}}"#;
         assert!(parse_coingecko(limited, "bitcoin", "pln").is_err());
+    }
+
+    const NOW: i64 = 1_795_035_600;
+    const IN_WINDOW: i64 = NOW - 100 * 86_400;
+
+    /// A `range=1y&interval=1d&events=div` chart: the first bar is `first_age_days` old.
+    fn chart(price: &str, currency: &str, first_age_days: i64, closes: &str, divs: &str) -> String {
+        let first = NOW - first_age_days * 86_400;
+        let events = if divs.is_empty() {
+            String::new()
+        } else {
+            format!(r#","events":{{"dividends":{{{divs}}}}}"#)
+        };
+        format!(
+            r#"{{"chart":{{"result":[{{"meta":{{"currency":"{currency}","regularMarketPrice":{price},
+            "regularMarketTime":{NOW}}},"timestamp":[{first},{}],"indicators":{{"quote":[{{"close":[{closes}]}}]}}{events}}}],"error":null}}}}"#,
+            first + 86_400
+        )
+    }
+
+    #[test]
+    fn yahoo_return_and_dividend_yield() {
+        let body = chart(
+            "110",
+            "USD",
+            365,
+            "100,105",
+            &format!(
+                r#""1":{{"amount":1.0,"date":{IN_WINDOW}}},"2":{{"amount":1.1,"date":{IN_WINDOW}}}"#
+            ),
+        );
+        let q = parse_yahoo(&body).unwrap();
+        assert_eq!(q.return_12m_percent, Some(dec!(10)));
+        // (1.0 + 1.1) / 110 = 1.909...%
+        assert_eq!(q.dividend_yield_percent, Some(dec!(1.91)));
+    }
+
+    #[test]
+    fn yahoo_skips_missing_first_closes() {
+        let body = chart("120", "EUR", 365, "null,100", "");
+        let q = parse_yahoo(&body).unwrap();
+        assert_eq!(q.return_12m_percent, Some(dec!(20)));
+        assert_eq!(q.dividend_yield_percent, None);
+    }
+
+    #[test]
+    fn yahoo_young_fund_has_no_12_month_return() {
+        let body = chart("110", "EUR", 100, "100,105", "");
+        let q = parse_yahoo(&body).unwrap();
+        assert_eq!(q.return_12m_percent, None);
+    }
+
+    #[test]
+    fn yahoo_rates_survive_minor_unit_conversion() {
+        // London quotes in pence: the ratios must not be divided by 100 a second time.
+        let body = chart(
+            "11000",
+            "GBp",
+            365,
+            "10000,10500",
+            &format!(r#""1":{{"amount":200,"date":{IN_WINDOW}}}"#),
+        );
+        let q = parse_yahoo(&body).unwrap();
+        assert_eq!(q.price, dec!(110));
+        assert_eq!(q.return_12m_percent, Some(dec!(10)));
+        assert_eq!(q.dividend_yield_percent, Some(dec!(1.82)));
+    }
+
+    #[test]
+    fn yahoo_without_history_still_gives_a_price() {
+        let body = r#"{"chart":{"result":[{"meta":{"currency":"PLN","regularMarketPrice":10}}],"error":null}}"#;
+        let q = parse_yahoo(body).unwrap();
+        assert_eq!(q.price, dec!(10));
+        assert_eq!(
+            (q.return_12m_percent, q.dividend_yield_percent),
+            (None, None)
+        );
+    }
+
+    #[test]
+    fn coingecko_twelve_month_return() {
+        assert_eq!(
+            coingecko_markets_url(&["Bitcoin", "ethereum", "bitcoin"], " PLN "),
+            "https://api.coingecko.com/api/v3/coins/markets?vs_currency=pln&ids=bitcoin,ethereum&price_change_percentage=1y"
+        );
+        let body = r#"[{"id":"bitcoin","current_price":256769,"price_change_percentage_1y_in_currency":-30.2925},
+            {"id":"ethereum","current_price":7257.73,"price_change_percentage_1y_in_currency":null}]"#;
+        assert_eq!(
+            parse_coingecko_return(body, "Bitcoin").unwrap(),
+            Some(dec!(-30.29))
+        );
+        assert_eq!(parse_coingecko_return(body, "ethereum").unwrap(), None);
+        assert_eq!(parse_coingecko_return(body, "dogecoin").unwrap(), None);
+        let limited =
+            r#"{"status":{"error_code":429,"error_message":"You've exceeded the Rate Limit."}}"#;
+        assert!(parse_coingecko_return(limited, "bitcoin").is_err());
+    }
+
+    #[test]
+    fn full_year_boundary_is_350_days() {
+        let at = |days| parse_yahoo(&chart("110", "EUR", days, "100,105", "")).unwrap();
+        assert_eq!(at(350).return_12m_percent, Some(dec!(10)));
+        assert_eq!(at(349).return_12m_percent, None);
+    }
+
+    #[test]
+    fn yahoo_rates_need_a_positive_price_and_first_close() {
+        for price in ["0", "-5"] {
+            let q = parse_yahoo(&chart(
+                price,
+                "EUR",
+                365,
+                "100,105",
+                r#""1":{"amount":1,"date":1795000000}"#,
+            ))
+            .unwrap();
+            assert_eq!(
+                (q.return_12m_percent, q.dividend_yield_percent),
+                (None, None),
+                "price {price}"
+            );
+        }
+        let q = parse_yahoo(&chart("110", "EUR", 365, "0,105", "")).unwrap();
+        assert_eq!(q.return_12m_percent, None);
+    }
+
+    #[test]
+    fn yahoo_negative_return_and_odd_dividends() {
+        let q = parse_yahoo(&chart("90", "EUR", 365, "100,95", "")).unwrap();
+        assert_eq!(q.return_12m_percent, Some(dec!(-10)));
+        // Empty events, an entry without an amount and one older than a year add nothing.
+        let old = NOW - 400 * 86_400;
+        let divs = format!(r#""1":{{"date":{IN_WINDOW}}},"2":{{"amount":5,"date":{old}}}"#);
+        assert_eq!(
+            parse_yahoo(&chart("90", "EUR", 365, "100,95", &divs))
+                .unwrap()
+                .dividend_yield_percent,
+            None
+        );
+        assert_eq!(
+            parse_yahoo(&chart("90", "EUR", 365, "100,95", ""))
+                .unwrap()
+                .dividend_yield_percent,
+            None
+        );
+        // A dividend without a date is trusted to belong to the requested range.
+        let q = parse_yahoo(&chart("100", "EUR", 365, "100,95", r#""1":{"amount":2}"#)).unwrap();
+        assert_eq!(q.dividend_yield_percent, Some(dec!(2)));
+    }
+
+    #[test]
+    fn hostile_numbers_give_none_instead_of_panicking() {
+        // 5e27 / 1e-20 overflows Decimal; both figures must simply be missing.
+        let divs = format!(
+            r#""1":{{"amount":70000000000000000000000000000,"date":{IN_WINDOW}}},"2":{{"amount":70000000000000000000000000000,"date":{IN_WINDOW}}}"#
+        );
+        let q = parse_yahoo(&chart(
+            "5000000000000000000000000000",
+            "EUR",
+            365,
+            "0.0000000000000000001,1",
+            &divs,
+        ))
+        .unwrap();
+        assert_eq!(q.return_12m_percent, None);
+        assert_eq!(q.dividend_yield_percent, None);
+    }
+
+    #[test]
+    fn coingecko_return_rejects_impossible_values() {
+        let body =
+            |v: &str| format!(r#"[{{"id":"x","price_change_percentage_1y_in_currency":{v}}}]"#);
+        assert_eq!(
+            parse_coingecko_return(&body("-100"), "x").unwrap(),
+            Some(dec!(-100))
+        );
+        assert_eq!(parse_coingecko_return(&body("-100.5"), "x").unwrap(), None);
+        assert_eq!(parse_coingecko_return(&body("2000000"), "x").unwrap(), None);
     }
 }

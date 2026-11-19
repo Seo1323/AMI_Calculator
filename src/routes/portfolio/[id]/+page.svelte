@@ -39,6 +39,12 @@
 	const currency = $derived(view?.portfolio.baseCurrency ?? 'PLN');
 	const bySymbol = $derived(Object.fromEntries(instruments.map((i) => [i.id, i])));
 	const symbol = (instrumentId: string) => bySymbol[instrumentId]?.symbol ?? '?';
+	const moneyKind = $derived(bySymbol[tradeForm.instrumentId]?.kind);
+	const isCash = $derived(moneyKind === 'cash' || moneyKind === 'deposit');
+	// A cash deposit is quantity = amount at price 1.
+	$effect(() => {
+		if (isCash && tradeForm.price.trim() === '') tradeForm.price = '1';
+	});
 	const draftSum = $derived(draftTargets.reduce((s, x) => s + (Number(toDecimal(x.percent)) || 0), 0));
 
 	async function run(fn: () => Promise<unknown>) {
@@ -365,6 +371,9 @@
 						<button class="btn" onclick={cancelEditTrade}>{t('common.cancel')}</button>
 					{/if}
 				</div>
+				{#if isCash}
+					<p class="muted small">{t(moneyKind === 'deposit' ? 'trades.depositHint' : 'trades.cashHint')}</p>
+				{/if}
 				{#if tradeTotal}
 					<div class="muted small">
 						{t('trades.total')}: {fmtMoney(tradeTotal, bySymbol[tradeForm.instrumentId]?.currency)}
