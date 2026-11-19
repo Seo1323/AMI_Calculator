@@ -30,6 +30,8 @@ pub struct PortfolioTile {
     pub max_deviation: Option<Decimal>,
     pub needs_rebalance: bool,
     pub complete: bool,
+    /// The trade history is broken (see `PortfolioView::problem`); the numbers are left out.
+    pub has_problem: bool,
     pub allocation: Vec<AllocationSlice>,
 }
 
@@ -82,6 +84,7 @@ pub fn build(store: &Store, currency: &Currency) -> Result<Dashboard> {
             max_deviation: v.max_deviation,
             needs_rebalance: v.needs_rebalance,
             complete: v.missing_prices.is_empty() && v.missing_rates.is_empty(),
+            has_problem: v.problem.is_some(),
             allocation: v
                 .positions
                 .iter()

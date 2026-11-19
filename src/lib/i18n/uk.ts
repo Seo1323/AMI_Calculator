@@ -62,6 +62,8 @@ const uk: Record<keyof typeof pl, string> = {
 	'portfolio.deleteConfirm': 'Видалити портфель «{name}»? Його операції більше не відображатимуться.',
 	'portfolio.drift': 'Відхилення: {dev} в. п.',
 	'portfolio.incomplete': 'Бракує цін або курсів',
+	'portfolio.dataProblem': 'Виправ або видали помилкову операцію в таблиці нижче.',
+	'portfolio.dataProblemShort': 'Проблема з даними портфеля',
 	'instruments.title': 'Інструменти',
 	'instruments.hint': 'Акції та ETF з Варшавської або іноземних бірж, а також крипто. Ціни завантажуються автоматично; з джерелом «Вручну» ви вводите їх самі.',
 	'instruments.symbol': 'Символ',

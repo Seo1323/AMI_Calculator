@@ -62,6 +62,8 @@ const es: Record<keyof typeof pl, string> = {
 	'portfolio.deleteConfirm': '¿Eliminar la cartera «{name}»? Sus operaciones dejarán de mostrarse.',
 	'portfolio.drift': 'Desviación: {dev} p. p.',
 	'portfolio.incomplete': 'Faltan precios o tipos de cambio',
+	'portfolio.dataProblem': 'Corrige o elimina la operación errónea en la tabla de abajo.',
+	'portfolio.dataProblemShort': 'Problema con los datos de la cartera',
 	'instruments.title': 'Instrumentos',
 	'instruments.hint': 'Acciones y ETF de la bolsa de Varsovia o del extranjero, y cripto. Los precios se descargan automáticamente; con la fuente «Manual» los introduces tú.',
 	'instruments.symbol': 'Símbolo',

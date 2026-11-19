@@ -85,6 +85,8 @@ export interface PortfolioView {
 	kindShares: KindShare[];
 	/** Symbols valued at their purchase cost because no price was entered (an estimate). */
 	estimatedPrices: string[];
+	/** Set when the trade history is broken: the view is empty, but the trades can still be edited. */
+	problem: { code: string; message: string } | null;
 }
 
 /** Accepts "1 234,56" as well as "1234.56". */
@@ -115,6 +117,7 @@ export interface PortfolioTile {
 	maxDeviation: string | null;
 	needsRebalance: boolean;
 	complete: boolean;
+	hasProblem: boolean;
 	allocation: AllocationSlice[];
 }
 

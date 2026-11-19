@@ -91,7 +91,9 @@
 							<span class="num">{p.value === null ? '—' : fmtMoney(p.value, data.currency)}</span>
 						</div>
 						<div class="pf-sub small">
-							{#if !p.complete}
+							{#if p.hasProblem}
+								<span class="status warn-text">⚠ {t('portfolio.dataProblemShort')}</span>
+							{:else if !p.complete}
 								<span class="muted">{t('dashboard.incomplete')}</span>
 							{:else if p.needsRebalance}
 								<span class="status warn-text">⚠ {t('dashboard.needsRebalance')} · {fmtNumber(p.maxDeviation ?? 0)} {t('unit.pp')}</span>

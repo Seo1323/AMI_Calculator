@@ -62,6 +62,8 @@ const fr: Record<keyof typeof pl, string> = {
 	'portfolio.deleteConfirm': 'Supprimer le portefeuille « {name} » ? Ses opérations ne seront plus affichées.',
 	'portfolio.drift': 'Écart : {dev} pts',
 	'portfolio.incomplete': 'Cours ou taux manquants',
+	'portfolio.dataProblem': "Corrige ou supprime l'opération erronée dans le tableau ci-dessous.",
+	'portfolio.dataProblemShort': 'Problème avec les données du portefeuille',
 	'instruments.title': 'Instruments',
 	'instruments.hint': 'Actions et ETF de la Bourse de Varsovie ou étrangers, et crypto. Les cours sont téléchargés automatiquement ; avec la source « Manuel », vous les saisissez vous-même.',
 	'instruments.symbol': 'Symbole',
