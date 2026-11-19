@@ -65,6 +65,13 @@ export interface PositionView {
 	currentPercent: string | null;
 }
 
+/** Share of one asset kind in a portfolio's value (value in the base currency, percent of the total). */
+export interface KindShare {
+	kind: InstrumentKind;
+	value: string;
+	percent: string;
+}
+
 export interface PortfolioView {
 	portfolio: Portfolio;
 	positions: PositionView[];
@@ -75,6 +82,7 @@ export interface PortfolioView {
 	missingRates: string[];
 	maxDeviation: string | null;
 	needsRebalance: boolean;
+	kindShares: KindShare[];
 }
 
 /** Accepts "1 234,56" as well as "1234.56". */
