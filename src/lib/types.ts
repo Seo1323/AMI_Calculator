@@ -1,11 +1,11 @@
 // Mirrors of the Rust models (ami-core). Decimal amounts are strings.
 import type { Meta } from '$lib/db';
 
-export type InstrumentKind = 'stock' | 'etf' | 'bond' | 'crypto' | 'cash' | 'other';
+export type InstrumentKind = 'stock' | 'etf' | 'bond' | 'crypto' | 'cash' | 'deposit' | 'other';
 export type QuoteSource = 'yahoo' | 'coinGecko' | 'manual';
 export type TradeSide = 'buy' | 'sell';
 
-export const INSTRUMENT_KINDS: InstrumentKind[] = ['etf', 'stock', 'bond', 'crypto', 'cash', 'other'];
+export const INSTRUMENT_KINDS: InstrumentKind[] = ['etf', 'stock', 'bond', 'crypto', 'cash', 'deposit', 'other'];
 export const QUOTE_SOURCES: QuoteSource[] = ['yahoo', 'coinGecko', 'manual'];
 export const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'];
 
@@ -18,7 +18,9 @@ export interface Instrument extends Meta {
 	fractional: boolean;
 	/** Annual rate in percent, entered by hand (bonds, cash). */
 	interestPercent: string | null;
-	/** Bond maturity, YYYY-MM-DD. */
+	/** Bond/deposit start, YYYY-MM-DD; maturity is start plus the term. */
+	startDate: string | null;
+	/** Bond/deposit maturity, YYYY-MM-DD. */
 	maturityDate: string | null;
 }
 

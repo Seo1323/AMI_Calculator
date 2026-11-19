@@ -39,7 +39,8 @@
 	const currency = $derived(view?.portfolio.baseCurrency ?? 'PLN');
 	const bySymbol = $derived(Object.fromEntries(instruments.map((i) => [i.id, i])));
 	const symbol = (instrumentId: string) => bySymbol[instrumentId]?.symbol ?? '?';
-	const isCash = $derived(bySymbol[tradeForm.instrumentId]?.kind === 'cash');
+	const moneyKind = $derived(bySymbol[tradeForm.instrumentId]?.kind);
+	const isCash = $derived(moneyKind === 'cash' || moneyKind === 'deposit');
 	// A cash deposit is quantity = amount at price 1.
 	$effect(() => {
 		if (isCash && tradeForm.price.trim() === '') tradeForm.price = '1';
@@ -371,7 +372,7 @@
 					{/if}
 				</div>
 				{#if isCash}
-					<p class="muted small">{t('trades.cashHint')}</p>
+					<p class="muted small">{t(moneyKind === 'deposit' ? 'trades.depositHint' : 'trades.cashHint')}</p>
 				{/if}
 				{#if tradeTotal}
 					<div class="muted small">

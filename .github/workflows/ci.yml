@@ -28,6 +28,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: npm ci
       - run: npm run check
+      - run: npm test
       - run: npm run build
       - run: cargo test --workspace
       - run: cargo clippy --workspace -- -D warnings
