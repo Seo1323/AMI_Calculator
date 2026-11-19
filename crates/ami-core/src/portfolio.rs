@@ -135,10 +135,32 @@ fn load(store: &Store, portfolio_id: Uuid) -> Result<Inputs> {
             dividend_yield_percent: None,
         });
     }
+    let holdings = holdings(&store.trades_of(portfolio_id)?)?;
+    // A bond has no market feed: until its price is entered it is valued at what it cost, not at zero.
+    for (id, h) in &holdings {
+        let Some(i) = instruments
+            .get(id)
+            .filter(|i| i.kind == InstrumentKind::Bond)
+        else {
+            continue;
+        };
+        let Some(unit_cost) = h.cost.checked_div(h.quantity) else {
+            continue;
+        };
+        quotes.entry(*id).or_insert_with(|| Quote {
+            instrument_id: *id,
+            price: unit_cost.round_dp(6),
+            currency: i.currency.clone(),
+            source: "cost".into(),
+            fetched_at: chrono::Utc::now(),
+            return_12m_percent: None,
+            dividend_yield_percent: None,
+        });
+    }
     Ok(Inputs {
         portfolio,
         instruments,
-        holdings: holdings(&store.trades_of(portfolio_id)?)?,
+        holdings,
         targets: store
             .targets_of(portfolio_id)?
             .into_iter()
@@ -452,6 +474,7 @@ mod tests {
         kind: InstrumentKind,
         currency: &str,
         quantity: Decimal,
+        price: Decimal,
     ) -> (Store, Portfolio) {
         let store = Store::open_in_memory().unwrap();
         let portfolio = store
@@ -477,7 +500,7 @@ mod tests {
                 maturity_date: None,
             })
             .unwrap();
-        let mut deposit = trade(cash.meta.id, 1, TradeSide::Buy, quantity, dec!(1));
+        let mut deposit = trade(cash.meta.id, 1, TradeSide::Buy, quantity, price);
         deposit.portfolio_id = portfolio.meta.id;
         store.save_trade(deposit).unwrap();
         (store, portfolio)
@@ -485,7 +508,8 @@ mod tests {
 
     #[test]
     fn cash_is_worth_one_unit_of_its_currency_without_a_price_entry() {
-        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "PLN", dec!(1000.50));
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Cash, "PLN", dec!(1000.50), dec!(1));
         let v = view(&store, portfolio.meta.id).unwrap();
         assert!(v.missing_prices.is_empty());
         assert!(v.missing_rates.is_empty());
@@ -495,7 +519,8 @@ mod tests {
 
     #[test]
     fn a_bank_deposit_is_valued_at_its_principal() {
-        let (store, portfolio) = money_in_portfolio(InstrumentKind::Deposit, "PLN", dec!(5000));
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Deposit, "PLN", dec!(5000), dec!(1));
         let v = view(&store, portfolio.meta.id).unwrap();
         assert!(v.missing_prices.is_empty());
         assert_eq!(v.total_value, dec!(5000));
@@ -504,8 +529,47 @@ mod tests {
     }
 
     #[test]
+    fn a_bond_without_a_price_is_valued_at_cost_not_zero() {
+        // 30 bonds bought at 100 PLN each.
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Bond, "PLN", dec!(30), dec!(100));
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert!(v.missing_prices.is_empty());
+        assert_eq!(v.total_value, dec!(3000));
+        assert_eq!(v.positions[0].price, Some(dec!(100)));
+        assert_eq!(v.positions[0].gain, Some(dec!(0)));
+    }
+
+    #[test]
+    fn an_entered_bond_price_wins_over_the_cost() {
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Bond, "PLN", dec!(30), dec!(100));
+        let bond_id = store.list::<Instrument>().unwrap()[0].meta.id;
+        store
+            .set_quote(&quote(bond_id, dec!(101.5), "PLN"))
+            .unwrap();
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert_eq!(v.total_value, dec!(3045));
+        assert_eq!(v.positions[0].gain, Some(dec!(45)));
+    }
+
+    #[test]
+    fn a_sold_out_bond_is_not_valued() {
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Bond, "PLN", dec!(30), dec!(100));
+        let bond_id = store.list::<Instrument>().unwrap()[0].meta.id;
+        let mut sell = trade(bond_id, 2, TradeSide::Sell, dec!(30), dec!(100));
+        sell.portfolio_id = portfolio.meta.id;
+        store.save_trade(sell).unwrap();
+        let v = view(&store, portfolio.meta.id).unwrap();
+        assert_eq!(v.total_value, dec!(0));
+        assert!(v.missing_prices.is_empty());
+    }
+
+    #[test]
     fn foreign_cash_still_needs_an_exchange_rate() {
-        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "EUR", dec!(100));
+        let (store, portfolio) =
+            money_in_portfolio(InstrumentKind::Cash, "EUR", dec!(100), dec!(1));
         let v = view(&store, portfolio.meta.id).unwrap();
         assert!(v.missing_prices.is_empty());
         assert_eq!(v.missing_rates, ["EUR"]);
@@ -523,7 +587,7 @@ mod tests {
 
     #[test]
     fn an_entered_cash_price_wins_over_the_default() {
-        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "PLN", dec!(10));
+        let (store, portfolio) = money_in_portfolio(InstrumentKind::Cash, "PLN", dec!(10), dec!(1));
         let cash_id = store.list::<Instrument>().unwrap()[0].meta.id;
         store.set_quote(&quote(cash_id, dec!(2), "PLN")).unwrap();
         let v = view(&store, portfolio.meta.id).unwrap();
