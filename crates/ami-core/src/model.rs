@@ -242,4 +242,22 @@ mod tests {
             (None, None)
         );
     }
+
+    #[test]
+    fn capitalization_wire_format_is_camel_case() {
+        for (c, text) in [
+            (Capitalization::Monthly, "\"monthly\""),
+            (Capitalization::Quarterly, "\"quarterly\""),
+            (Capitalization::Annual, "\"annual\""),
+        ] {
+            assert_eq!(serde_json::to_string(&c).unwrap(), text);
+        }
+        let mut b = bond();
+        b.capitalization = None;
+        let v = serde_json::to_value(&b).unwrap();
+        assert!(
+            v["capitalization"].is_null(),
+            "the frontend reads null as 'none'"
+        );
+    }
 }

@@ -274,6 +274,7 @@
 	const offerNote = $derived.by(() => {
 		const f = instrumentForm;
 		if (f.kind !== 'bond' || !f.catalogKey || f.catalogKey === 'custom') return '';
+		if (offerSet.skipped.some((x) => x.startsWith(f.catalogKey))) return t('bond.offerSkipped');
 		const offer = offerFor(f.catalogKey);
 		if (!offer) return '';
 		const source = offerSet.source === 'snapshot' ? t('bond.offerSnapshot', { month: offerSet.month ?? '' }) : t('bond.offerOnline');

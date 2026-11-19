@@ -99,6 +99,7 @@ const de: Record<keyof typeof pl, string> = {
 	'bond.offerSnapshot': 'Gespeichertes Angebot von {month}; das aktuelle findest du auf obligacjeskarbowe.pl.',
 	'bond.rateNote': 'Zinssatz der ersten Zinsperiode; danach hängt er von der Inflation oder dem NBP-Satz ab. Du kannst ihn ändern.',
 	'bond.offerOther': 'Das Angebot gilt für Anleihen, die im {month} gekauft wurden. Für ein anderes Datum gib deinen eigenen Zinssatz ein.',
+	'bond.offerSkipped': 'Das Angebot dieser Serie konnte von der Seite des Finanzministeriums nicht gelesen werden. Gib den Zinssatz von Hand ein.',
 	'position.title': 'Position im Portfolio (optional)',
 	'position.portfolio': 'Portfolio',
 	'position.none': 'Keine Position',

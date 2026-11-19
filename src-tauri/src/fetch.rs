@@ -37,14 +37,32 @@ fn client() -> reqwest::Result<reqwest::Client> {
         .build()
 }
 
+/// Largest response body accepted; real pages and API answers are tens of kilobytes.
+const MAX_BODY: usize = 4 * 1024 * 1024;
+
 async fn get(client: &reqwest::Client, url: &str) -> Result<String, String> {
-    let resp = client
+    let mut resp = client
         .get(url)
         .send()
         .await
         .map_err(|e| e.without_url().to_string())?;
     let status = resp.status();
-    let body = resp.text().await.map_err(|e| e.without_url().to_string())?;
+    let too_large = || "response too large".to_string();
+    if resp.content_length().is_some_and(|n| n > MAX_BODY as u64) {
+        return Err(too_large());
+    }
+    let mut body: Vec<u8> = Vec::new();
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| e.without_url().to_string())?
+    {
+        if body.len() + chunk.len() > MAX_BODY {
+            return Err(too_large());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    let body = String::from_utf8_lossy(&body).into_owned();
     // Yahoo answers 404 with a JSON error body worth parsing; other errors are just HTTP.
     if status.is_success() || status == reqwest::StatusCode::NOT_FOUND {
         Ok(body)
@@ -107,29 +125,88 @@ async fn fetch_coingecko_returns(
     .collect()
 }
 
-/// The current monthly offer of Polish retail treasury bonds (public page of the Ministry of
-/// Finance). Series that cannot be read are skipped; an error means none could be read.
-pub async fn bond_offers() -> Result<Vec<providers::BondOffer>, String> {
-    let client = client().map_err(|e| e.to_string())?;
+/// Client for the bond pages: redirects are followed only within the same host (and at most
+/// three times), so the page cannot send the app to another site.
+fn bond_client() -> reqwest::Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .timeout(Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            let same_host =
+                attempt.previous().first().and_then(|u| u.host_str()) == attempt.url().host_str();
+            if same_host && attempt.previous().len() < 3 {
+                attempt.follow()
+            } else {
+                attempt.stop()
+            }
+        }))
+        .build()
+}
+
+/// Symbol (`EDO1136`) from a series page path (`/oferta-obligacji/obligacje-10-letnie-edo/edo1136/`).
+fn symbol_of_path(path: &str) -> String {
+    path.trim_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or_default()
+        .to_uppercase()
+}
+
+/// Pure part of the bond download: every page is either parsed into an offer or reported as
+/// skipped. Series that cannot be read never vanish silently; only if none can be read it is an
+/// error, and it carries the first reason.
+fn offers_from_pages(
+    pages: Vec<(String, Result<String, String>)>,
+) -> Result<providers::BondOffers, String> {
+    let mut out = providers::BondOffers::default();
+    let mut first_error: Option<String> = None;
+    for (symbol, page) in pages {
+        match page.and_then(|body| providers::parse_bond_offer(&body).map_err(|e| e.to_string())) {
+            Ok(offer) => out.offers.push(offer),
+            Err(reason) => {
+                first_error.get_or_insert(format!("{symbol}: {reason}"));
+                out.skipped.push(symbol);
+            }
+        }
+    }
+    if out.offers.is_empty() {
+        Err(format!(
+            "obligacjeskarbowe.pl: could not read any series ({})",
+            first_error.unwrap_or_else(|| "no series".into())
+        ))
+    } else {
+        Ok(out)
+    }
+}
+
+/// Series pages fetched per refresh; more than this is reported as skipped.
+const MAX_SERIES: usize = 16;
+
+/// The current monthly offer of Polish retail treasury bonds (public page of the Ministry of Finance).
+pub async fn bond_offers() -> Result<providers::BondOffers, String> {
+    let client = bond_client().map_err(|e| e.to_string())?;
     let overview = get(&client, providers::BOND_OFFER_URL).await?;
     let paths = providers::bond_series_paths(&overview);
     if paths.is_empty() {
         return Err("obligacjeskarbowe.pl: no series found".into());
     }
-    let pages = join_all(paths.iter().take(16).map(|path| {
+    let (fetch, extra) = paths.split_at(paths.len().min(MAX_SERIES));
+    let bodies = join_all(fetch.iter().map(|path| {
         let client = &client;
         async move { get(client, &format!("{}{path}", providers::BOND_SITE)).await }
     }))
     .await;
-    let offers: Vec<_> = pages
-        .into_iter()
-        .filter_map(|body| providers::parse_bond_offer(&body.ok()?).ok())
-        .collect();
-    if offers.is_empty() {
-        Err("obligacjeskarbowe.pl: could not read any series".into())
-    } else {
-        Ok(offers)
-    }
+    let mut result = offers_from_pages(
+        fetch
+            .iter()
+            .map(|p| symbol_of_path(p))
+            .zip(bodies)
+            .collect(),
+    )?;
+    result
+        .skipped
+        .extend(extra.iter().map(|p| symbol_of_path(p)));
+    Ok(result)
 }
 
 pub struct Downloaded {
@@ -318,21 +395,73 @@ mod tests {
         assert!(coingecko_groups(&[]).is_empty());
     }
 
+    const REAL_EDO: &str =
+        include_str!("../../crates/ami-core/tests/fixtures/obligacjeskarbowe_edo1136.html");
+    const REAL_COI: &str =
+        include_str!("../../crates/ami-core/tests/fixtures/obligacjeskarbowe_coi1130.html");
+
+    #[test]
+    fn unreadable_series_are_reported_not_dropped() {
+        let pages = vec![
+            ("EDO1136".to_string(), Ok(REAL_EDO.to_string())),
+            ("COI1130".to_string(), Err("HTTP 500".to_string())),
+            (
+                "ROR1127".to_string(),
+                Ok("<html>cookie wall</html>".to_string()),
+            ),
+            (
+                "TOS1129".to_string(),
+                Ok(REAL_COI.replace("brak", "półroczna")),
+            ),
+        ];
+        let out = offers_from_pages(pages).unwrap();
+        assert_eq!(out.offers.len(), 1);
+        assert_eq!(out.offers[0].symbol, "EDO1136");
+        assert_eq!(out.skipped, ["COI1130", "ROR1127", "TOS1129"]);
+    }
+
+    #[test]
+    fn no_readable_series_is_an_error_with_the_first_reason() {
+        let pages = vec![
+            ("COI1130".to_string(), Err("HTTP 500".to_string())),
+            ("ROR1127".to_string(), Ok("<html></html>".to_string())),
+        ];
+        let err = offers_from_pages(pages).unwrap_err();
+        assert!(err.contains("COI1130: HTTP 500"), "{err}");
+        assert!(offers_from_pages(vec![]).unwrap_err().contains("no series"));
+    }
+
+    #[test]
+    fn symbols_come_from_the_page_path() {
+        assert_eq!(
+            symbol_of_path("/oferta-obligacji/obligacje-10-letnie-edo/edo1136/"),
+            "EDO1136"
+        );
+        assert_eq!(symbol_of_path(""), "");
+    }
+
     /// Reads the real bond offer: `cargo test -p ami-calculator -- --ignored live_bond --nocapture`
     #[tokio::test]
-    #[ignore]
+    #[ignore = "network: obligacjeskarbowe.pl"]
     async fn live_bond_offers() {
-        let offers = bond_offers().await.unwrap();
-        for o in &offers {
+        let set = bond_offers().await.unwrap();
+        for o in &set.offers {
             println!(
                 "{} {} rate={} cap={:?} price={}",
                 o.series, o.symbol, o.first_period_rate_percent, o.capitalization, o.price
             );
+            assert_eq!(o.price, rust_decimal::Decimal::ONE_HUNDRED);
+            assert!(
+                o.first_period_rate_percent > rust_decimal::Decimal::ZERO
+                    && o.first_period_rate_percent < rust_decimal::Decimal::from(20)
+            );
+            assert_eq!(o.symbol.len(), 7);
         }
+        println!("skipped: {:?}", set.skipped);
         assert!(
-            offers.len() >= 6,
+            set.offers.len() >= 6,
             "expected most series, got {}",
-            offers.len()
+            set.offers.len()
         );
     }
 

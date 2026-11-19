@@ -332,6 +332,16 @@ pub struct BondOffer {
     pub price: Decimal,
 }
 
+/// The offer as far as it could be read: series whose page changed or could not be parsed are
+/// listed in `skipped` instead of silently disappearing.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BondOffers {
+    pub offers: Vec<BondOffer>,
+    /// Symbols (`EDO1136`) of series that were found but not understood.
+    pub skipped: Vec<String>,
+}
+
 /// Text of an HTML fragment: tags dropped, the few entities that occur decoded, spaces collapsed.
 fn html_text(fragment: &str) -> String {
     let mut out = String::with_capacity(fragment.len());
@@ -355,15 +365,27 @@ fn html_text(fragment: &str) -> String {
         .join(" ")
 }
 
-/// Value of a `<strong class="product-details__list-label">Label:</strong>` row.
+/// Value of a `<strong class="product-details__list-label">Label:</strong>` row: the text of the
+/// `list-value` element of the SAME `<li>` row. The first row with that label wins. A row without
+/// a value yields `None` rather than the value of the next row.
 fn offer_field(html: &str, label: &str) -> Option<String> {
-    let after_label = &html[html.find(&format!(">{label}:</strong>"))?..];
-    let after_value = &after_label[after_label.find("list-value\"")?..];
-    let value = &after_value[after_value.find('>')? + 1..];
-    Some(html_text(&value[..value.find("</span>")?]))
+    let needle = format!(">{label}");
+    let label_end = html.match_indices(&needle).find_map(|(i, _)| {
+        let rest = &html[i + needle.len()..];
+        // `Label :` and `Label:` are the same label; `Label odsetek:` is a different one.
+        let colon = rest.trim_start().strip_prefix(':')?;
+        colon
+            .trim_start()
+            .starts_with("</strong>")
+            .then(|| html.len() - colon.len())
+    })?;
+    let row = &html[label_end..];
+    let row = &row[..row.find("</li>").unwrap_or(row.len())];
+    let value = &row[row.find("list-value\"")?..];
+    Some(html_text(&value[value.find('>')? + 1..]))
 }
 
-/// First decimal number in `s`, accepting a comma: `"4,75%, w skali"` gives 4.75.
+/// First decimal number in `s`, accepting a comma: `"100,00 zł"` gives 100.00.
 fn first_number(s: &str) -> Option<Decimal> {
     let start = s.find(|c: char| c.is_ascii_digit())?;
     let number: String = s[start..]
@@ -379,8 +401,27 @@ fn first_number(s: &str) -> Option<Decimal> {
     .ok()
 }
 
+/// First number that is followed by `%`: `"w pierwszym 12-miesięcznym okresie 5,35%"` gives 5.35,
+/// not 12.
+fn first_percent(s: &str) -> Option<Decimal> {
+    let mut rest = s;
+    while let Some(start) = rest.find(|c: char| c.is_ascii_digit()) {
+        let tail = &rest[start..];
+        let len = tail
+            .find(|c: char| !(c.is_ascii_digit() || c == ',' || c == '.'))
+            .unwrap_or(tail.len());
+        if tail[len..].trim_start().starts_with('%') {
+            return first_number(&tail[..len]);
+        }
+        rest = &tail[len..];
+    }
+    None
+}
+
 fn valid_series_symbol(s: &str) -> bool {
+    // `is_ascii` first: the text comes from the network and byte slicing a multibyte character panics.
     s.len() == 7
+        && s.is_ascii()
         && s[..3].chars().all(|c| c.is_ascii_uppercase())
         && s[3..].chars().all(|c| c.is_ascii_digit())
 }
@@ -422,8 +463,10 @@ pub fn parse_bond_offer(html: &str) -> Result<BondOffer> {
         .and_then(|v| v.split_whitespace().next().map(str::to_string))
         .filter(|s| valid_series_symbol(s))
         .ok_or_else(|| missing("series"))?;
+    // A rate outside 0-100 % or an odd price means the page changed; do not present it as the offer.
     let rate = offer_field(html, "Oprocentowanie")
-        .and_then(|v| first_number(&v))
+        .and_then(|v| first_percent(&v))
+        .filter(|r| *r >= Decimal::ZERO && *r <= Decimal::ONE_HUNDRED)
         .ok_or_else(|| missing("rate"))?;
     let capitalization = match offer_field(html, "Kapitalizacja odsetek")
         .ok_or_else(|| missing("capitalization"))?
@@ -442,7 +485,7 @@ pub fn parse_bond_offer(html: &str) -> Result<BondOffer> {
     };
     let price = offer_field(html, "Cena sprzedaży jednej obligacji")
         .and_then(|v| first_number(&v))
-        .filter(|p| *p > Decimal::ZERO)
+        .filter(|p| *p > Decimal::ZERO && *p <= Decimal::from(10_000))
         .ok_or_else(|| missing("price"))?;
     Ok(BondOffer {
         series: symbol[..3].to_string(),
@@ -793,6 +836,15 @@ mod tests {
     }
 
     #[test]
+    fn a_multibyte_series_symbol_is_rejected_without_panicking() {
+        // 7 bytes, but the 3rd character straddles byte 3: slicing it would panic.
+        for symbol in ["AAŁ123", "ŁŁŁ12", "ED\u{307}1136"] {
+            let page = series_page(symbol, "5,35%", "roczna", "100,00 zł");
+            assert!(parse_bond_offer(&page).is_err(), "{symbol}");
+        }
+    }
+
+    #[test]
     fn bond_series_paths_are_filtered_and_deduplicated() {
         let overview = r#"
             <a href="/oferta-obligacji/obligacje-10-letnie-edo/edo1136/">EDO</a>
@@ -819,5 +871,132 @@ mod tests {
         assert_eq!(first_number("100,00 zł"), Some(dec!(100.00)));
         assert_eq!(first_number("od 2.5% do 3"), Some(dec!(2.5)));
         assert_eq!(first_number("brak"), None);
+    }
+
+    // Real blocks of the live site (captured 2026-11-19), so the markup assumptions are not only mine.
+    const REAL_EDO: &str = include_str!("../tests/fixtures/obligacjeskarbowe_edo1136.html");
+    const REAL_COI: &str = include_str!("../tests/fixtures/obligacjeskarbowe_coi1130.html");
+
+    #[test]
+    fn real_pages_of_the_official_site_parse() {
+        let edo = parse_bond_offer(REAL_EDO).unwrap();
+        assert_eq!(edo.symbol, "EDO1136");
+        assert_eq!(edo.first_period_rate_percent, dec!(5.35));
+        assert_eq!(edo.capitalization, Some(Capitalization::Annual));
+        assert_eq!(edo.price, dec!(100));
+        let coi = parse_bond_offer(REAL_COI).unwrap();
+        assert_eq!(coi.symbol, "COI1130");
+        assert_eq!(coi.first_period_rate_percent, dec!(4.75));
+        assert_eq!(coi.capitalization, None);
+    }
+
+    #[test]
+    fn every_capitalization_wording_maps_to_its_variant() {
+        let cap = |w: &str| {
+            parse_bond_offer(&series_page("EDO1136", "5,35%", w, "100,00 zł"))
+                .map(|o| o.capitalization)
+        };
+        assert_eq!(cap("miesięczna").unwrap(), Some(Capitalization::Monthly));
+        assert_eq!(cap("kwartalna").unwrap(), Some(Capitalization::Quarterly));
+        assert_eq!(cap("roczna").unwrap(), Some(Capitalization::Annual));
+        assert_eq!(cap("brak").unwrap(), None);
+        // Case and surrounding whitespace / entities do not matter.
+        assert_eq!(cap("Miesięczna").unwrap(), Some(Capitalization::Monthly));
+        assert_eq!(
+            cap("&nbsp; Kwartalna &#160;").unwrap(),
+            Some(Capitalization::Quarterly)
+        );
+    }
+
+    #[test]
+    fn rejections_say_what_is_wrong() {
+        let err = |html: &str| parse_bond_offer(html).unwrap_err().to_string();
+        assert!(err("<html>nothing</html>").contains("no series"));
+        assert!(err(&series_page("EDO", "5,35%", "roczna", "100 zł")).contains("no series"));
+        assert!(
+            err(&series_page(
+                "EDO1136",
+                "w pierwszym okresie",
+                "roczna",
+                "100 zł"
+            ))
+            .contains("no rate")
+        );
+        assert!(err(&series_page("EDO1136", "5,35%", "roczna", "0,00 zł")).contains("no price"));
+        assert!(err(&series_page("EDO1136", "5,35%", "półroczna", "100 zł")).contains("półroczna"));
+        // Implausible values mean the page changed.
+        assert!(err(&series_page("EDO1136", "535%", "roczna", "100 zł")).contains("no rate"));
+        assert!(err(&series_page("EDO1136", "5,35%", "roczna", "99999 zł")).contains("no price"));
+    }
+
+    #[test]
+    fn a_rate_is_the_number_before_the_percent_sign() {
+        assert_eq!(first_percent("4,75%, w skali roku"), Some(dec!(4.75)));
+        assert_eq!(
+            first_percent("w pierwszym 12-miesięcznym okresie 5,35%"),
+            Some(dec!(5.35))
+        );
+        assert_eq!(first_percent("5,35 %"), Some(dec!(5.35)));
+        assert_eq!(first_percent("marża 2,00% + inflacja"), Some(dec!(2.00)));
+        assert_eq!(first_percent("12 miesięcy"), None);
+        assert_eq!(first_percent(""), None);
+        assert_eq!(
+            first_number("4,75, w").map(|d| d.to_string()),
+            Some("4.75".into())
+        );
+        assert_eq!(
+            first_number("100. zł").map(|d| d.to_string()),
+            Some("100".into())
+        );
+        assert_eq!(
+            first_number("100,00 zł").map(|d| d.to_string()),
+            Some("100.00".into())
+        );
+    }
+
+    #[test]
+    fn a_row_never_borrows_the_value_of_another_row() {
+        let row_with_value = |label: &str, value: &str| row(label, value);
+        // "Seria" has a label but no value element; the next row's value must not leak into it.
+        let html = format!(
+            r#"<li><strong class="product-details__list-label">Seria:</strong></li>{}"#,
+            row_with_value("Oprocentowanie", "5,35%")
+        );
+        assert_eq!(offer_field(&html, "Seria"), None);
+        assert_eq!(
+            offer_field(&html, "Oprocentowanie").as_deref(),
+            Some("5,35%")
+        );
+        // A nested element inside the value does not cut it short.
+        let nested = row(
+            "Cena sprzedaży jednej obligacji",
+            "<span>100,00</span>&nbsp;zł",
+        );
+        assert_eq!(
+            offer_field(&nested, "Cena sprzedaży jednej obligacji").as_deref(),
+            Some("100,00 zł")
+        );
+        // `Label :` is the same label, `Kapitalizacja odsetek:` is not `Kapitalizacja`.
+        let spaced = r#"<li><strong class="product-details__list-label">Seria :</strong><span class="product-details__list-value">EDO1136</span></li>"#;
+        assert_eq!(offer_field(spaced, "Seria").as_deref(), Some("EDO1136"));
+        assert_eq!(
+            offer_field(&row("Kapitalizacja odsetek", "roczna"), "Kapitalizacja"),
+            None
+        );
+        // The first row with a label wins (documented; a sidebar would come later on the page).
+        let twice = format!("{}{}", row("Seria", "EDO1136"), row("Seria", "COI1130"));
+        assert_eq!(offer_field(&twice, "Seria").as_deref(), Some("EDO1136"));
+        // Truncated markup must not panic.
+        assert_eq!(offer_field(r#"<strong class="product-details__list-label">Seria:</strong><span class="product-details__list-value">EDO"#, "Seria").as_deref(), Some("EDO"));
+        assert_eq!(offer_field("", "Seria"), None);
+    }
+
+    #[test]
+    fn a_page_without_series_links_gives_no_paths() {
+        assert!(bond_series_paths("<html>cookie wall</html>").is_empty());
+        assert!(bond_series_paths(r#"<a href="/oferta-obligacji/obligacje-x/edo1136"#).is_empty());
+        assert!(
+            bond_series_paths(r#"<a href='/oferta-obligacji/obligacje-x/y/edo1136/'>"#).is_empty()
+        );
     }
 }

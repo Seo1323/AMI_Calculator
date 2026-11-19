@@ -13,8 +13,16 @@ export interface BondOffer {
 	price: string;
 }
 
+/** What the `bond_offers` command returns: series that could not be read are listed, not dropped. */
+interface BondOfferSet {
+	offers: BondOffer[];
+	skipped: string[];
+}
+
 export interface OfferSet {
 	offers: BondOffer[];
+	/** Symbols of series that were found on the site but could not be understood. */
+	skipped: string[];
 	source: 'online' | 'cache' | 'snapshot';
 	/** YYYY-MM for the built-in snapshot. */
 	month?: string;
@@ -32,15 +40,15 @@ const SNAPSHOT: BondOffer[] = [
 	{ series: 'ROD', symbol: 'ROD1138', firstPeriodRatePercent: '5.60', capitalization: 'annual', price: '100.00' }
 ];
 
-export const SNAPSHOT_SET: OfferSet = { offers: SNAPSHOT, source: 'snapshot', month: '2026-11' };
+export const SNAPSHOT_SET: OfferSet = { offers: SNAPSHOT, skipped: [], source: 'snapshot', month: '2026-11' };
 
-const KEY = 'ami.bondOffers.v1';
+const KEY = 'ami.bondOffers.v2';
 const MAX_AGE_MS = 12 * 3600 * 1000;
 
-function readCache(): { offers: BondOffer[]; at: number } | null {
+function readCache(): { offers: BondOffer[]; skipped: string[]; at: number } | null {
 	try {
 		const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-		return raw && Array.isArray(raw.offers) && typeof raw.at === 'number' ? raw : null;
+		return raw && Array.isArray(raw.offers) && Array.isArray(raw.skipped) && typeof raw.at === 'number' ? raw : null;
 	} catch {
 		return null;
 	}
@@ -49,21 +57,21 @@ function readCache(): { offers: BondOffer[]; at: number } | null {
 /** Fresh cache, else the live offer (desktop app), else a stale cache, else the built-in snapshot. */
 export async function loadBondOffers(): Promise<OfferSet> {
 	const cached = readCache();
-	if (cached && Date.now() - cached.at < MAX_AGE_MS) return { offers: cached.offers, source: 'cache' };
+	if (cached && Date.now() - cached.at < MAX_AGE_MS) return { offers: cached.offers, skipped: cached.skipped, source: 'cache' };
 	if (isTauri()) {
 		try {
-			const offers = await invoke<BondOffer[]>('bond_offers');
+			const { offers, skipped } = await invoke<BondOfferSet>('bond_offers');
 			if (offers.length) {
 				try {
-					localStorage.setItem(KEY, JSON.stringify({ offers, at: Date.now() }));
+					localStorage.setItem(KEY, JSON.stringify({ offers, skipped, at: Date.now() }));
 				} catch {
 					/* storage unavailable */
 				}
-				return { offers, source: 'online' };
+				return { offers, skipped, source: 'online' };
 			}
 		} catch {
 			/* offline or the page changed: fall through */
 		}
 	}
-	return cached ? { offers: cached.offers, source: 'cache' } : SNAPSHOT_SET;
+	return cached ? { offers: cached.offers, skipped: cached.skipped, source: 'cache' } : SNAPSHOT_SET;
 }

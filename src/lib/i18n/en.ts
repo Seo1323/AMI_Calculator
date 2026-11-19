@@ -99,6 +99,7 @@ const en: Record<keyof typeof pl, string> = {
 	'bond.offerSnapshot': 'Saved offer from {month}; the current one is on obligacjeskarbowe.pl.',
 	'bond.rateNote': 'Rate of the first interest period; later periods depend on inflation or the NBP rate. You can change it.',
 	'bond.offerOther': 'The offer applies to bonds bought in {month}. For another date enter your own rate.',
+	'bond.offerSkipped': 'The offer of this series could not be read from the Ministry of Finance site. Enter the rate by hand.',
 	'position.title': 'Holding in a portfolio (optional)',
 	'position.portfolio': 'Portfolio',
 	'position.none': 'No holding',

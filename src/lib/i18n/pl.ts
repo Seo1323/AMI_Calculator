@@ -97,6 +97,7 @@ const pl = {
 	'bond.offerSnapshot': 'Zapisana oferta z {month}; aktualną znajdziesz na obligacjeskarbowe.pl.',
 	'bond.rateNote': 'Oprocentowanie pierwszego okresu odsetkowego; w kolejnych zależy od inflacji lub stopy NBP. Możesz je zmienić.',
 	'bond.offerOther': 'Oferta dotyczy obligacji kupionych w {month}. Dla innej daty wpisz własne oprocentowanie.',
+	'bond.offerSkipped': 'Nie udało się odczytać oferty tej serii ze strony MF. Wpisz oprocentowanie ręcznie.',
 	'position.title': 'Pozycja w portfelu (opcjonalnie)',
 	'position.portfolio': 'Portfel',
 	'position.none': 'Bez pozycji',

@@ -146,15 +146,16 @@ fn quote_set(
     Ok(store.set_quote(&quote)?)
 }
 
-/// Downloads NBP rates and quotes for all instruments with an online source.
 /// Current offer of Polish retail treasury bonds: first-period rate, capitalization, price.
+/// Series that could not be read are listed in `skipped`.
 #[tauri::command]
-async fn bond_offers() -> CmdResult<Vec<ami_core::providers::BondOffer>> {
+async fn bond_offers() -> CmdResult<ami_core::providers::BondOffers> {
     fetch::bond_offers()
         .await
         .map_err(|e| CoreError::Provider(e).into())
 }
 
+/// Downloads NBP rates and quotes for all instruments with an online source.
 #[tauri::command]
 async fn quotes_refresh(state: State<'_, AppState>) -> CmdResult<fetch::RefreshReport> {
     let plan = fetch::plan(&state.store())?;
