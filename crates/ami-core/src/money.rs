@@ -66,4 +66,42 @@ mod tests {
         assert!(Currency::new("P").is_err());
         assert!(Currency::new("PL-N").is_err());
     }
+
+    #[test]
+    fn currency_length_bounds_are_inclusive() {
+        assert_eq!(Currency::new("ab").unwrap().code(), "AB");
+        assert_eq!(Currency::new("abcdefghij").unwrap().code(), "ABCDEFGHIJ");
+        assert!(Currency::new("abcdefghijk").is_err());
+    }
+
+    #[test]
+    fn currency_rejects_empty_blank_and_inner_whitespace() {
+        assert!(Currency::new("").is_err());
+        assert!(Currency::new("   ").is_err());
+        assert!(Currency::new("PL N").is_err());
+    }
+
+    #[test]
+    fn currency_rejects_non_ascii_letters() {
+        // `to_ascii_uppercase` leaves these untouched and they are not ASCII, so they must fail.
+        assert!(Currency::new("zł").is_err());
+        assert!(Currency::new("€UR").is_err());
+    }
+
+    #[test]
+    fn currency_accepts_digits_and_reports_the_normalized_code_on_error() {
+        assert_eq!(Currency::new("1inch").unwrap().code(), "1INCH");
+        match Currency::new(" pl-n ") {
+            Err(CoreError::InvalidCurrency(code)) => assert_eq!(code, "PL-N"),
+            other => panic!("expected InvalidCurrency(\"PL-N\"), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn currency_deserialization_applies_the_same_validation() {
+        let ok: Currency = serde_json::from_str("\" eur \"").unwrap();
+        assert_eq!(ok.code(), "EUR");
+        assert!(serde_json::from_str::<Currency>("\"E\"").is_err());
+        assert!(serde_json::from_str::<Currency>("\"E-R\"").is_err());
+    }
 }
