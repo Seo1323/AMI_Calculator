@@ -36,7 +36,7 @@ export const DEFAULTS: Settings = {
 	density: 'comfortable',
 	fontScale: 1,
 	uiScale: 1,
-	radius: 10,
+	radius: 14,
 	numberLocale: 'auto',
 	baseCurrency: 'PLN',
 	startPage: '/',

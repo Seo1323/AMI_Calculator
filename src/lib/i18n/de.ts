@@ -1,7 +1,7 @@
 import type pl from './pl';
 
 const de: Record<keyof typeof pl, string> = {
-	'app.name': 'AMI_Calculator',
+	'app.name': 'AMI Calculator',
 	'nav.dashboard': 'Übersicht',
 	'nav.portfolio': 'Portfolios',
 	'nav.rebalance': 'Rebalancing',
@@ -17,7 +17,7 @@ const de: Record<keyof typeof pl, string> = {
 	'common.notInTauri': 'Diese Funktion gibt es nur in der Desktop-App (Start mit „npm run tauri dev“).',
 
 	'dashboard.title': 'Übersicht',
-	'dashboard.welcome': 'Willkommen bei AMI_Calculator',
+	'dashboard.welcome': 'Willkommen bei AMI Calculator',
 	'dashboard.intro': 'Rechner für das Rebalancing von Portfolios. Lege ein Portfolio an oder passe das Aussehen in den Einstellungen an.',
 	'dashboard.allocation': 'Abweichung der Aufteilung',
 
@@ -263,12 +263,12 @@ const de: Record<keyof typeof pl, string> = {
 	'error.invalidPosition': 'Ungültige Positionsdaten: {detail}',
 	'error.negativeContribution': 'Im Modus „Nur kaufen“ darf die Einzahlung nicht negativ sein.',
 	'error.emptyPortfolio': 'Der Portfoliowert nach der Operation muss positiv sein.',
-	'error.notAnExport': 'Das ist keine AMI_Calculator-Sicherungsdatei.',
+	'error.notAnExport': 'Das ist keine AMI Calculator-Sicherungsdatei.',
 	'error.unsupportedVersion': 'Die Datei stammt aus einer neueren App-Version.',
 	'error.validation': 'Ungültige Daten: {detail}',
 	'error.missingReference': 'Ein verknüpfter Eintrag existiert nicht.',
 	'error.notFound': 'Eintrag nicht gefunden.',
-	'error.databaseTooNew': 'Die Datenbank stammt aus einer neueren App-Version. Bitte aktualisiere AMI_Calculator.',
+	'error.databaseTooNew': 'Die Datenbank stammt aus einer neueren App-Version. Bitte aktualisiere AMI Calculator.',
 	'error.database': 'Datenbankfehler: {detail}',
 	'error.io': 'Fehler beim Lesen/Schreiben der Datei: {detail}',
 	'error.json': 'Beschädigte Datei: {detail}',

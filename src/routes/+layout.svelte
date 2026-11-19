@@ -19,6 +19,11 @@
 	let ready = $state(false);
 	// Medium windows collapse the sidebar to icons so the content keeps its room.
 	// The width is divided by the text size, because larger text leaves less room.
+	// "AMI Calculator": the first word is set in bold.
+	const brand = $derived.by(() => {
+		const [first, ...rest] = t('app.name').split(' ');
+		return { first, rest: rest.join(' ') };
+	});
 	let viewportWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1280);
 	// CSS zoom of the fallback in uiScale.ts; the viewport width does not shrink with it.
 	let cssZoom = $state(1);
@@ -134,8 +139,8 @@
 <div class="shell" class:collapsed class:animate>
 	<nav class="sidebar" aria-label="main">
 		<div class="brand">
-			<span class="logo" aria-hidden="true">⚖</span>
-			<span class="label">{t('app.name')}</span>
+			<span class="logo" aria-hidden="true"><Icon name="rebalance" size={18} /></span>
+			<span class="label wordmark"><b>{brand.first}</b>{brand.rest ? ' ' + brand.rest : ''}</span>
 		</div>
 
 		<div class="links" bind:this={linksEl}>
@@ -214,8 +219,8 @@
 		flex-direction: column;
 		gap: 0.25rem;
 		padding: var(--space) 0.6rem;
-		background: var(--surface);
-		border-right: 1px solid var(--border);
+		background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 94%, var(--accent)));
+		border-right: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
 		overflow: hidden;
 	}
 	.animate .sidebar {
@@ -225,17 +230,35 @@
 		display: flex;
 		align-items: center;
 		gap: 0.6rem;
-		font-weight: 700;
-		font-size: 1.15rem;
-		padding: 0.3rem 0.6rem calc(var(--space) * 1.2);
+		font-size: 1.05rem;
+		padding: 0.3rem 0.4rem calc(var(--space) * 1.2);
 		white-space: nowrap;
 	}
+	.wordmark {
+		font-weight: 500;
+		letter-spacing: -0.01em;
+	}
+	.wordmark b {
+		font-weight: 800;
+		color: var(--accent-text);
+	}
 	.logo {
-		color: var(--accent);
-		font-size: 1.4rem;
-		width: 24px;
+		display: grid;
+		place-items: center;
 		flex: none;
-		text-align: center;
+		width: 2.1rem;
+		height: 2.1rem;
+		border-radius: calc(var(--radius) * 0.75);
+		color: white;
+		background: linear-gradient(
+			140deg,
+			color-mix(in srgb, var(--accent) 72%, white),
+			var(--accent) 52%,
+			color-mix(in srgb, var(--accent) 72%, black)
+		);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.3),
+			0 6px 14px -6px color-mix(in srgb, var(--accent) 70%, transparent);
 	}
 	.animate .logo {
 		transition: transform 0.4s var(--ease);
@@ -256,6 +279,7 @@
 		top: 0;
 		border-radius: calc(var(--radius) * 0.7);
 		background: var(--accent-soft);
+		box-shadow: inset 3px 0 0 var(--accent);
 		opacity: 0;
 		pointer-events: none;
 	}
@@ -364,7 +388,7 @@
 	main {
 		flex: 1;
 		min-width: 0;
-		padding: calc(var(--space) * 1.5);
+		padding: calc(var(--space) * 1.75) calc(var(--space) * 2);
 		max-width: 94rem;
 		margin-inline: auto;
 	}
