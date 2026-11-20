@@ -1,6 +1,6 @@
 {
   "name": "ami-calculator",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "AMI_Calculator - kalkulator rebalansowania portfela",
   "type": "module",
   "scripts": {
