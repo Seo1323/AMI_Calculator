@@ -251,6 +251,7 @@ const uk: Record<keyof typeof pl, string> = {
 	'settings.shadows.soft': 'М’які',
 	'settings.shadows.strong': 'Виразні',
 	'settings.glow': 'Сяйво акцентного кольору на тлі',
+	'settings.navTop': 'Панель меню вгорі (розкладка для телефона)',
 	'settings.colorblind': 'Палітра для дальтоніків (синій і помаранчевий замість зеленого й червоного)',
 	'settings.darkStyle': 'Стиль темної теми',
 	'settings.darkStyle.soft': 'М’який',

@@ -32,6 +32,8 @@ export interface Settings {
 	/** 'black' is a pure-black dark theme (saves power on OLED screens). */
 	darkStyle: DarkStyle;
 	contentWidth: ContentWidth;
+	/** Phone layout: the navigation bar at the top instead of the bottom. */
+	navTop: boolean;
 	showCents: boolean;
 	numberLocale: NumberLocale;
 	baseCurrency: string;
@@ -66,6 +68,7 @@ export const DEFAULTS: Settings = {
 	colorblind: false,
 	darkStyle: 'soft',
 	contentWidth: 'normal',
+	navTop: false,
 	showCents: true,
 	numberLocale: 'auto',
 	baseCurrency: 'PLN',

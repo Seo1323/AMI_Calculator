@@ -113,6 +113,7 @@
 		root.dataset.shadows = settings.shadows;
 		root.dataset.darkStyle = settings.darkStyle;
 		root.dataset.width = settings.contentWidth;
+		root.toggleAttribute('data-nav-top', settings.navTop);
 		root.toggleAttribute('data-no-glow', !settings.glow);
 		root.toggleAttribute('data-colorblind', settings.colorblind);
 		// Breakpoints for hiding table columns, counted after text scaling (see `narrow`).
@@ -466,6 +467,18 @@
 		}
 		main {
 			padding: calc(1rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(5.5rem + env(safe-area-inset-bottom))
+				calc(1rem + env(safe-area-inset-left));
+		}
+		/* The same bar at the top: the page leaves room above instead of below. */
+		:global(:root[data-nav-top]) .sidebar {
+			top: 0;
+			bottom: auto;
+			padding: calc(0.3rem + env(safe-area-inset-top)) 0.3rem 0.3rem;
+			border-top: none;
+			border-bottom: 1px solid var(--border);
+		}
+		:global(:root[data-nav-top]) main {
+			padding: calc(5.5rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom))
 				calc(1rem + env(safe-area-inset-left));
 		}
 	}

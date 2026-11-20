@@ -249,6 +249,7 @@ const pl = {
 	'settings.shadows.soft': 'Delikatne',
 	'settings.shadows.strong': 'Wyraźne',
 	'settings.glow': 'Poświata koloru akcentu w tle',
+	'settings.navTop': 'Pasek menu u góry (układ telefonu)',
 	'settings.colorblind': 'Paleta dla daltonistów (niebieski i pomarańczowy zamiast zieleni i czerwieni)',
 	'settings.darkStyle': 'Styl ciemnego motywu',
 	'settings.darkStyle.soft': 'Miękki',

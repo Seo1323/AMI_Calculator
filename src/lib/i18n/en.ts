@@ -251,6 +251,7 @@ const en: Record<keyof typeof pl, string> = {
 	'settings.shadows.soft': 'Soft',
 	'settings.shadows.strong': 'Strong',
 	'settings.glow': 'Accent colour glow in the background',
+	'settings.navTop': 'Menu bar at the top (phone layout)',
 	'settings.colorblind': 'Colour-blind palette (blue and orange instead of green and red)',
 	'settings.darkStyle': 'Dark theme style',
 	'settings.darkStyle.soft': 'Soft',

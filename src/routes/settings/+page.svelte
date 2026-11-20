@@ -194,6 +194,11 @@
 		</label>
 
 		<label class="check">
+			<input type="checkbox" bind:checked={settings.navTop} />
+			{t('settings.navTop')}
+		</label>
+
+		<label class="check">
 			<input type="checkbox" bind:checked={settings.glow} />
 			{t('settings.glow')}
 		</label>

@@ -251,6 +251,7 @@ const de: Record<keyof typeof pl, string> = {
 	'settings.shadows.soft': 'Weich',
 	'settings.shadows.strong': 'Kräftig',
 	'settings.glow': 'Akzentfarbiger Schimmer im Hintergrund',
+	'settings.navTop': 'Menüleiste oben (Telefon-Layout)',
 	'settings.colorblind': 'Palette für Farbenblindheit (Blau und Orange statt Grün und Rot)',
 	'settings.darkStyle': 'Stil des dunklen Designs',
 	'settings.darkStyle.soft': 'Weich',
