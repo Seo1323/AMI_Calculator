@@ -17,7 +17,7 @@ interface Stored {
 	label: string;
 	/** Seals the file; the same on every device. Kept like the database: readable by this device only. */
 	passphrase: string;
-	/** This device has already synced a sealed file: a plain one is then refused, not sealed. */
+	/** This device expects a sealed file (it synced one, or joined an existing file with a passphrase): a plain one is then refused, not sealed. */
 	sealed: boolean;
 }
 
@@ -111,8 +111,12 @@ export async function connect(create: boolean) {
 		if (file) chosen = { target: file, label: file };
 	}
 	if (!chosen) return;
+	if (sync.target && sync.target !== chosen.target && onAndroid()) bridge('release', sync.target).catch(() => {});
 	sync.target = chosen.target;
 	sync.label = chosen.label;
+	// Joining an existing file with a passphrase: that file was sealed by the first device, so a plain
+	// one here would be a planted file, not something to adopt. A new file starts plain (or empty).
+	sync.sealed = !create && !!sync.passphrase;
 	sync.error = null;
 	remember();
 	await syncNow();

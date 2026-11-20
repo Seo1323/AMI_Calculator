@@ -380,19 +380,31 @@ fn sync_at(
             "the sync file must have the .ami extension".into(),
         ));
     }
-    if fs::metadata(path).is_ok_and(|m| m.len() > ami_core::sync::MAX_FILE_BYTES as u64) {
-        return Err(CoreError::Validation("the sync file is too large".into()));
-    }
-    let text = match fs::read_to_string(path) {
-        Ok(t) => Some(t),
+    // Read through the open handle with a cap: a symlink to /dev/zero, a FIFO or a file that grows
+    // meanwhile cannot make the app read without limit.
+    let text = match fs::File::open(path) {
+        Ok(f) => {
+            let mut text = String::new();
+            let cap = ami_core::sync::MAX_FILE_BYTES as u64 + 1;
+            std::io::Read::read_to_string(&mut std::io::Read::take(f, cap), &mut text)?;
+            Some(text)
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(e.into()),
     };
     let out = run_sync(state, text.as_deref(), passphrase, allow_plain)?;
     if let Some(json) = &out.outgoing {
         // Temp file + rename: a sync tool never uploads a half-written file.
+        // The name is guessable: remove what is there and create it exclusively, so a planted
+        // symlink at that name is never written through.
         let tmp = path.with_extension("ami.tmp");
-        fs::write(&tmp, json)?;
+        let _ = fs::remove_file(&tmp);
+        let mut f = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)?;
+        std::io::Write::write_all(&mut f, json.as_bytes())?;
+        drop(f);
         fs::rename(&tmp, path)?;
     }
     Ok(SyncReport {
@@ -665,6 +677,32 @@ mod tests {
         assert!(
             sync_at(&a, &dir.path().join("OK.AMI"), None, true).is_ok(),
             "case does not matter"
+        );
+    }
+
+    #[test]
+    fn an_oversized_sync_file_is_refused_without_being_read_whole() {
+        let (a, dir) = device();
+        let f = dir.path().join("big.ami");
+        fs::write(&f, vec![b'x'; ami_core::sync::MAX_FILE_BYTES + 1000]).unwrap();
+        assert!(sync_at(&a, &f, None, true).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_planted_at_the_temp_name_is_not_written_through() {
+        let (a, dir) = device();
+        add_portfolio(&a, "IKE");
+        let victim = dir.path().join("victim.txt");
+        fs::write(&victim, "precious").unwrap();
+        let f = dir.path().join("ami-sync.ami");
+        std::os::unix::fs::symlink(&victim, dir.path().join("ami-sync.ami.tmp")).unwrap();
+        assert!(sync_at(&a, &f, None, true).unwrap().wrote);
+        assert_eq!(fs::read_to_string(&victim).unwrap(), "precious");
+        assert!(
+            fs::read_to_string(&f)
+                .unwrap()
+                .contains("ami-calculator-export")
         );
     }
 }

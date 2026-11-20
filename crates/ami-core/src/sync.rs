@@ -53,6 +53,15 @@ pub const MAX_FILE_BYTES: usize = 32 << 20;
 /// A record dated further ahead than this is refused: it would win every later conflict.
 const FUTURE_TOLERANCE_DAYS: i64 = 1;
 
+/// Records, prices and rates win by date, so one dated far ahead would win every later merge.
+fn dated_in_the_future(data: &DataSet) -> bool {
+    let limit = chrono::Utc::now() + chrono::Duration::days(FUTURE_TOLERANCE_DAYS);
+    let micros = limit.timestamp_micros();
+    versions(data).values().any(|&v| v > micros)
+        || data.quotes.iter().any(|q| q.fetched_at > limit)
+        || data.fx_rates.iter().any(|r| r.fetched_at > limit)
+}
+
 /// True when `a` holds a record that `b` lacks or has only in an older version.
 fn has_news(a: &DataSet, b: &DataSet) -> bool {
     let theirs = versions(b);
@@ -94,14 +103,11 @@ pub fn sync(
         Some(t) => Some(ExportBundle::from_json(t)?.data),
         None => None,
     };
-    let limit =
-        (chrono::Utc::now() + chrono::Duration::days(FUTURE_TOLERANCE_DAYS)).timestamp_micros();
-    if theirs
-        .as_ref()
-        .is_some_and(|t| versions(t).values().any(|&v| v > limit))
-    {
+    if theirs.as_ref().is_some_and(dated_in_the_future) {
         return Err(CoreError::Validation(
-            "the sync file has records dated in the future".into(),
+            "the sync file has records dated in the future: check the clocks of your devices \
+             (to start over, disconnect, delete the file and create it again)"
+                .into(),
         ));
     }
     let mut stats = ImportStats::default();
@@ -434,5 +440,38 @@ mod tests {
             run_pw(&mut a, Some(&huge), None),
             Err(CoreError::Validation(_))
         ));
+    }
+
+    #[test]
+    fn prices_and_rates_dated_far_ahead_are_refused_too() {
+        let a = Store::open_in_memory().unwrap();
+        let mut b = Store::open_in_memory().unwrap();
+        a.save(portfolio("IKE")).unwrap();
+        let ahead = chrono::Utc::now() + chrono::Duration::days(400);
+        for poison in 0..2 {
+            let mut data = a.export_data().unwrap();
+            if poison == 0 {
+                data.fx_rates.push(FxRate {
+                    currency: Currency::new("EUR").unwrap(),
+                    rate_pln: dec!(0.01),
+                    source: "x".into(),
+                    fetched_at: ahead,
+                });
+            } else {
+                data.quotes.push(Quote {
+                    instrument_id: uuid::Uuid::now_v7(),
+                    price: dec!(1),
+                    currency: Currency::new("PLN").unwrap(),
+                    source: "x".into(),
+                    fetched_at: ahead,
+                    return_12m_percent: None,
+                    dividend_yield_percent: None,
+                });
+            }
+            let file = ExportBundle::new("test", data).to_json().unwrap();
+            let r = run_pw(&mut b, Some(&file), None);
+            assert!(matches!(r, Err(CoreError::Validation(_))), "{poison}");
+        }
+        assert!(b.fx_rates().unwrap().is_empty());
     }
 }

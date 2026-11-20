@@ -93,7 +93,7 @@ class MainActivity : TauriActivity() {
 
   private fun readLimited(uri: Uri): String {
     val input = contentResolver.openInputStream(uri) ?: return ""
-    input.use {
+    return input.use {
       val out = java.io.ByteArrayOutputStream()
       val buf = ByteArray(64 * 1024)
       var total = 0
@@ -104,7 +104,7 @@ class MainActivity : TauriActivity() {
         if (total > MAX_FILE_BYTES) throw IOException("the sync file is too large")
         out.write(buf, 0, n)
       }
-      return out.toString(Charsets.UTF_8.name())
+      out.toString(Charsets.UTF_8.name())
     }
   }
 
