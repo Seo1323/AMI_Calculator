@@ -251,6 +251,7 @@ const fr: Record<keyof typeof pl, string> = {
 	'settings.shadows.soft': 'Douces',
 	'settings.shadows.strong': 'Marquées',
 	'settings.glow': "Halo de la couleur d'accent en arrière-plan",
+	'settings.navTop': 'Barre de menu en haut (affichage téléphone)',
 	'settings.colorblind': 'Palette pour daltoniens (bleu et orange au lieu de vert et rouge)',
 	'settings.darkStyle': 'Style du thème sombre',
 	'settings.darkStyle.soft': 'Doux',

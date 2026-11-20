@@ -251,6 +251,7 @@ const es: Record<keyof typeof pl, string> = {
 	'settings.shadows.soft': 'Suaves',
 	'settings.shadows.strong': 'Marcadas',
 	'settings.glow': 'Resplandor del color de acento en el fondo',
+	'settings.navTop': 'Barra de menú arriba (diseño de móvil)',
 	'settings.colorblind': 'Paleta para daltonismo (azul y naranja en lugar de verde y rojo)',
 	'settings.darkStyle': 'Estilo del tema oscuro',
 	'settings.darkStyle.soft': 'Suave',
