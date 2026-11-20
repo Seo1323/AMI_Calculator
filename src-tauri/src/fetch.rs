@@ -399,29 +399,31 @@ pub async fn download(plan: Plan) -> Downloaded {
 }
 
 pub fn save(store: &Store, data: Downloaded) -> ami_core::Result<RefreshReport> {
-    let mut report = RefreshReport {
-        failures: data.failures,
-        ..Default::default()
-    };
-    for r in &data.fx {
-        store.set_fx_rate(r)?;
-        report.fx_updated += 1;
-    }
-    let previous: HashMap<uuid::Uuid, Quote> = store
-        .quotes()?
-        .into_iter()
-        .map(|q| (q.instrument_id, q))
-        .collect();
-    let mut seen = std::collections::HashSet::new();
-    for mut q in data.quotes {
-        let known = previous.get(&q.instrument_id);
-        keep_known_figures(&mut q, known);
-        // The instrument may have been deleted while we were downloading.
-        if seen.insert(q.instrument_id) && store.set_quote(&q).is_ok() {
-            report.quotes_updated += 1;
+    store.in_transaction(|| {
+        let mut report = RefreshReport {
+            failures: data.failures,
+            ..Default::default()
+        };
+        for r in &data.fx {
+            store.set_fx_rate(r)?;
+            report.fx_updated += 1;
         }
-    }
-    Ok(report)
+        let previous: HashMap<uuid::Uuid, Quote> = store
+            .quotes()?
+            .into_iter()
+            .map(|q| (q.instrument_id, q))
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        for mut q in data.quotes {
+            let known = previous.get(&q.instrument_id);
+            keep_known_figures(&mut q, known);
+            // The instrument may have been deleted while we were downloading.
+            if seen.insert(q.instrument_id) && store.set_quote(&q).is_ok() {
+                report.quotes_updated += 1;
+            }
+        }
+        Ok(report)
+    })
 }
 
 /// The 12-month figures are optional extras that a provider sometimes leaves out (rate limit, short

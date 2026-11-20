@@ -32,7 +32,13 @@
 	let viewportWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1280);
 	// CSS zoom of the fallback in uiScale.ts; the viewport width does not shrink with it.
 	let cssZoom = $state(1);
-	const narrow = $derived(viewportWidth / (settings.fontScale * cssZoom) <= 1024);
+	const effective = $derived(viewportWidth / (settings.fontScale * cssZoom));
+	const narrow = $derived(effective <= 1024);
+	// Breakpoints for hiding table columns. Booleans, so the effect below re-runs only when one is
+	// crossed, not on every pixel of a window drag.
+	const lt820 = $derived(effective <= 820);
+	const lt480 = $derived(effective <= 480);
+	const lt400 = $derived(effective <= 400);
 
 	// Performance mode: chosen, or in auto mode once slow painting was seen while scrolling.
 	$effect(() => {
@@ -121,13 +127,13 @@
 		root.toggleAttribute('data-nav-top', settings.navTop);
 		root.toggleAttribute('data-no-glow', !settings.glow);
 		root.toggleAttribute('data-colorblind', settings.colorblind);
-		// Breakpoints for hiding table columns, counted after text scaling (see `narrow`).
-		const effective = viewportWidth / (settings.fontScale * cssZoom);
-		for (const w of [820, 480, 400]) root.toggleAttribute(`data-lt${w}`, effective <= w);
+		root.toggleAttribute('data-lt820', lt820);
+		root.toggleAttribute('data-lt480', lt480);
+		root.toggleAttribute('data-lt400', lt400);
 		root.toggleAttribute('data-hide-amounts', settings.hideAmounts);
 		root.lang = settings.locale;
-		saveSettings();
 	});
+	$effect(() => saveSettings()); // separate, so dragging the window does not rewrite the settings
 
 	// ----- Sliding highlight behind the active item -----
 	let linksEl: HTMLElement | undefined = $state();
