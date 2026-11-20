@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="164" height="314" viewBox="0 0 164 314">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#4f8bff"/>
+      <stop offset="1" stop-color="#1c46a8"/>
+    </linearGradient>
+  </defs>
+  <rect width="164" height="314" fill="url(#bg)"/>
+  <g transform="translate(32 44) scale(0.0976)">
+    <g fill="none" stroke="#fff" stroke-width="44" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M512 214v570"/><path d="M298 306h428"/><path d="M360 800h304"/>
+      <path d="M298 306L196 560M298 306l102 254"/><path d="M726 306L624 560M726 306l102 254"/>
+    </g>
+    <g fill="#fff">
+      <path d="M176 560h244a122 122 0 0 1-244 0z"/><path d="M604 560h244a122 122 0 0 1-244 0z"/>
+      <circle cx="512" cy="196" r="38"/>
+    </g>
+  </g>
+  <text x="82" y="192" text-anchor="middle" font-family="Inter, Segoe UI, DejaVu Sans, sans-serif" font-size="15.5" font-weight="700" fill="#fff">AMI Calculator</text>
+  <text x="82" y="214" text-anchor="middle" font-family="Inter, Segoe UI, DejaVu Sans, sans-serif" font-size="9.5" fill="#dbe6ff">Kalkulator rebalansowania</text>
+  <text x="82" y="228" text-anchor="middle" font-family="Inter, Segoe UI, DejaVu Sans, sans-serif" font-size="9.5" fill="#dbe6ff">portfela</text>
+</svg>
