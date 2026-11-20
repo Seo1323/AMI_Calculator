@@ -1,3 +1,8 @@
+## Co nowego w 0.5.0
+- **Historia wartości portfela**: na stronie portfela jest wykres wartości w czasie oraz linia „Wpłacone” (suma kupna z opłatami minus sprzedaż, liczona z transakcji po dzisiejszych kursach walut). Wartość zapisuje się raz dziennie przy otwarciu pulpitu lub strony portfela, gdy wycena jest kompletna.
+- **Średnie oprocentowanie** na pulpicie, liście portfeli i stronie portfela: średnia ważona wartością z ręcznie wpisanych stóp (obligacje, gotówka, lokaty). ETF-y i akcje bez wpisanej stopy się nie liczą.
+- **Do wiedzenia**: historia wartości zaczyna się od pierwszego uruchomienia tej wersji (nie ma kursów historycznych) i nie wchodzi do kopii `.ami`, więc po imporcie na innym urządzeniu zaczyna od zera. Tłumaczenia nowych tekstów (de/es/fr/uk) nie były sprawdzone przez osobę znającą język.
+
 ## Co nowego w 0.4.9
 - **Poprawka: portfel z uszkodzoną historią transakcji** (np. sprzedaż większa niż liczba posiadanych jednostek po scaleniu kopii z dwóch urządzeń) nie wyłącza już pulpitu ani listy portfeli. Taki portfel jest oznaczony „Problem z danymi portfela”, a na jego stronie widać baner i tabelę transakcji, w której błędną transakcję można poprawić lub usunąć.
 
