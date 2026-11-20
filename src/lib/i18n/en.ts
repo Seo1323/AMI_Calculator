@@ -222,7 +222,7 @@ const en: Record<keyof typeof pl, string> = {
 	'account.ikze': 'IKZE',
 	'rebalance.tax': 'Estimated tax',
 	'rebalance.taxDetail': 'gain on sales {gain}, rate {rate}%',
-	'rebalance.taxNote': 'Estimate using the average purchase price, without sell fees or losses from earlier years (the tax office uses FIFO).',
+	'rebalance.taxNote': 'Estimate using the average purchase price, without sell fees or losses from earlier years (the tax office uses FIFO). The purchase cost in a foreign currency is converted at today\'s rate, not the rate of the purchase day.',
 	'rebalance.needs': 'Portfolio is outside tolerance (max drift {dev} pp).',
 	'rebalance.ok': 'Portfolio is within tolerance (max drift {dev} pp).',
 	'unit.pp': 'pp',

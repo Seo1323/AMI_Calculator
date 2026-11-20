@@ -222,7 +222,7 @@ const de: Record<keyof typeof pl, string> = {
 	'account.ikze': 'IKZE',
 	'rebalance.tax': 'Geschätzte Steuer',
 	'rebalance.taxDetail': 'Gewinn aus Verkäufen {gain}, Satz {rate}%',
-	'rebalance.taxNote': 'Schätzung nach durchschnittlichem Kaufpreis, ohne Verkaufsgebühren und Verluste aus früheren Jahren (das Finanzamt rechnet nach FIFO).',
+	'rebalance.taxNote': 'Schätzung nach durchschnittlichem Kaufpreis, ohne Verkaufsgebühren und Verluste aus früheren Jahren (das Finanzamt rechnet nach FIFO). Die Anschaffungskosten in Fremdwährung werden zum heutigen Kurs umgerechnet, nicht zum Kurs am Kauftag.',
 	'rebalance.needs': 'Das Portfolio liegt außerhalb der Toleranz (max. Abweichung {dev} Prozentpunkte).',
 	'rebalance.ok': 'Das Portfolio liegt innerhalb der Toleranz (max. Abweichung {dev} Prozentpunkte).',
 	'unit.pp': 'PP',

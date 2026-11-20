@@ -220,7 +220,7 @@ const pl = {
 	'account.ikze': 'IKZE',
 	'rebalance.tax': 'Szacowany podatek',
 	'rebalance.taxDetail': 'zysk ze sprzedaży {gain}, stawka {rate}%',
-	'rebalance.taxNote': 'Szacunek według średniej ceny zakupu, bez opłat od sprzedaży i strat z wcześniejszych lat (urząd skarbowy liczy metodą FIFO).',
+	'rebalance.taxNote': 'Szacunek według średniej ceny zakupu, bez opłat od sprzedaży i strat z wcześniejszych lat (urząd skarbowy liczy metodą FIFO). Koszt zakupu w obcej walucie jest przeliczony po dzisiejszym kursie, nie po kursie z dnia zakupu.',
 	'rebalance.needs': 'Portfel wyszedł poza tolerancję (maks. odchylenie {dev} p.p.).',
 	'rebalance.ok': 'Portfel mieści się w tolerancji (maks. odchylenie {dev} p.p.).',
 	'unit.pp': 'p.p.',
