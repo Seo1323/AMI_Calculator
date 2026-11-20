@@ -327,6 +327,7 @@ const fr: Record<keyof typeof pl, string> = {
 	'error.notAnExport': "Ce n'est pas un fichier de sauvegarde AMI Calculator.",
 	'error.passphraseNeeded': 'Le fichier de synchronisation est chiffré : saisissez la phrase secrète et synchronisez à nouveau.',
 	'error.wrongPassphrase': 'Phrase secrète incorrecte ou fichier de synchronisation endommagé.',
+	'error.notSealed': "Le fichier de synchronisation n'est pas chiffré, alors que cet appareil a une phrase secrète. Quelqu'un a pu le remplacer : vérifiez le dossier.",
 	'error.unsupportedVersion': "Le fichier provient d'une version plus récente de l'application.",
 	'error.validation': 'Données invalides : {detail}',
 	'error.missingReference': "Un enregistrement lié n'existe pas.",

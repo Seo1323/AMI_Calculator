@@ -25,10 +25,10 @@ rust_decimal.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots", "http2", "charset"] }
 futures = "0.3"
 tauri = { version = "2", features = [] }
-tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util"] }
 rust_decimal_macros.workspace = true
+tempfile.workspace = true

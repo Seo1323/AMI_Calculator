@@ -327,6 +327,7 @@ const uk: Record<keyof typeof pl, string> = {
 	'error.notAnExport': 'Це не файл резервної копії AMI Calculator.',
 	'error.passphraseNeeded': 'Файл синхронізації зашифровано: введіть парольну фразу й синхронізуйте знову.',
 	'error.wrongPassphrase': 'Неправильна парольна фраза або пошкоджений файл синхронізації.',
+	'error.notSealed': 'Файл синхронізації не зашифровано, а на цьому пристрої задано парольну фразу. Хтось міг його підмінити: перевірте теку.',
 	'error.unsupportedVersion': 'Файл походить із новішої версії застосунку.',
 	'error.validation': 'Недійсні дані: {detail}',
 	'error.missingReference': 'Пов’язаного запису не існує.',

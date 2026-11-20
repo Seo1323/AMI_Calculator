@@ -23,9 +23,9 @@ const M_KIB: u32 = 19 * 1024;
 const T_COST: u32 = 2;
 const P_COST: u32 = 1;
 // What a file may ask of this device: a hostile file must not be able to exhaust memory or time.
-const MAX_M_KIB: u32 = 256 * 1024;
-const MAX_T_COST: u32 = 10;
-const MAX_P_COST: u32 = 4;
+const MAX_M_KIB: u32 = 64 * 1024;
+const MAX_T_COST: u32 = 4;
+const MAX_P_COST: u32 = 2;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -215,5 +215,22 @@ mod tests {
             r#"{"format":"ami-calculator-export","version":1}"#
         ));
         assert!(!is_sealed("not json"));
+    }
+
+    #[test]
+    fn short_or_empty_ciphertext_is_an_error_not_a_panic() {
+        let sealed = seal("data", "pw", None).unwrap();
+        for ct in ["", "AA=="] {
+            let cut = edit(&sealed, |v| v["ciphertext"] = ct.into());
+            assert!(
+                matches!(open(&cut, "pw"), Err(CoreError::WrongPassphrase)),
+                "{ct:?}"
+            );
+        }
+        assert_eq!(
+            open(&seal("", "pw", None).unwrap(), "pw").unwrap().plain,
+            "",
+            "empty text round-trips"
+        );
     }
 }

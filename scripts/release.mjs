@@ -32,7 +32,7 @@ try {
 	/* cargo not installed: CI regenerates Cargo.lock */
 }
 
-git('add', '-A');
+git('add', 'package.json', 'package-lock.json', 'Cargo.toml', 'Cargo.lock');
 git('commit', '-m', `Release v${version}`);
 git('tag', '-a', `v${version}`, '-m', `AMI_Calculator v${version}`);
 git('push');
