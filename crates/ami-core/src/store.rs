@@ -609,7 +609,8 @@ impl Store {
 
     // ----- value history -----
 
-    /// One value per portfolio and day: a later call the same day replaces the earlier one.
+    /// One value per portfolio and day: a later call the same day replaces the earlier one. An
+    /// unchanged value writes nothing (a view is computed, and recorded, on every page open).
     pub fn record_value(
         &self,
         portfolio_id: Uuid,
@@ -619,7 +620,8 @@ impl Store {
     ) -> Result<()> {
         self.conn.execute(
             "INSERT INTO value_history (portfolio_id, day, currency, value) VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT (portfolio_id, day) DO UPDATE SET currency = excluded.currency, value = excluded.value",
+             ON CONFLICT (portfolio_id, day) DO UPDATE SET currency = excluded.currency, value = excluded.value
+             WHERE currency IS NOT excluded.currency OR value IS NOT excluded.value",
             params![portfolio_id.to_string(), day.to_string(), currency.code(), value.to_string()],
         )?;
         Ok(())
@@ -1094,5 +1096,20 @@ mod tests {
             ..good
         };
         assert!(s.save_trade(free).is_ok());
+    }
+
+    #[test]
+    fn recording_the_same_value_twice_keeps_one_row_and_a_new_value_replaces_it() {
+        let s = Store::open_in_memory().unwrap();
+        let p = s.save(portfolio("IKE")).unwrap();
+        let pln = Currency::new("PLN").unwrap();
+        let day = NaiveDate::from_ymd_opt(2026, 11, 20).unwrap();
+        for v in [dec!(100), dec!(100), dec!(120)] {
+            s.record_value(p.meta.id, day, &pln, v).unwrap();
+        }
+        assert_eq!(
+            s.value_history(p.meta.id, &pln).unwrap(),
+            vec![(day, dec!(120))]
+        );
     }
 }

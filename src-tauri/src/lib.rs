@@ -315,6 +315,7 @@ fn run_sync(
     incoming: Option<&str>,
     passphrase: Option<&str>,
     allow_plain: bool,
+    rekey: Option<&str>,
 ) -> Result<SyncOutcome, CoreError> {
     let dir = state.data_dir.join(BACKUPS_DIR).join("sync");
     let mut store = state.store();
@@ -324,6 +325,7 @@ fn run_sync(
         incoming,
         passphrase,
         allow_plain,
+        rekey,
         |s| backup_now(s, &dir, "before-sync").map(drop),
     )
 }
@@ -336,12 +338,14 @@ fn sync_text(
     contents: Option<String>,
     passphrase: Option<String>,
     allow_plain: bool,
+    rekey: Option<String>,
 ) -> CmdResult<SyncOutcome> {
     Ok(run_sync(
         &state,
         contents.as_deref(),
         passphrase.as_deref(),
         allow_plain,
+        rekey.as_deref(),
     )?)
 }
 
@@ -360,8 +364,15 @@ fn sync_file(
     path: PathBuf,
     passphrase: Option<String>,
     allow_plain: bool,
+    rekey: Option<String>,
 ) -> CmdResult<SyncReport> {
-    Ok(sync_at(&state, &path, passphrase.as_deref(), allow_plain)?)
+    Ok(sync_at(
+        &state,
+        &path,
+        passphrase.as_deref(),
+        allow_plain,
+        rekey.as_deref(),
+    )?)
 }
 
 fn sync_at(
@@ -369,6 +380,7 @@ fn sync_at(
     path: &Path,
     passphrase: Option<&str>,
     allow_plain: bool,
+    rekey: Option<&str>,
 ) -> Result<SyncReport, CoreError> {
     // The path comes from the webview: it may only name a .ami file, so a script that got into
     // the page cannot make the app write the portfolio export wherever it likes.
@@ -392,7 +404,7 @@ fn sync_at(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(e.into()),
     };
-    let out = run_sync(state, text.as_deref(), passphrase, allow_plain)?;
+    let out = run_sync(state, text.as_deref(), passphrase, allow_plain, rekey)?;
     if let Some(json) = &out.outgoing {
         // Temp file + rename: a sync tool never uploads a half-written file.
         // The name is guessable: remove what is there and create it exclusively, so a planted
@@ -530,7 +542,7 @@ mod tests {
         let shared = a_dir.path().join("ami-sync.ami"); // a folder both devices can reach
         add_portfolio(&a, "IKE");
         assert!(
-            sync_at(&a, &shared, None, true).unwrap().wrote,
+            sync_at(&a, &shared, None, true, None).unwrap().wrote,
             "creates the missing file"
         );
         assert!(
@@ -539,7 +551,7 @@ mod tests {
         );
 
         add_portfolio(&b, "Konto B");
-        let r = sync_at(&b, &shared, None, true).unwrap();
+        let r = sync_at(&b, &shared, None, true, None).unwrap();
         assert_eq!((r.stats.inserted, r.wrote), (1, true));
         assert_eq!(names(&b), ["IKE", "Konto B"]);
         assert!(
@@ -547,10 +559,16 @@ mod tests {
             "safety copy before applying news"
         );
 
-        assert_eq!(sync_at(&a, &shared, None, true).unwrap().stats.inserted, 1);
+        assert_eq!(
+            sync_at(&a, &shared, None, true, None)
+                .unwrap()
+                .stats
+                .inserted,
+            1
+        );
         assert_eq!(names(&a), ["IKE", "Konto B"]);
         // Everything is in step now: a further round neither writes nor changes.
-        let again = sync_at(&b, &shared, None, true).unwrap();
+        let again = sync_at(&b, &shared, None, true, None).unwrap();
         assert_eq!((again.stats, again.wrote), (ImportStats::default(), false));
     }
 
@@ -560,7 +578,7 @@ mod tests {
         add_portfolio(&a, "IKE");
         let other = dir.path().join("notes.ami");
         fs::write(&other, "my shopping list").unwrap();
-        assert!(sync_at(&a, &other, None, true).is_err());
+        assert!(sync_at(&a, &other, None, true, None).is_err());
         assert_eq!(fs::read_to_string(&other).unwrap(), "my shopping list");
     }
 
@@ -570,7 +588,7 @@ mod tests {
         add_portfolio(&a, "IKE");
         let f = dir.path().join("new.ami");
         fs::write(&f, "").unwrap();
-        assert!(sync_at(&a, &f, None, true).unwrap().wrote);
+        assert!(sync_at(&a, &f, None, true, None).unwrap().wrote);
         assert!(
             fs::read_to_string(&f)
                 .unwrap()
@@ -644,7 +662,7 @@ mod tests {
         let (b, _b_dir) = device();
         let f = dir.path().join("ami-sync.ami");
         add_portfolio(&a, "Tajne IKE");
-        assert!(sync_at(&a, &f, Some("pw"), true).unwrap().wrote);
+        assert!(sync_at(&a, &f, Some("pw"), true, None).unwrap().wrote);
         assert!(
             !fs::read_to_string(&f).unwrap().contains("Tajne IKE"),
             "the folder only holds ciphertext"
@@ -652,7 +670,7 @@ mod tests {
 
         let before = fs::read_to_string(&f).unwrap();
         for pw in [None, Some("zle")] {
-            assert!(sync_at(&b, &f, pw, true).is_err());
+            assert!(sync_at(&b, &f, pw, true, None).is_err());
         }
         assert_eq!(
             fs::read_to_string(&f).unwrap(),
@@ -661,7 +679,13 @@ mod tests {
         );
         assert!(names(&b).is_empty());
 
-        assert_eq!(sync_at(&b, &f, Some("pw"), true).unwrap().stats.inserted, 1);
+        assert_eq!(
+            sync_at(&b, &f, Some("pw"), true, None)
+                .unwrap()
+                .stats
+                .inserted,
+            1
+        );
         assert_eq!(names(&b), ["Tajne IKE"]);
     }
 
@@ -671,11 +695,11 @@ mod tests {
         add_portfolio(&a, "IKE");
         for name in ["loot.txt", "no-extension"] {
             let f = dir.path().join(name);
-            assert!(sync_at(&a, &f, None, true).is_err(), "{name}");
+            assert!(sync_at(&a, &f, None, true, None).is_err(), "{name}");
             assert!(!f.exists(), "{name} must not be created");
         }
         assert!(
-            sync_at(&a, &dir.path().join("OK.AMI"), None, true).is_ok(),
+            sync_at(&a, &dir.path().join("OK.AMI"), None, true, None).is_ok(),
             "case does not matter"
         );
     }
@@ -685,7 +709,7 @@ mod tests {
         let (a, dir) = device();
         let f = dir.path().join("big.ami");
         fs::write(&f, vec![b'x'; ami_core::sync::MAX_FILE_BYTES + 1000]).unwrap();
-        assert!(sync_at(&a, &f, None, true).is_err());
+        assert!(sync_at(&a, &f, None, true, None).is_err());
     }
 
     #[cfg(unix)]
@@ -697,12 +721,37 @@ mod tests {
         fs::write(&victim, "precious").unwrap();
         let f = dir.path().join("ami-sync.ami");
         std::os::unix::fs::symlink(&victim, dir.path().join("ami-sync.ami.tmp")).unwrap();
-        assert!(sync_at(&a, &f, None, true).unwrap().wrote);
+        assert!(sync_at(&a, &f, None, true, None).unwrap().wrote);
         assert_eq!(fs::read_to_string(&victim).unwrap(), "precious");
         assert!(
             fs::read_to_string(&f)
                 .unwrap()
                 .contains("ami-calculator-export")
+        );
+    }
+
+    #[test]
+    fn the_passphrase_of_a_file_on_disk_can_be_changed() {
+        let (a, dir) = device();
+        let (b, _b_dir) = device();
+        let f = dir.path().join("ami-sync.ami");
+        add_portfolio(&a, "IKE");
+        sync_at(&a, &f, Some("old"), true, None).unwrap();
+        assert!(
+            sync_at(&a, &f, Some("old"), false, Some("new"))
+                .unwrap()
+                .wrote
+        );
+        assert!(
+            sync_at(&b, &f, Some("old"), true, None).is_err(),
+            "the old one no longer opens it"
+        );
+        assert_eq!(
+            sync_at(&b, &f, Some("new"), true, None)
+                .unwrap()
+                .stats
+                .inserted,
+            1
         );
     }
 }

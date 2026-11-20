@@ -21,7 +21,7 @@
 	import { PERF_MODES } from '$lib/perf';
 	import { perf } from '$lib/perf.svelte';
 	import { invoke, isTauri, type DataLocation, type ImportMode, type ImportReport } from '$lib/tauri';
-	import { sync, connect, disconnect, syncNow, setPassphrase } from '$lib/sync.svelte';
+	import { sync, connect, disconnect, syncNow, setPassphrase, changePassphrase } from '$lib/sync.svelte';
 
 	const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'];
 	let version = $state('');
@@ -65,6 +65,16 @@
 			messages = [t('settings.exported', { path })];
 		} catch (e) {
 			error = errorText(e);
+		}
+	}
+
+	let newPassphrase = $state('');
+	let keyChanged = $state(false);
+	async function changeKey() {
+		keyChanged = false;
+		if (await changePassphrase(newPassphrase)) {
+			newPassphrase = '';
+			keyChanged = true;
 		}
 	}
 
@@ -372,6 +382,18 @@
 				<button class="btn primary" disabled={sync.busy} onclick={syncNow}>{t('sync.now')}</button>
 				<button class="btn" onclick={disconnect}>{t('sync.disconnect')}</button>
 			</div>
+			{#if sync.sealed}
+				<div class="row">
+					<label class="field">
+						{t('sync.newPassphrase')}
+						<input type="password" autocomplete="new-password" bind:value={newPassphrase} />
+					</label>
+					<button class="btn" disabled={!newPassphrase || sync.busy} onclick={changeKey}>
+						{t('sync.changePassphrase')}
+					</button>
+				</div>
+				{#if keyChanged}<div class="notice">{t('sync.passphraseChanged')}</div>{/if}
+			{/if}
 		{:else}
 			<div class="row">
 				<button class="btn primary" onclick={() => pickSyncFile(true)}>{t('sync.create')}</button>
