@@ -58,7 +58,21 @@
 		<div><dt>{t('rebalance.totalBefore')}</dt><dd>{fmtMoney(result.totalBefore, currency)}</dd></div>
 		<div><dt>{t('rebalance.totalAfter')}</dt><dd>{fmtMoney(result.totalAfter, currency)}</dd></div>
 		<div><dt>{t('rebalance.cashLeft')}</dt><dd>{fmtMoney(result.cashLeft, currency)}</dd></div>
+		{#if result.tax && result.positions.some((p) => Number(p.unitsToTrade) < 0)}
+			<div>
+				<dt>{t('rebalance.tax')}</dt>
+				<dd>
+					{fmtMoney(result.tax.tax, currency)}
+					<span class="muted small">
+						({t('rebalance.taxDetail', { gain: fmtMoney(result.tax.realizedGain, currency), rate: fmtNumber(result.tax.ratePercent) })})
+					</span>
+				</dd>
+			</div>
+		{/if}
 	</dl>
+	{#if result.tax && result.positions.some((p) => Number(p.unitsToTrade) < 0)}
+		<p class="muted small">{t('rebalance.taxNote')}</p>
+	{/if}
 </section>
 
 <style>

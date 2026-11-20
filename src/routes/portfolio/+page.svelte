@@ -23,6 +23,7 @@
 		toDecimal,
 		today,
 		CAPITALIZATIONS,
+		type AccountType,
 		type Capitalization,
 		type FxRate,
 		type Instrument,
@@ -46,7 +47,7 @@
 	let rates: FxRate[] = $state([]);
 	let error = $state('');
 
-	const emptyPortfolio = () => ({ name: '', baseCurrency: settings.baseCurrency, tolerancePercent: '5' });
+	const emptyPortfolio = () => ({ name: '', baseCurrency: settings.baseCurrency, tolerancePercent: '5', accountType: 'regular' as AccountType });
 	const emptyInstrument = () => ({
 		id: undefined as string | undefined,
 		symbol: '',
@@ -498,6 +499,15 @@
 					{#each CURRENCIES as c (c)}<option value={c}>{c}</option>{/each}
 				</select>
 			</label>
+			<label class="field">
+				{t('account.type')}
+				<select bind:value={newPortfolio.accountType}>
+					<option value="regular">{t('account.regular')}</option>
+					<option value="ike">{t('account.ike')}</option>
+					<option value="ikze">{t('account.ikze')}</option>
+				</select>
+			</label>
+			
 			<label class="field">
 				{t('portfolio.tolerance')}: {fmtNumber(Number(newPortfolio.tolerancePercent) || 0)}
 				<input

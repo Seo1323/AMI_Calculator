@@ -28,10 +28,13 @@ export interface Instrument extends Meta {
 	maturityDate: string | null;
 }
 
+export type AccountType = 'regular' | 'ike' | 'ikze';
+
 export interface Portfolio extends Meta {
 	name: string;
 	baseCurrency: string;
 	tolerancePercent: string;
+	accountType: AccountType;
 }
 
 export interface Trade extends Meta {

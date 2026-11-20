@@ -13,7 +13,7 @@
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import { quotes as quoteState } from '$lib/quotes.svelte';
 	import RebalanceResultView from '$lib/components/RebalanceResultView.svelte';
-	import { toDecimal, today, type History, type Instrument, type Portfolio, type PortfolioView, type Trade } from '$lib/types';
+	import { toDecimal, today, type AccountType, type History, type Instrument, type Portfolio, type PortfolioView, type Trade } from '$lib/types';
 
 	const id = $derived(page.params.id ?? '');
 
@@ -34,7 +34,7 @@
 
 	// Portfolio name / tolerance
 	let editingDetails = $state(false);
-	let detailsForm = $state({ name: '', tolerance: '' });
+	let detailsForm = $state({ name: '', tolerance: '', accountType: 'regular' as AccountType });
 
 	// Rebalance
 	let mode: Mode = $state('buyOnly');
@@ -115,7 +115,7 @@
 
 	function startEditDetails() {
 		if (!view) return;
-		detailsForm = { name: view.portfolio.name, tolerance: view.portfolio.tolerancePercent };
+		detailsForm = { name: view.portfolio.name, tolerance: view.portfolio.tolerancePercent, accountType: view.portfolio.accountType };
 		editingDetails = true;
 	}
 
@@ -125,7 +125,8 @@
 			await db.save<Portfolio>('portfolio', {
 				...view.portfolio,
 				name: detailsForm.name.trim(),
-				tolerancePercent: toDecimal(detailsForm.tolerance)
+				tolerancePercent: toDecimal(detailsForm.tolerance),
+				accountType: detailsForm.accountType
 			});
 			editingDetails = false;
 			result = null;
@@ -186,6 +187,15 @@
 							<input bind:value={detailsForm.name} />
 						</label>
 						<label class="field">
+							{t('account.type')}
+							<select bind:value={detailsForm.accountType}>
+								<option value="regular">{t('account.regular')}</option>
+								<option value="ike">{t('account.ike')}</option>
+								<option value="ikze">{t('account.ikze')}</option>
+							</select>
+						</label>
+						
+						<label class="field">
 							{t('portfolio.tolerance')}: {fmtNumber(Number(detailsForm.tolerance) || 0)}
 							<input
 								type="range"
@@ -206,7 +216,9 @@
 							><Icon name="edit" size={16} /></button
 						>
 					</h1>
-					<div class="muted small">{t('portfolio.tolerance')}: {fmtNumber(view.portfolio.tolerancePercent)}</div>
+					<div class="muted small">
+						{t(`account.${view.portfolio.accountType}` as Parameters<typeof t>[0])} · {t('portfolio.tolerance')}: {fmtNumber(view.portfolio.tolerancePercent)}
+					</div>
 				{/if}
 				<div class="big">{fmtMoney(view.totalValue, currency)}</div>
 			</div>

@@ -78,6 +78,16 @@ pub struct PositionResult {
     pub deviation_after: Decimal,
 }
 
+/// Estimated tax on the sales in a result (filled in for stored portfolios only).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaxEstimate {
+    /// Gain (or loss) realized by the sales, in the base currency, losses netted against gains.
+    pub realized_gain: Decimal,
+    pub rate_percent: Decimal,
+    pub tax: Decimal,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RebalanceResult {
@@ -89,6 +99,8 @@ pub struct RebalanceResult {
     pub max_deviation_before: Decimal,
     pub needs_rebalance: bool,
     pub positions: Vec<PositionResult>,
+    #[serde(default)]
+    pub tax: Option<TaxEstimate>,
 }
 
 fn invalid(id: &str, reason: &str) -> CoreError {
@@ -307,6 +319,7 @@ pub fn compute(input: &RebalanceInput) -> Result<RebalanceResult> {
             && max_deviation_before > input.tolerance_percent,
         max_deviation_before,
         positions,
+        tax: None,
     })
 }
 
