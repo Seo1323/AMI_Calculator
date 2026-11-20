@@ -8,6 +8,8 @@
 	import { t, type MessageKey } from '$lib/i18n/index.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { startAutoRefresh } from '$lib/quotes.svelte';
+	import { sync, startSync } from '$lib/sync.svelte';
+	import { isTauri } from '$lib/tauri';
 	import { applyUiScale } from '$lib/uiScale';
 	import { perf, clearSlow, startWatching } from '$lib/perf.svelte';
 	import { perfActive } from '$lib/perf';
@@ -89,14 +91,17 @@
 		const onMotion = (e: MediaQueryListEvent) => (systemReducedMotion = e.matches);
 		media?.addEventListener('change', onDark);
 		motionQuery?.addEventListener('change', onMotion);
+		let stopSync = () => {};
 		hydrateSettings().then(() => {
 			ready = true;
+			if (isTauri()) stopSync = startSync();
 			// isRoot: the root page has an empty pathname under tauri://localhost (Linux, macOS).
 			if (isRoot(page.url.pathname) && settings.startPage !== '/') goto(settings.startPage, { replaceState: true });
 		});
 		return () => {
 			media?.removeEventListener('change', onDark);
 			motionQuery?.removeEventListener('change', onMotion);
+			stopSync();
 		};
 	});
 
@@ -212,7 +217,7 @@
 	</nav>
 
 	<main>
-		{#key page.url.pathname}
+		{#key `${page.url.pathname}:${sync.version}`}
 			<div class="page" in:fade={{ duration: animate ? 160 : 0 }}>
 				{@render children()}
 			</div>

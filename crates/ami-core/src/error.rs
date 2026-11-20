@@ -31,6 +31,10 @@ pub enum CoreError {
     NotFound,
     #[error("database version {0} is newer than this app supports")]
     DatabaseTooNew(i64),
+    #[error("the file is protected by a passphrase and none was given")]
+    PassphraseNeeded,
+    #[error("wrong passphrase, or the protected file is damaged")]
+    WrongPassphrase,
     #[error("sell on {date} exceeds the quantity held")]
     Oversold { date: String },
     #[error("missing price for {0}")]
@@ -61,6 +65,8 @@ impl CoreError {
             CoreError::MissingReference { .. } => "missingReference",
             CoreError::NotFound => "notFound",
             CoreError::DatabaseTooNew(_) => "databaseTooNew",
+            CoreError::PassphraseNeeded => "passphraseNeeded",
+            CoreError::WrongPassphrase => "wrongPassphrase",
             CoreError::Oversold { .. } => "oversold",
             CoreError::MissingPrice(_) => "missingPrice",
             CoreError::Provider(_) => "provider",

@@ -12,6 +12,8 @@ pub mod money;
 pub mod portfolio;
 pub mod providers;
 pub mod rebalance;
+pub mod seal;
 pub mod store;
+pub mod sync;
 
 pub use error::{CoreError, Result};
