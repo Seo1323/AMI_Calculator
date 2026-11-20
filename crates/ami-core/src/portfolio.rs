@@ -529,7 +529,9 @@ const BELKA_PERCENT: Decimal = Decimal::from_parts(19, 0, 0, false, 0);
 /// Tax on the sales of a rebalance: gain = sold units x (price - average cost), losses netted against
 /// gains, 19% of a positive total on an ordinary account, nothing on IKE/IKZE.
 /// shortcut: average cost instead of the FIFO the tax office uses, buy fees in the cost but no sell
-/// fees, no losses carried over from earlier trades; upgrade if the estimate must match the PIT-38.
+/// fees, no losses carried over from earlier trades, and the cost of a foreign-currency position is
+/// converted at today's rate instead of the rate of the purchase day (currency gains and losses are
+/// ignored); upgrade if the estimate must match the PIT-38.
 fn sales_tax(inp: &Inputs, result: &RebalanceResult) -> rebalance::TaxEstimate {
     let mut gain = Decimal::ZERO;
     for p in result

@@ -222,7 +222,7 @@ const fr: Record<keyof typeof pl, string> = {
 	'account.ikze': 'IKZE',
 	'rebalance.tax': 'Impôt estimé',
 	'rebalance.taxDetail': 'gain sur les ventes {gain}, taux {rate}%',
-	'rebalance.taxNote': 'Estimation au prix d\'achat moyen, sans frais de vente ni pertes des années précédentes (le fisc applique FIFO).',
+	'rebalance.taxNote': 'Estimation au prix d\'achat moyen, sans frais de vente ni pertes des années précédentes (le fisc applique FIFO). Le coût d\'achat en devise étrangère est converti au taux d\'aujourd\'hui, pas à celui du jour de l\'achat.',
 	'rebalance.needs': 'Le portefeuille est hors tolérance (écart max. {dev} pts).',
 	'rebalance.ok': 'Le portefeuille est dans la tolérance (écart max. {dev} pts).',
 	'unit.pp': 'pts',
