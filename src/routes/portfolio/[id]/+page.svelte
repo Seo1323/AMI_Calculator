@@ -5,17 +5,19 @@
 	import { db } from '$lib/db';
 	import { invoke, isTauri, type Mode, type RebalanceResult } from '$lib/tauri';
 	import Icon from '$lib/components/Icon.svelte';
+	import HistoryChart from '$lib/components/HistoryChart.svelte';
 	import AllocationPie from '$lib/components/AllocationPie.svelte';
 	import TargetSliders from '$lib/components/TargetSliders.svelte';
 	import { fromSaved, fromUnits, type TargetRow } from '$lib/targets';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import { quotes as quoteState } from '$lib/quotes.svelte';
 	import RebalanceResultView from '$lib/components/RebalanceResultView.svelte';
-	import { toDecimal, today, type Instrument, type Portfolio, type PortfolioView, type Trade } from '$lib/types';
+	import { toDecimal, today, type History, type Instrument, type Portfolio, type PortfolioView, type Trade } from '$lib/types';
 
 	const id = $derived(page.params.id ?? '');
 
 	let view = $state<PortfolioView | null>(null);
+	let history = $state<History | null>(null);
 	let instruments: Instrument[] = $state([]);
 	let trades: Trade[] = $state([]);
 	let error = $state('');
@@ -60,13 +62,16 @@
 
 	async function load() {
 		const wanted = id;
-		const [v, all, allTrades] = await Promise.all([
-			invoke<PortfolioView>('portfolio_view', { id }),
+		// The view is awaited first: it records today's value, which the history then includes.
+		const v = await invoke<PortfolioView>('portfolio_view', { id });
+		const [h, all, allTrades] = await Promise.all([
+			invoke<History>('portfolio_history', { id }),
 			db.list<Instrument>('instrument'),
 			db.list<Trade>('trade')
 		]);
 		if (wanted !== id) return; // the user moved to another portfolio while this was loading
 		view = v;
+		history = h;
 		instruments = all.sort((a, b) => a.symbol.localeCompare(b.symbol));
 		trades = allTrades
 			.filter((x) => x.portfolioId === id)
@@ -247,6 +252,13 @@
 				unvalued={view.positions.filter((p) => p.value === null && Number(p.quantity) > 0).length}
 			/>
 		</section>
+
+		{#if history && (history.values.length || history.invested.length)}
+			<section class="card stack">
+				<h2>{t('history.title')}</h2>
+				<HistoryChart values={history.values} invested={history.invested} {currency} />
+			</section>
+		{/if}
 
 		<!-- Positions & targets -->
 		<section class="card stack">

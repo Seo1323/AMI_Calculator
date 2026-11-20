@@ -238,6 +238,17 @@ CREATE TABLE fx_rates (
     fetched_at TEXT NOT NULL
 );
 "#,
+    // Daily portfolio value, written when the app computes a complete valuation. Not part of `.ami`
+    // backups: it can only be recorded, never rebuilt.
+    r#"
+CREATE TABLE value_history (
+    portfolio_id TEXT NOT NULL,
+    day          TEXT NOT NULL,
+    currency     TEXT NOT NULL,
+    value        TEXT NOT NULL,
+    PRIMARY KEY (portfolio_id, day)
+);
+"#,
 ];
 
 /// Fixed-width UTC timestamps so string comparison equals time comparison.
@@ -583,6 +594,48 @@ impl Store {
             table.set(r.currency, r.rate_pln);
         }
         Ok(table)
+    }
+
+    // ----- value history -----
+
+    /// One value per portfolio and day: a later call the same day replaces the earlier one.
+    pub fn record_value(
+        &self,
+        portfolio_id: Uuid,
+        day: chrono::NaiveDate,
+        currency: &crate::money::Currency,
+        value: rust_decimal::Decimal,
+    ) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO value_history (portfolio_id, day, currency, value) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT (portfolio_id, day) DO UPDATE SET currency = excluded.currency, value = excluded.value",
+            params![portfolio_id.to_string(), day.to_string(), currency.code(), value.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// Recorded values in `currency`, oldest first (days recorded in another base currency are skipped).
+    pub fn value_history(
+        &self,
+        portfolio_id: Uuid,
+        currency: &crate::money::Currency,
+    ) -> Result<Vec<(chrono::NaiveDate, rust_decimal::Decimal)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT day, value FROM value_history WHERE portfolio_id = ?1 AND currency = ?2 ORDER BY day",
+        )?;
+        let rows = stmt.query_map(params![portfolio_id.to_string(), currency.code()], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?;
+        rows.map(|r| {
+            let (d, v) = r?;
+            Ok((
+                d.parse()
+                    .map_err(|_| CoreError::Validation(format!("bad day {d}")))?,
+                v.parse()
+                    .map_err(|_| CoreError::Validation(format!("bad value {v}")))?,
+            ))
+        })
+        .collect()
     }
 
     // ----- portfolio helpers -----

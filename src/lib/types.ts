@@ -130,3 +130,8 @@ export interface Dashboard {
 	missingRates: string[];
 	portfolios: PortfolioTile[];
 }
+
+export interface History {
+	values: { day: string; value: string }[];
+	invested: { day: string; value: string }[];
+}

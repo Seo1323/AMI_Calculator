@@ -406,6 +406,86 @@ fn build_view(inp: Inputs) -> PortfolioView {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryPoint {
+    pub day: chrono::NaiveDate,
+    pub value: Decimal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct History {
+    /// Portfolio value, one point per day the app computed it (starts when recording started).
+    pub values: Vec<HistoryPoint>,
+    /// Money put in so far (buys plus fees minus sales), from the trade history, per trade date.
+    /// Converted at today's rates; empty when a rate is missing.
+    pub invested: Vec<HistoryPoint>,
+}
+
+/// Stores today's value of a fully valued portfolio (called whenever a view is computed).
+pub fn record_today(store: &Store, v: &PortfolioView) -> Result<()> {
+    let complete = v.problem.is_none()
+        && v.missing_prices.is_empty()
+        && v.missing_rates.is_empty()
+        && v.total_value > Decimal::ZERO;
+    if complete {
+        let day = chrono::Local::now().date_naive();
+        store.record_value(
+            v.portfolio.meta.id,
+            day,
+            &v.portfolio.base_currency,
+            v.total_value,
+        )?;
+    }
+    Ok(())
+}
+
+pub fn history(store: &Store, portfolio_id: Uuid) -> Result<History> {
+    let p = store
+        .get::<Portfolio>(portfolio_id)?
+        .ok_or(CoreError::NotFound)?;
+    let values = store
+        .value_history(portfolio_id, &p.base_currency)?
+        .into_iter()
+        .map(|(day, value)| HistoryPoint { day, value })
+        .collect();
+
+    let currencies: HashMap<Uuid, crate::money::Currency> = store
+        .list::<Instrument>()?
+        .into_iter()
+        .map(|i| (i.meta.id, i.currency))
+        .collect();
+    let fx = store.fx_table()?;
+    let mut trades = store.trades_of(portfolio_id)?;
+    trades.sort_by_key(|t| t.date);
+    let mut invested: Vec<HistoryPoint> = Vec::new();
+    let mut total = Decimal::ZERO;
+    for t in &trades {
+        let flow = match t.side {
+            TradeSide::Buy => t.quantity * t.price + t.fee,
+            TradeSide::Sell => -(t.quantity * t.price - t.fee),
+        };
+        let converted = currencies.get(&t.instrument_id).and_then(|c| {
+            fx.convert(&Money::new(flow, c.clone()), &p.base_currency)
+                .ok()
+        });
+        let Some(m) = converted else {
+            invested.clear();
+            break;
+        };
+        total += m.amount;
+        match invested.last_mut() {
+            Some(last) if last.day == t.date => last.value = total.round_dp(2),
+            _ => invested.push(HistoryPoint {
+                day: t.date,
+                value: total.round_dp(2),
+            }),
+        }
+    }
+    Ok(History { values, invested })
+}
+
 /// Rebalance a stored portfolio. Result position ids are instrument ids.
 pub fn rebalance(
     store: &Store,

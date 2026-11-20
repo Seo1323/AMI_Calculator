@@ -66,7 +66,15 @@ fn db_delete(state: State<'_, AppState>, kind: EntityKind, id: Uuid) -> CmdResul
 
 #[tauri::command]
 fn portfolio_view(state: State<'_, AppState>, id: Uuid) -> CmdResult<PortfolioView> {
-    Ok(portfolio::view(&state.store(), id)?)
+    let store = state.store();
+    let v = portfolio::view(&store, id)?;
+    portfolio::record_today(&store, &v)?;
+    Ok(v)
+}
+
+#[tauri::command]
+fn portfolio_history(state: State<'_, AppState>, id: Uuid) -> CmdResult<portfolio::History> {
+    Ok(portfolio::history(&state.store(), id)?)
 }
 
 #[tauri::command]
@@ -334,6 +342,7 @@ pub fn run() {
             db_delete,
             dashboard,
             portfolio_view,
+            portfolio_history,
             portfolio_rebalance,
             portfolio_set_targets,
             quote_set,

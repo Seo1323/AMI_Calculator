@@ -76,6 +76,7 @@ pub fn build(store: &Store, currency: &Currency) -> Result<Dashboard> {
     list.sort_by(|a, b| a.name.cmp(&b.name));
     for p in list {
         let v = portfolio::view(store, p.meta.id)?;
+        portfolio::record_today(store, &v)?;
         let base = &v.portfolio.base_currency;
         let value = convert(v.total_value, base);
         let gain = convert(v.total_gain, base);
@@ -262,5 +263,68 @@ mod tests {
         let d = build(&s, &pln).unwrap();
         assert_eq!(d.avg_interest_percent, Some(dec!(3)));
         assert_eq!(d.portfolios[0].avg_interest_percent, Some(dec!(3)));
+    }
+
+    #[test]
+    fn history_records_one_value_per_day_and_tracks_invested() {
+        let s = Store::open_in_memory().unwrap();
+        let pln = Currency::new("PLN").unwrap();
+        let p = s
+            .save(Portfolio {
+                meta: Meta::new(),
+                name: "P".into(),
+                base_currency: pln.clone(),
+                tolerance_percent: dec!(5),
+            })
+            .unwrap();
+        let i = s
+            .save(Instrument {
+                meta: Meta::new(),
+                symbol: "X".into(),
+                name: "x".into(),
+                kind: InstrumentKind::Etf,
+                currency: pln.clone(),
+                quote_source: QuoteSource::Manual,
+                fractional: false,
+                interest_percent: None,
+                capitalization: None,
+                start_date: None,
+                maturity_date: None,
+            })
+            .unwrap();
+        for (day, side, qty) in [
+            (1, TradeSide::Buy, dec!(10)),
+            (1, TradeSide::Buy, dec!(5)),
+            (5, TradeSide::Sell, dec!(3)),
+        ] {
+            s.save(Trade {
+                meta: Meta::new(),
+                portfolio_id: p.meta.id,
+                instrument_id: i.meta.id,
+                date: NaiveDate::from_ymd_opt(2026, 11, day).unwrap(),
+                side,
+                quantity: qty,
+                price: dec!(100),
+                fee: dec!(0),
+            })
+            .unwrap();
+        }
+        s.set_quote(&Quote {
+            instrument_id: i.meta.id,
+            price: dec!(110),
+            currency: pln.clone(),
+            source: "manual".into(),
+            fetched_at: Utc::now(),
+            return_12m_percent: None,
+            dividend_yield_percent: None,
+        })
+        .unwrap();
+        build(&s, &pln).unwrap();
+        build(&s, &pln).unwrap(); // same day: still one row
+        let h = portfolio::history(&s, p.meta.id).unwrap();
+        assert_eq!(h.values.len(), 1);
+        assert_eq!(h.values[0].value, dec!(1320)); // 12 units x 110
+        let inv: Vec<_> = h.invested.iter().map(|x| x.value).collect();
+        assert_eq!(inv, [dec!(1500), dec!(1200)]);
     }
 }
