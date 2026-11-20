@@ -84,6 +84,7 @@ npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 | 14 | Więcej opcji wyglądu (Ustawienia → Wygląd): czcionka (domyślna, szeryfowa, monospace), cienie kart (brak, delikatne, wyraźne), styl ciemnego motywu (miękki, czarny AMOLED), szerokość treści, poświata akcentu w tle, paleta dla daltonistów, grosze w kwotach. Działa przez atrybuty `data-*` na `<html>` i zmienne CSS (`src/app.css`, efekt w `+layout.svelte`), nowe pola w `settings.svelte.ts` (nieznana wartość wraca do domyślnej) | 0.4.7 (PR #17) |
 | 15 | Średnie oprocentowanie ważone wartością (pulpit, lista portfeli, widok portfela) | 0.5.0 (PR #24) |
 | 16 | Historia wartości: tabela `value_history` (migracja 3, raz dziennie przy kompletnej wycenie, poza kopią `.ami`), linia „Wpłacone” z transakcji, wykres `HistoryChart` na stronie portfela | 0.5.0 (PR #25) |
+| 17 | Rebalansowanie z podatkiem: typ rachunku portfela (zwykły / IKE / IKZE, `AccountType`), szacowany podatek Belki 19% od zysku ze sprzedaży w wyniku rebalansowania (`sales_tax`, uproszczenie: średnia cena zamiast FIFO, bez strat z poprzednich lat, bez opłat od sprzedaży) | niewydane |
 
 (Etap 3, budżet domowy, był w 0.2.0 i 0.3.0, a w 0.4.0 został usunięty.)
 
@@ -108,7 +109,7 @@ Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podp
 3. **Android (etap 6)**: przycisk „wstecz”, bezpieczne marginesy, wygląd na małym ekranie, test na emulatorze lub telefonie (w tym eksport/import `.ami` i CSV), odświeżanie kursów w tle.
 4. **Windows**: instalator był tylko budowany w CI, nigdy uruchomiony. Poprosić o test na prawdziwym Windowsie. SmartScreen pokaże ostrzeżenie (brak płatnego certyfikatu).
 5. **Linux**: przetestować AppImage i deb (do tej pory uruchamiany był tylko plik z `target/`).
-6. **Z pierwotnego planu, jeszcze nie ma**: rebalansowanie z podatkiem (IKE/IKZE/zwykły rachunek).
+6. **Z pierwotnego planu, jeszcze nie ma**: nic (import CSV odrzucony, rebalansowanie z podatkiem zrobione w etapie 17).
 7. **Drobne**: pole daty pokazuje format amerykański (ustawienia systemu WebKit), wąskie okno wymaga przewijania tabel w bok.
 8. **Później**: synchronizacja między urządzeniami; upublicznienie repozytorium (licencja, README ze zrzutami ekranu, certyfikat podpisu Windows, ewentualnie automatyczne aktualizacje).
 

@@ -809,6 +809,7 @@ mod tests {
             name: name.into(),
             base_currency: Currency::new("PLN").unwrap(),
             tolerance_percent: dec!(5.5),
+            account_type: AccountType::default(),
         }
     }
 

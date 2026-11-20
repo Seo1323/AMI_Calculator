@@ -106,6 +106,19 @@ pub struct Instrument {
     pub maturity_date: Option<NaiveDate>,
 }
 
+/// Tax wrapper of the account the portfolio lives in: decides whether selling is taxed.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountType {
+    /// Ordinary brokerage account: 19% tax on realized gains.
+    #[default]
+    Regular,
+    /// IKE: no tax on selling inside the account.
+    Ike,
+    /// IKZE: no tax on selling inside the account (tax is due on withdrawal, not modelled).
+    Ikze,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Portfolio {
@@ -115,6 +128,9 @@ pub struct Portfolio {
     pub base_currency: Currency,
     /// Allowed drift in percentage points before a rebalance is suggested.
     pub tolerance_percent: Decimal,
+    /// Missing in data saved before 0.5.1: an ordinary account.
+    #[serde(default)]
+    pub account_type: AccountType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -259,5 +275,15 @@ mod tests {
             v["capitalization"].is_null(),
             "the frontend reads null as 'none'"
         );
+    }
+
+    #[test]
+    fn portfolio_saved_before_account_types_is_an_ordinary_account() {
+        let json = serde_json::json!({
+            "id": Uuid::nil(), "createdAt": "2026-11-01T00:00:00Z", "updatedAt": "2026-11-01T00:00:00Z",
+            "name": "Stary", "baseCurrency": "PLN", "tolerancePercent": "5"
+        });
+        let p: Portfolio = serde_json::from_value(json).unwrap();
+        assert_eq!(p.account_type, AccountType::Regular);
     }
 }

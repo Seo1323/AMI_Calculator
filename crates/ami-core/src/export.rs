@@ -92,6 +92,7 @@ mod tests {
             name: "IKE".into(),
             base_currency: Currency::new("PLN").unwrap(),
             tolerance_percent: dec!(5.5),
+            account_type: AccountType::default(),
         });
         data.settings = serde_json::json!({ "theme": "dark" });
         let json = ExportBundle::new("0.1.0", data).to_json().unwrap();

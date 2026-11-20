@@ -48,6 +48,8 @@ export interface RebalanceResult {
 	maxDeviationBefore: string;
 	needsRebalance: boolean;
 	positions: PositionResult[];
+	/** Only for stored portfolios: tax on the sales (see `TaxEstimate` in Rust). */
+	tax?: { realizedGain: string; ratePercent: string; tax: string } | null;
 }
 
 export type ImportMode = 'replace' | 'merge';

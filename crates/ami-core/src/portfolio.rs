@@ -512,13 +512,59 @@ pub fn rebalance(
             fractional: instrument.fractional,
         });
     }
-    rebalance::compute(&RebalanceInput {
+    let mut result = rebalance::compute(&RebalanceInput {
         positions,
         contribution,
         mode,
         tolerance_percent: inp.portfolio.tolerance_percent,
         fraction_decimals: 8,
-    })
+    })?;
+    result.tax = Some(sales_tax(&inp, &result));
+    Ok(result)
+}
+
+/// Polish capital gains tax rate on an ordinary account.
+const BELKA_PERCENT: Decimal = Decimal::from_parts(19, 0, 0, false, 0);
+
+/// Tax on the sales of a rebalance: gain = sold units x (price - average cost), losses netted against
+/// gains, 19% of a positive total on an ordinary account, nothing on IKE/IKZE.
+/// shortcut: average cost instead of the FIFO the tax office uses, buy fees in the cost but no sell
+/// fees, no losses carried over from earlier trades; upgrade if the estimate must match the PIT-38.
+fn sales_tax(inp: &Inputs, result: &RebalanceResult) -> rebalance::TaxEstimate {
+    let mut gain = Decimal::ZERO;
+    for p in result
+        .positions
+        .iter()
+        .filter(|p| p.units_to_trade < Decimal::ZERO)
+    {
+        let Some((id, h)) = Uuid::parse_str(&p.id)
+            .ok()
+            .and_then(|id| inp.holdings.get(&id).map(|h| (id, h)))
+        else {
+            continue;
+        };
+        let (Some(price), Some(cost)) = (
+            inp.price_in_base(id),
+            inp.instruments
+                .get(&id)
+                .and_then(|i| inp.to_base(h.cost, &i.currency)),
+        ) else {
+            continue;
+        };
+        let Some(avg) = cost.checked_div(h.quantity) else {
+            continue;
+        };
+        gain += -p.units_to_trade * (price - avg);
+    }
+    let rate = match inp.portfolio.account_type {
+        AccountType::Regular => BELKA_PERCENT,
+        AccountType::Ike | AccountType::Ikze => Decimal::ZERO,
+    };
+    rebalance::TaxEstimate {
+        realized_gain: gain.round_dp(2),
+        rate_percent: rate,
+        tax: (gain.max(Decimal::ZERO) * rate / HUNDRED).round_dp(2),
+    }
 }
 
 #[cfg(test)]
@@ -620,6 +666,7 @@ mod tests {
                 name: "IKE".into(),
                 base_currency: pln.clone(),
                 tolerance_percent: dec!(5),
+                account_type: AccountType::default(),
             })
             .unwrap();
         let mk = |symbol: &str, kind, currency: &str, fractional| Instrument {
@@ -722,6 +769,7 @@ mod tests {
                 name: "Gotówka".into(),
                 base_currency: Currency::new("PLN").unwrap(),
                 tolerance_percent: dec!(5),
+                account_type: AccountType::default(),
             })
             .unwrap();
         let cash = store
@@ -899,6 +947,7 @@ mod tests {
                 name: "Obligacje".into(),
                 base_currency: Currency::new("PLN").unwrap(),
                 tolerance_percent: dec!(5),
+                account_type: AccountType::default(),
             })
             .unwrap();
         let bond = store
@@ -1010,6 +1059,7 @@ mod tests {
                 name: "Trzy".into(),
                 base_currency: Currency::new("PLN").unwrap(),
                 tolerance_percent: dec!(5),
+                account_type: AccountType::default(),
             })
             .unwrap();
         for (kind, symbol) in [
@@ -1084,6 +1134,48 @@ mod tests {
             .find(|p| p.id == f.btc.meta.id.to_string())
             .unwrap();
         assert_eq!(btc.units_to_trade, dec!(0.0025));
+    }
+
+    #[test]
+    fn sales_are_taxed_on_an_ordinary_account_only() {
+        let f = fixture();
+        let id = f.portfolio.meta.id;
+        f.store
+            .set_fx_rate(&FxRate {
+                currency: Currency::new("EUR").unwrap(),
+                rate_pln: dec!(4),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
+            .unwrap();
+        // ETF bought at 100 EUR, now 150 EUR: 10 units cost 4000 PLN, worth 6000 PLN.
+        f.store
+            .set_quote(&quote(f.etf.meta.id, dec!(150), "EUR"))
+            .unwrap();
+        f.store
+            .set_quote(&quote(f.btc.meta.id, dec!(400000), "PLN"))
+            .unwrap();
+        f.store
+            .set_targets(id, &[(f.etf.meta.id, dec!(50)), (f.btc.meta.id, dec!(50))])
+            .unwrap();
+        // Selling 5 units (3000 PLN) realizes 5 x (600 - 400) = 1000 PLN: 19% is 190.
+        let t = rebalance(&f.store, id, dec!(0), Mode::Full)
+            .unwrap()
+            .tax
+            .unwrap();
+        assert_eq!(
+            (t.realized_gain, t.rate_percent, t.tax),
+            (dec!(1000), dec!(19), dec!(190))
+        );
+
+        let mut ike = f.portfolio.clone();
+        ike.account_type = AccountType::Ike;
+        f.store.save(ike).unwrap();
+        let t = rebalance(&f.store, id, dec!(0), Mode::Full)
+            .unwrap()
+            .tax
+            .unwrap();
+        assert_eq!((t.realized_gain, t.tax), (dec!(1000), dec!(0)));
     }
 
     #[test]

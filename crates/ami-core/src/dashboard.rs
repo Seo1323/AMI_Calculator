@@ -141,6 +141,7 @@ mod tests {
                     name: name.into(),
                     base_currency: cur.clone(),
                     tolerance_percent: dec!(5),
+                    account_type: AccountType::default(),
                 })
                 .unwrap();
             let i = s
@@ -207,6 +208,7 @@ mod tests {
                 name: "P".into(),
                 base_currency: pln.clone(),
                 tolerance_percent: dec!(5),
+                account_type: AccountType::default(),
             })
             .unwrap();
         // 1000 at 6% + 3000 at 2% = 3% overall; the unrated ETF must not count.
@@ -275,6 +277,7 @@ mod tests {
                 name: "P".into(),
                 base_currency: pln.clone(),
                 tolerance_percent: dec!(5),
+                account_type: AccountType::default(),
             })
             .unwrap();
         let i = s
