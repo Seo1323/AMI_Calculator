@@ -58,6 +58,7 @@ const de: Record<keyof typeof pl, string> = {
 	'portfolio.create': 'Portfolio anlegen',
 	'portfolio.value': 'Wert',
 	'portfolio.gain': 'Gewinn / Verlust',
+	'portfolio.avgInterest': 'Durchschnittszins',
 	'portfolio.delete': 'Portfolio löschen',
 	'portfolio.deleteConfirm': 'Portfolio „{name}“ löschen? Die zugehörigen Transaktionen werden nicht mehr angezeigt.',
 	'portfolio.drift': 'Abweichung: {dev} Prozentpunkte',

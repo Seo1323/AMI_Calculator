@@ -58,6 +58,7 @@ const uk: Record<keyof typeof pl, string> = {
 	'portfolio.create': 'Створити портфель',
 	'portfolio.value': 'Вартість',
 	'portfolio.gain': 'Прибуток / збиток',
+	'portfolio.avgInterest': 'Середня ставка',
 	'portfolio.delete': 'Видалити портфель',
 	'portfolio.deleteConfirm': 'Видалити портфель «{name}»? Його операції більше не відображатимуться.',
 	'portfolio.drift': 'Відхилення: {dev} в. п.',

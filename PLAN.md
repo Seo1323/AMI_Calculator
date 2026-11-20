@@ -1,6 +1,6 @@
 # AMI_Calculator: plan wdrożenia
 
-Stan na 2026-11-19 (wydanie 0.4.7). Plik czyta Claude Code na początku sesji (patrz `CLAUDE.md`). Po każdym etapie zaktualizuj sekcje „Zrobione” i „Do zrobienia”.
+Stan na 2026-11-20 (wydanie 0.4.9). Plik czyta Claude Code na początku sesji (patrz `CLAUDE.md`). Po każdym etapie zaktualizuj sekcje „Zrobione” i „Do zrobienia”.
 
 ## 1. Co robimy
 
@@ -94,7 +94,7 @@ Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podp
    - Cena pozycji z kursu to **cena bieżąca**: przy wpisaniu wcześniejszej daty zakupu trzeba poprawić ją ręcznie (aplikacja nie ma kursów historycznych).
    - **Wydajność (etap 13):** zmierzono tylko ekran 60 Hz (eDP-1). Właściciel ma monitor 240 Hz: po podłączeniu zmierzyć przewijanie (budżet klatki ok. 4 ms) i sprawdzić, czy tryb wydajny nie jest potrzebny; automatyczne wykrywanie reaguje dopiero poniżej ok. 22 fps. Przełączenie na XWayland sprawdzono tylko na niri. Jak mierzyć: wbudowany benchmark przewijania z gałęzi `bench/frames` (usunięta, odtwarzalna: rAF, okno szerokie, dpr z `window.devicePixelRatio`).
    - **Zużycie zasobów (pomiar 2026-11-19, release z etapu 13, niri/XWayland, PSS):** jałowo ok. 210 MB (proces Rusta 61, WebProcess 121, NetworkProcess 28), CPU ok. 0%; portfel z 60 pozycjami ok. 220 MB. Większość to WebKit, kodu aplikacji nie opłaca się już odchudzać. Sprawdzone i odrzucone: `WEBKIT_DISABLE_DMABUF_RENDERER=1` (-30 MB RAM, ale CPU przy przewijaniu 10 razy większe), tryb wydajny (przy działającym GL bez różnicy w CPU, więc cienie i przejścia nic nie kosztują), `MALLOC_ARENA_MAX=2` (bez efektu). Debugowy plik z `npm run tauri dev` zużywa ok. 390 MB: do codziennego używania budować release. Jak mierzyć: uruchomić z `XDG_*` na katalog tymczasowy, odczytać `Pss` z `/proc/<pid>/smaps_rollup` dla aplikacji i jej dzieci; przewijanie przez `xdotool click 5` w oknie XWayland, zrzut przez `niri msg action screenshot-window --id` (id okna o `app_id` dokładnie `Ami-calculator`, nie `ami-calculator`, to okno właściciela).
-   - Oprocentowanie i kapitalizacja są tylko zapisywane i wyświetlane w tabeli instrumentów; **nie powiększają wartości portfela** ani nie są pokazane w widoku portfela i na pulpicie (pomysł: średnie ważone oprocentowanie).
+   - Oprocentowanie i kapitalizacja są tylko zapisywane i wyświetlane w tabeli instrumentów; **nie powiększają wartości portfela**. Średnie oprocentowanie ważone wartością (tylko pozycje z ręcznym oprocentowaniem: obligacje, gotówka, lokaty; ETF-y i akcje bez stopy nie liczą się) jest na pulpicie, liście portfeli i w widoku portfela (`avg_interest_percent`, niewydane).
    - Stawka z oferty MF to stawka **pierwszego okresu**; kolejne okresy zależą od inflacji lub stopy NBP. Podpowiedź działa tylko dla obligacji kupionych w miesiącu oferty.
    - Migawka ofert w `src/lib/bondOffers.ts` (listopad 2026) jest zapasem bez sieci; odświeżać przy wydaniach. Gdy MF zmieni układ strony, parser zgłosi serię jako pominiętą i formularz poprosi o ręczne oprocentowanie (testy: fixtures w `crates/ami-core/tests/fixtures/`).
    - Limit rozmiaru odpowiedzi HTTP (4 MiB), polityka przekierowań dla obligacji i kody HTTP mają testy na lokalnym serwerze (`fetch.rs`). Odświeżenie kursów nie kasuje już znanych wartości 12 mies. i dywidendy, gdy dostawca ich nie zwrócił.
