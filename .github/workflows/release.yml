@@ -89,6 +89,8 @@ jobs:
       - run: npm ci
       - name: Generate Android project
         run: test -d src-tauri/gen/android || npm run tauri android init -- --ci
+      - name: Apply system bar insets
+        run: cp scripts/android/MainActivity.kt src-tauri/gen/android/app/src/main/java/com/seo1323/amicalculator/MainActivity.kt
       - name: Configure signing
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
