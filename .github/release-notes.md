@@ -1,3 +1,10 @@
+## Co nowego w 0.5.2
+- **Instalator Windows po polsku i z marką**: kreator, strona „Już zainstalowany”, komunikaty i deinstalator są po polsku (gdy system Windows jest po polsku, w innych przypadkach po angielsku), z panelem bocznym i ikoną aplikacji zamiast domyślnej grafiki NSIS. Pole „Usuń też dane aplikacji” w deinstalatorze jest domyślnie odznaczone, a ponowna instalacja nie kasuje danych.
+- **Android: okna potwierdzenia** mają przyciski „Anuluj” i „OK” w języku aplikacji, a długa ścieżka kopii przed importem zawija się zamiast wychodzić poza ekran.
+- **Karta „Skróty klawiszowe”** nie pokazuje się na telefonie (nie ma tam klawiatury), a jej zakres to teraz Alt + 1…4, tak jak działają skróty.
+- **Podatek przy rebalansowaniu**: uwaga pod szacunkiem mówi też, że koszt zakupu w obcej walucie jest liczony po dzisiejszym kursie, nie po kursie z dnia zakupu (różnice kursowe są pomijane).
+- **Do wiedzenia**: wybór języka instalatora według systemu (polski albo angielski) sprawdzono tylko na wersji z samym polskim, na angielskim Windowsie. Natywne okna potwierdzenia na Windowsie mają przyciski w języku systemu. Tłumaczenie nowego tekstu „OK” (de/es/fr/uk) nie było sprawdzone przez osobę znającą język.
+
 ## Co nowego w 0.5.1
 - **Rebalansowanie z podatkiem**: portfel ma teraz typ rachunku (zwykły, IKE, IKZE), wybierany przy zakładaniu i w edycji portfela. Gdy wynik rebalansowania zawiera sprzedaż, aplikacja pokazuje szacowany podatek (19% od zysku ze sprzedaży, straty na jednych pozycjach pomniejszają zyski na innych; na IKE i IKZE 0). Stare portfele traktowane są jak zwykły rachunek.
 - **Android: marginesy.** Dolne menu nie nachodzi już na pasek gestów, a treść zaczyna się pod paskiem stanu, także na telefonach bez wycięcia na kamerę. Marginesy uwzględniają też klawiaturę ekranową.

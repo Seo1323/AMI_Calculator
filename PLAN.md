@@ -1,6 +1,6 @@
 # AMI_Calculator: plan wdrożenia
 
-Stan na 2026-11-20 (wydanie 0.5.1). Plik czyta Claude Code na początku sesji (patrz `CLAUDE.md`). Po każdym etapie zaktualizuj sekcje „Zrobione” i „Do zrobienia”.
+Stan na 2026-11-20 (wydanie 0.5.2). Plik czyta Claude Code na początku sesji (patrz `CLAUDE.md`). Po każdym etapie zaktualizuj sekcje „Zrobione” i „Do zrobienia”.
 
 ## 1. Co robimy
 
@@ -94,11 +94,11 @@ npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 | 16 | Historia wartości: tabela `value_history` (migracja 3, raz dziennie przy kompletnej wycenie, poza kopią `.ami`), linia „Wpłacone” z transakcji, wykres `HistoryChart` na stronie portfela | 0.5.0 (PR #25) |
 | 17 | Rebalansowanie z podatkiem: typ rachunku portfela (zwykły / IKE / IKZE, `AccountType`), szacowany podatek Belki 19% od zysku ze sprzedaży w wyniku rebalansowania (`sales_tax`, uproszczenie: średnia cena zamiast FIFO, bez strat z poprzednich lat, bez opłat od sprzedaży, koszt zakupu w obcej walucie po dzisiejszym kursie, nie po kursie z dnia zakupu) | 0.5.1 (PR #29) |
 | 18 | Android: marginesy przez natywną `MainActivity.kt` (paski systemowe i klawiatura), opcja „Pasek menu u góry” w układzie telefonu, podpowiedź daty w języku aplikacji (`DateInput`) | 0.5.1 (PR #27, #30, #31) |
-| 19 | Instalator Windows po polsku i z marką: `languages` English+Polish (język systemu decyduje, angielski jako zapas), własny `installer/Polish.nsh` (wbudowany polski napis „Utwórz skrót na pulpicie” był pusty), grafiki z `assets/installer` (`scripts/installer-images.py`), ikony instalatora i deinstalatora; sprawdzone na Windows 11 w VM (wersja tylko polska), wybór po języku systemu niesprawdzony | niewydane |
+| 19 | Instalator Windows po polsku i z marką: `languages` English+Polish (język systemu decyduje, angielski jako zapas), własny `installer/Polish.nsh` (wbudowany polski napis „Utwórz skrót na pulpicie” był pusty), grafiki z `assets/installer` (`scripts/installer-images.py`), ikony instalatora i deinstalatora; sprawdzone na Windows 11 w VM (wersja tylko polska), wybór po języku systemu niesprawdzony | 0.5.2 (PR #36) |
 
 (Etap 3, budżet domowy, był w 0.2.0 i 0.3.0, a w 0.4.0 został usunięty.)
 
-Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podpisany) działa. Opublikowane pre-release: **0.1.2, 0.2.0, 0.2.1, 0.3.0, 0.4.5, 0.4.6, 0.4.7, 0.5.0, 0.5.1** (0.4.8 i 0.4.9 też wydane), każde z 6 plikami. Właściciel potwierdził, że APK działa na telefonie.
+Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podpisany) działa. Opublikowane pre-release: **0.1.2, 0.2.0, 0.2.1, 0.3.0, 0.4.5, 0.4.6, 0.4.7, 0.5.0, 0.5.1, 0.5.2** (0.4.8 i 0.4.9 też wydane), każde z 6 plikami. Właściciel potwierdził, że APK działa na telefonie.
 
 ## 6. Do zrobienia (w tej kolejności)
 
