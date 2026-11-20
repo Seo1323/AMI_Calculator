@@ -49,7 +49,10 @@
         ],
         "headerImage": "icons/installer-header.bmp",
         "sidebarImage": "icons/installer-sidebar.bmp",
-        "installerIcon": "icons/icon.ico"
+        "installerIcon": "icons/icon.ico",
+        "customLanguageFiles": {
+          "Polish": "installer/Polish.nsh"
+        }
       }
     }
   }
