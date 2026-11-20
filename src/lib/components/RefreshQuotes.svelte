@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { t, fmtDate, errorText } from '$lib/i18n/index.svelte';
 	import { quotes, refreshQuotes } from '$lib/quotes.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 </script>
 
 <div class="refresh">
 	<button class="btn" disabled={quotes.refreshing} onclick={refreshQuotes}>
-		<span class:spin={quotes.refreshing}>⟳</span>
+		<span class:spin={quotes.refreshing}><Icon name="refresh" size={16} /></span>
 		{quotes.refreshing ? t('quotes.refreshing') : t('quotes.refresh')}
 	</button>
 	{#if quotes.lastAt && quotes.lastReport}
