@@ -44,7 +44,7 @@ dependencies = [
 
 [[package]]
 name = "ami-calculator"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "ami-core",
  "chrono",
@@ -65,7 +65,7 @@ dependencies = [
 
 [[package]]
 name = "ami-core"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "argon2",
  "base64 0.22.1",
