@@ -52,7 +52,8 @@
         "installerIcon": "icons/icon.ico",
         "customLanguageFiles": {
           "Polish": "installer/Polish.nsh"
-        }
+        },
+        "uninstallerIcon": "icons/icon.ico"
       }
     }
   }
