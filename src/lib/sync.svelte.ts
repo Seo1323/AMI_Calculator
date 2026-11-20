@@ -135,12 +135,13 @@ export function disconnect() {
 
 // ---------- syncing ----------
 
-export async function syncNow() {
+async function doSync(rekey?: string) {
 	const target = sync.target;
 	if (!target || sync.busy || !isTauri()) return;
 	sync.busy = true;
 	const passphrase = sync.passphrase || null;
 	const allowPlain = !sync.sealed; // only until a sealed file has been seen
+	const next = rekey || null; // a new passphrase: read with the current one, write with this
 	try {
 		let stats: { inserted: number; updated: number };
 		if (onAndroid()) {
@@ -148,17 +149,17 @@ export async function syncNow() {
 			const out = await invoke<{ stats: typeof stats; outgoing: string | null }>('sync_text', {
 				contents: text,
 				passphrase,
-				allowPlain
+				allowPlain,
+				rekey: next
 			});
 			if (out.outgoing) await bridge('write', target, out.outgoing);
 			stats = out.stats;
 		} else {
-			stats = (await invoke<{ stats: typeof stats }>('sync_file', { path: target, passphrase, allowPlain })).stats;
+			stats = (await invoke<{ stats: typeof stats }>('sync_file', { path: target, passphrase, allowPlain, rekey: next })).stats;
 		}
-		if (passphrase && !sync.sealed) {
-			sync.sealed = true;
-			remember();
-		}
+		if (next) sync.passphrase = next;
+		if ((passphrase || next) && !sync.sealed) sync.sealed = true;
+		if (next || passphrase) remember();
 		sync.lastAt = new Date();
 		sync.lastStats = stats;
 		sync.error = null;
@@ -168,6 +169,15 @@ export async function syncNow() {
 	} finally {
 		sync.busy = false;
 	}
+}
+
+/** One sync. A function of no arguments on purpose: it is used as an event handler and timer callback. */
+export const syncNow = () => doSync();
+
+/** Returns whether the change went through (on failure the error is in `sync.error`). */
+export async function changePassphrase(next: string): Promise<boolean> {
+	await doSync(next);
+	return !sync.error;
 }
 
 let timer: ReturnType<typeof setTimeout> | undefined;

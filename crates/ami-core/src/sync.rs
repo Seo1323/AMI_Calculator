@@ -72,6 +72,7 @@ fn has_news(a: &DataSet, b: &DataSet) -> bool {
 
 /// Merges the file text `incoming` (`None` or blank: there is no file yet) into `store`.
 /// With a `passphrase` the file is written sealed (see `seal`); a sealed file needs it to be read.
+/// `rekey` is a new passphrase: the file is read with `passphrase` and written sealed with it.
 /// A plain file is sealed only when `allow_plain` (the user has just set the passphrase); after
 /// that a plain file means someone replaced it, so it is refused.
 /// `before_apply` runs just before the store changes, for a safety copy.
@@ -83,9 +84,11 @@ pub fn sync(
     incoming: Option<&str>,
     passphrase: Option<&str>,
     allow_plain: bool,
+    rekey: Option<&str>,
     before_apply: impl FnOnce(&Store) -> Result<()>,
 ) -> Result<SyncOutcome> {
     let passphrase = passphrase.filter(|p| !p.is_empty());
+    let rekey = rekey.filter(|p| !p.is_empty());
     let text = incoming.map(str::trim).filter(|s| !s.is_empty());
     if text.is_some_and(|t| t.len() > MAX_FILE_BYTES) {
         return Err(CoreError::Validation("the sync file is too large".into()));
@@ -120,12 +123,17 @@ pub fn sync(
     let mut mine = store.export_data()?;
     // A plain file is rewritten sealed as soon as a passphrase is set, even with nothing new.
     let upgrade = passphrase.is_some() && theirs.is_some() && !was_sealed;
-    let write = upgrade || theirs.as_ref().is_none_or(|t| has_news(&mine, t));
+    let write = rekey.is_some() || upgrade || theirs.as_ref().is_none_or(|t| has_news(&mine, t));
     let outgoing = if write {
         mine.settings = serde_json::Value::Null; // appearance is per device, never synced
         let json = ExportBundle::new(app_version, mine).to_json()?;
-        Some(match passphrase {
-            Some(p) => seal::seal(&json, p, salt.as_deref())?,
+        // A new passphrase also gets a fresh salt.
+        let (key, salt) = match rekey {
+            Some(new) => (Some(new), None),
+            None => (passphrase, salt.as_deref()),
+        };
+        Some(match key {
+            Some(p) => seal::seal(&json, p, salt)?,
             None => json,
         })
     } else {
@@ -154,7 +162,7 @@ mod tests {
     }
 
     fn run(store: &mut Store, file: Option<&str>) -> SyncOutcome {
-        sync(store, "test", file, None, true, |_| Ok(())).unwrap()
+        sync(store, "test", file, None, true, None, |_| Ok(())).unwrap()
     }
 
     fn tick() {
@@ -244,7 +252,7 @@ mod tests {
         let mut a = Store::open_in_memory().unwrap();
         a.save(portfolio("IKE")).unwrap();
         for text in ["{\"hello\":1}", "not json at all"] {
-            let r = sync(&mut a, "test", Some(text), None, true, |_| Ok(()));
+            let r = sync(&mut a, "test", Some(text), None, true, None, |_| Ok(()));
             assert!(matches!(r, Err(CoreError::NotAnExport)), "{text}");
         }
         assert_eq!(a.list::<Portfolio>().unwrap().len(), 1);
@@ -255,7 +263,7 @@ mod tests {
         let mut a = Store::open_in_memory().unwrap();
         a.save(portfolio("IKE")).unwrap();
         let mut copies = 0;
-        let out = sync(&mut a, "test", Some("  \n"), None, true, |_| {
+        let out = sync(&mut a, "test", Some("  \n"), None, true, None, |_| {
             copies += 1;
             Ok(())
         })
@@ -265,7 +273,7 @@ mod tests {
 
         let file = out.outgoing.unwrap();
         let mut b = Store::open_in_memory().unwrap();
-        sync(&mut b, "test", Some(&file), None, true, |_| {
+        sync(&mut b, "test", Some(&file), None, true, None, |_| {
             copies += 1;
             Ok(())
         })
@@ -283,7 +291,7 @@ mod tests {
     }
 
     fn run_pw(store: &mut Store, file: Option<&str>, pw: Option<&str>) -> Result<SyncOutcome> {
-        sync(store, "test", file, pw, true, |_| Ok(()))
+        sync(store, "test", file, pw, true, None, |_| Ok(()))
     }
 
     #[test]
@@ -376,6 +384,7 @@ mod tests {
             Some(&planted),
             Some("pw"),
             false,
+            None,
             |_| Ok(()),
         );
         assert!(matches!(r, Err(CoreError::NotSealed)));
@@ -385,7 +394,16 @@ mod tests {
             "nothing was merged"
         );
         // Only the moment the passphrase is set may a plain file be sealed.
-        let out = sync(&mut a, "test", Some(&planted), Some("pw"), true, |_| Ok(())).unwrap();
+        let out = sync(
+            &mut a,
+            "test",
+            Some(&planted),
+            Some("pw"),
+            true,
+            None,
+            |_| Ok(()),
+        )
+        .unwrap();
         assert!(seal::is_sealed(&out.outgoing.unwrap()));
     }
 
@@ -473,5 +491,44 @@ mod tests {
             assert!(matches!(r, Err(CoreError::Validation(_))), "{poison}");
         }
         assert!(b.fx_rates().unwrap().is_empty());
+    }
+
+    #[test]
+    fn changing_the_passphrase_reseals_the_file_and_keeps_the_data() {
+        let mut a = Store::open_in_memory().unwrap();
+        let mut b = Store::open_in_memory().unwrap();
+        a.save(portfolio("IKE")).unwrap();
+        let old = run_pw(&mut a, None, Some("old")).unwrap().outgoing.unwrap();
+
+        // The change needs the current passphrase to read the file.
+        let r = sync(&mut b, "test", Some(&old), None, true, Some("new"), |_| {
+            Ok(())
+        });
+        assert!(matches!(r, Err(CoreError::PassphraseNeeded)));
+
+        let new = sync(
+            &mut a,
+            "test",
+            Some(&old),
+            Some("old"),
+            false,
+            Some("new"),
+            |_| Ok(()),
+        )
+        .unwrap()
+        .outgoing
+        .expect("rewritten even with nothing new");
+        assert!(matches!(
+            seal::open(&new, "old"),
+            Err(CoreError::WrongPassphrase)
+        ));
+        assert_eq!(
+            run_pw(&mut b, Some(&new), Some("new"))
+                .unwrap()
+                .stats
+                .inserted,
+            1
+        );
+        assert_eq!(b.list::<Portfolio>().unwrap()[0].name, "IKE");
     }
 }
