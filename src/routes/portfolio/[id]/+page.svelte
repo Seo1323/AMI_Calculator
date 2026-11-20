@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { confirm } from '@tauri-apps/plugin-dialog';
+	import { ask } from '$lib/confirm';
 	import { t, fmtMoney, fmtNumber, errorText } from '$lib/i18n/index.svelte';
 	import { db } from '$lib/db';
 	import { invoke, isTauri, type Mode, type RebalanceResult } from '$lib/tauri';
@@ -153,7 +153,7 @@
 
 	const deleteTrade = (tr: Trade) =>
 		run(async () => {
-			if (!(await confirm(`${tr.date} ${symbol(tr.instrumentId)} ${tr.quantity}?`, { kind: 'warning' }))) return;
+			if (!(await ask(`${tr.date} ${symbol(tr.instrumentId)} ${tr.quantity}?`))) return;
 			await db.remove('trade', tr.id);
 			if (editingTradeId === tr.id) cancelEditTrade();
 			result = null;

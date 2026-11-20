@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { save, open, confirm } from '@tauri-apps/plugin-dialog';
+	import { save, open } from '@tauri-apps/plugin-dialog';
+	import { ask } from '$lib/confirm';
 	import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 	import { t, fmtDate, errorText } from '$lib/i18n/index.svelte';
 	import {
@@ -73,7 +74,7 @@
 			if (!isTauri()) throw { code: 'notInTauri' };
 			const path = await open({ multiple: false, directory: false, filters });
 			if (!path) return;
-			if (importMode === 'replace' && !(await confirm(t('settings.importConfirm'), { kind: 'warning' }))) return;
+			if (importMode === 'replace' && !(await ask(t('settings.importConfirm')))) return;
 			const contents = await readTextFile(path);
 			const report = await invoke<ImportReport>('import_json', { contents, mode: importMode });
 			if (report.settings) replaceSettings(report.settings);
@@ -322,10 +323,10 @@
 		</label>
 	</section>
 
-	<section class="card stack">
+	<section class="card stack shortcuts">
 		<h2>{t('settings.shortcuts')}</h2>
 		<dl class="keys">
-			<dt><kbd>Alt</kbd> + <kbd>1</kbd>…<kbd>6</kbd></dt>
+			<dt><kbd>Alt</kbd> + <kbd>1</kbd>…<kbd>4</kbd></dt>
 			<dd>{t('shortcut.sections')}</dd>
 			<dt><kbd>Alt</kbd> + <kbd>H</kbd></dt>
 			<dd>{t('shortcut.hide')}</dd>
@@ -462,6 +463,12 @@
 		border-bottom-width: 2px;
 		border-radius: 4px;
 		background: var(--surface-2);
+	}
+	/* No keyboard on a phone: the shortcuts card would only be noise. */
+	@media (hover: none) and (pointer: coarse) {
+		.shortcuts {
+			display: none;
+		}
 	}
 	.location {
 		margin: 0;

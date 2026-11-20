@@ -48,6 +48,7 @@ const uk: Record<keyof typeof pl, string> = {
 
 	'common.save': 'Зберегти',
 	'common.cancel': 'Скасувати',
+	'common.ok': 'Гаразд',
 	'common.edit': 'Редагувати',
 	'common.delete': 'Видалити',
 	'portfolio.empty': 'У вас ще немає портфеля. Створіть перший нижче.',

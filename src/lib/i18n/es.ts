@@ -48,6 +48,7 @@ const es: Record<keyof typeof pl, string> = {
 
 	'common.save': 'Guardar',
 	'common.cancel': 'Cancelar',
+	'common.ok': 'Aceptar',
 	'common.edit': 'Editar',
 	'common.delete': 'Eliminar',
 	'portfolio.empty': 'Aún no tienes ninguna cartera. Crea la primera abajo.',

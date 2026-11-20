@@ -375,6 +375,7 @@ tbody tr:hover {
 }
 
 .notice {
+	overflow-wrap: anywhere; /* long file paths in messages */
 	border-radius: calc(var(--radius) * 0.7);
 	padding: calc(var(--space) * 0.6) calc(var(--space) * 0.9);
 	background: var(--accent-soft);
