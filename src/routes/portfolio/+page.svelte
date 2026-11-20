@@ -6,6 +6,7 @@
 	import { db } from '$lib/db';
 	import { orUndo } from '$lib/undo';
 	import { invoke, isTauri } from '$lib/tauri';
+	import DateInput from '$lib/components/DateInput.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import { quotes as quoteState, refreshQuotes } from '$lib/quotes.svelte';
@@ -662,7 +663,7 @@
 			<div class="row">
 				<label class="field">
 					{t('bond.start')}
-					<input type="date" bind:value={instrumentForm.startDate} oninput={refreshTerm} />
+					<DateInput bind:value={instrumentForm.startDate} oninput={refreshTerm} />
 				</label>
 				<label class="field">
 					{t('bond.term')}
@@ -681,7 +682,7 @@
 				</label>
 				<label class="field">
 					{t('instruments.maturity')}
-					<input type="date" bind:value={instrumentForm.maturityDate} oninput={autoName} />
+					<DateInput bind:value={instrumentForm.maturityDate} oninput={autoName} />
 				</label>
 			</div>
 			{#if instrumentForm.maturityDate}
@@ -738,7 +739,7 @@
 					{/if}
 					<label class="field">
 						{t('trades.date')}
-						<input type="date" bind:value={position.date} />
+						<DateInput bind:value={position.date} />
 					</label>
 				{/if}
 			</div>

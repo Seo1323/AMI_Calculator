@@ -4,6 +4,7 @@
 	import { t, fmtMoney, fmtNumber, errorText } from '$lib/i18n/index.svelte';
 	import { db } from '$lib/db';
 	import { invoke, isTauri, type Mode, type RebalanceResult } from '$lib/tauri';
+	import DateInput from '$lib/components/DateInput.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import HistoryChart from '$lib/components/HistoryChart.svelte';
 	import AllocationPie from '$lib/components/AllocationPie.svelte';
@@ -353,7 +354,7 @@
 				<div class="row">
 					<label class="field">
 						{t('trades.date')}
-						<input type="date" bind:value={tradeForm.date} />
+						<DateInput bind:value={tradeForm.date} />
 					</label>
 					<label class="field">
 						{t('trades.instrument')}
