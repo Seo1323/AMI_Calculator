@@ -56,6 +56,7 @@ const pl = {
 	'portfolio.create': 'Utwórz portfel',
 	'portfolio.value': 'Wartość',
 	'portfolio.gain': 'Zysk / strata',
+	'portfolio.avgInterest': 'Średnie oprocentowanie',
 	'portfolio.delete': 'Usuń portfel',
 	'portfolio.deleteConfirm': 'Usunąć portfel „{name}”? Jego transakcje przestaną być widoczne.',
 	'portfolio.drift': 'Odchylenie: {dev} p.p.',

@@ -27,6 +27,8 @@ pub struct PortfolioTile {
     /// In the dashboard currency (None if it cannot be converted).
     pub value: Option<Decimal>,
     pub gain: Option<Decimal>,
+    /// Weighted mean of the manual interest rates, percent (see `PortfolioView`).
+    pub avg_interest_percent: Option<Decimal>,
     pub max_deviation: Option<Decimal>,
     pub needs_rebalance: bool,
     pub complete: bool,
@@ -41,6 +43,8 @@ pub struct Dashboard {
     pub currency: Currency,
     pub total_value: Decimal,
     pub total_gain: Decimal,
+    /// Mean of the manual interest rates across all portfolios, weighted by value.
+    pub avg_interest_percent: Option<Decimal>,
     /// Currencies that could not be converted (their amounts are left out).
     pub missing_rates: Vec<String>,
     pub portfolios: Vec<PortfolioTile>,
@@ -66,6 +70,7 @@ pub fn build(store: &Store, currency: &Currency) -> Result<Dashboard> {
 
     let mut total_value = Decimal::ZERO;
     let mut total_gain = Decimal::ZERO;
+    let (mut interest_sum, mut interest_weight) = (Decimal::ZERO, Decimal::ZERO);
     let mut tiles = Vec::new();
     let mut list = store.list::<Portfolio>()?;
     list.sort_by(|a, b| a.name.cmp(&b.name));
@@ -76,11 +81,16 @@ pub fn build(store: &Store, currency: &Currency) -> Result<Dashboard> {
         let gain = convert(v.total_gain, base);
         total_value += value.unwrap_or_default();
         total_gain += gain.unwrap_or_default();
+        if let (Some(rate), Some(w)) = (v.avg_interest_percent, convert(v.interest_value, base)) {
+            interest_sum += rate * w;
+            interest_weight += w;
+        }
         tiles.push(PortfolioTile {
             id: p.meta.id,
             name: p.name,
             value: value.map(|x| x.round_dp(2)),
             gain: gain.map(|x| x.round_dp(2)),
+            avg_interest_percent: v.avg_interest_percent,
             max_deviation: v.max_deviation,
             needs_rebalance: v.needs_rebalance,
             complete: v.missing_prices.is_empty() && v.missing_rates.is_empty(),
@@ -102,6 +112,9 @@ pub fn build(store: &Store, currency: &Currency) -> Result<Dashboard> {
         currency: currency.clone(),
         total_value: total_value.round_dp(2),
         total_gain: total_gain.round_dp(2),
+        avg_interest_percent: interest_sum
+            .checked_div(interest_weight)
+            .map(|a| a.round_dp(2)),
         missing_rates: missing,
         portfolios: tiles,
     })
@@ -181,5 +194,73 @@ mod tests {
         let d = build(&s, &pln).unwrap();
         assert_eq!(d.total_value, dec!(5250));
         assert!(d.missing_rates.is_empty());
+    }
+
+    #[test]
+    fn interest_is_weighted_by_value() {
+        let s = Store::open_in_memory().unwrap();
+        let pln = Currency::new("PLN").unwrap();
+        let p = s
+            .save(Portfolio {
+                meta: Meta::new(),
+                name: "P".into(),
+                base_currency: pln.clone(),
+                tolerance_percent: dec!(5),
+            })
+            .unwrap();
+        // 1000 at 6% + 3000 at 2% = 3% overall; the unrated ETF must not count.
+        for (kind, qty, rate) in [
+            (InstrumentKind::Bond, dec!(10), Some(dec!(6))),
+            (InstrumentKind::Deposit, dec!(3000), Some(dec!(2))),
+            (InstrumentKind::Etf, dec!(10), None),
+        ] {
+            let i = s
+                .save(Instrument {
+                    meta: Meta::new(),
+                    symbol: format!("{kind:?}"),
+                    name: "x".into(),
+                    kind,
+                    currency: pln.clone(),
+                    quote_source: QuoteSource::Manual,
+                    fractional: false,
+                    interest_percent: rate,
+                    capitalization: None,
+                    start_date: None,
+                    maturity_date: None,
+                })
+                .unwrap();
+            s.save(Trade {
+                meta: Meta::new(),
+                portfolio_id: p.meta.id,
+                instrument_id: i.meta.id,
+                date: NaiveDate::from_ymd_opt(2026, 11, 18).unwrap(),
+                side: TradeSide::Buy,
+                quantity: qty,
+                price: if kind == InstrumentKind::Deposit {
+                    dec!(1)
+                } else {
+                    dec!(100)
+                },
+                fee: dec!(0),
+            })
+            .unwrap();
+            s.set_quote(&Quote {
+                instrument_id: i.meta.id,
+                price: if kind == InstrumentKind::Deposit {
+                    dec!(1)
+                } else {
+                    dec!(100)
+                },
+                currency: pln.clone(),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+                return_12m_percent: None,
+                dividend_yield_percent: None,
+            })
+            .unwrap();
+        }
+        let d = build(&s, &pln).unwrap();
+        assert_eq!(d.avg_interest_percent, Some(dec!(3)));
+        assert_eq!(d.portfolios[0].avg_interest_percent, Some(dec!(3)));
     }
 }

@@ -69,6 +69,12 @@
 					<dt>{t('dashboard.gain')}</dt>
 					<dd class:pos={Number(data.totalGain) > 0} class:neg={Number(data.totalGain) < 0}>{fmtMoney(data.totalGain, data.currency)}</dd>
 				</div>
+				{#if data.avgInterestPercent !== null}
+					<div>
+						<dt>{t('portfolio.avgInterest')}</dt>
+						<dd>{fmtNumber(data.avgInterestPercent)}%</dd>
+					</div>
+				{/if}
 			</dl>
 		</section>
 

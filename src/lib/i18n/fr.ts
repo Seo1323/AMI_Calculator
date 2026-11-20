@@ -58,6 +58,7 @@ const fr: Record<keyof typeof pl, string> = {
 	'portfolio.create': 'Créer le portefeuille',
 	'portfolio.value': 'Valeur',
 	'portfolio.gain': 'Gain / perte',
+	'portfolio.avgInterest': 'Intérêt moyen',
 	'portfolio.delete': 'Supprimer le portefeuille',
 	'portfolio.deleteConfirm': 'Supprimer le portefeuille « {name} » ? Ses opérations ne seront plus affichées.',
 	'portfolio.drift': 'Écart : {dev} pts',

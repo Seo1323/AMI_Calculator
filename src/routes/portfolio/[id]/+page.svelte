@@ -211,6 +211,12 @@
 						{fmtMoney(view.totalGain, currency)}
 					</strong>
 				</div>
+				{#if view.avgInterestPercent !== null}
+					<div>
+						<span class="muted">{t('portfolio.avgInterest')}</span>
+						<strong>{fmtNumber(view.avgInterestPercent)}%</strong>
+					</div>
+				{/if}
 				{#if view.maxDeviation !== null}
 					<div>
 						<span class="muted">{t('rebalance.deviation')}</span>

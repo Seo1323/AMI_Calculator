@@ -58,6 +58,7 @@ const en: Record<keyof typeof pl, string> = {
 	'portfolio.create': 'Create portfolio',
 	'portfolio.value': 'Value',
 	'portfolio.gain': 'Gain / loss',
+	'portfolio.avgInterest': 'Average interest',
 	'portfolio.delete': 'Delete portfolio',
 	'portfolio.deleteConfirm': 'Delete portfolio "{name}"? Its trades will no longer be shown.',
 	'portfolio.drift': 'Drift: {dev} pp',

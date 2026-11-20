@@ -467,6 +467,9 @@
 					<div class:pos={Number(v.totalGain) > 0} class:neg={Number(v.totalGain) < 0}>
 						{t('portfolio.gain')}: {fmtMoney(v.totalGain, v.portfolio.baseCurrency)}
 					</div>
+					{#if v.avgInterestPercent !== null}
+						<div class="small muted">{t('portfolio.avgInterest')}: {fmtNumber(v.avgInterestPercent)}%</div>
+					{/if}
 					{#if v.problem}
 						<div class="small warn-text">⚠ {t('portfolio.dataProblemShort')}</div>
 					{:else if v.missingPrices.length || v.missingRates.length}

@@ -140,6 +140,22 @@ fn kind_shares(positions: &[PositionView], total: Decimal) -> Vec<KindShare> {
         .collect()
 }
 
+/// Mean of the manual interest rates weighted by position value, and the total weight.
+/// Positions without a rate or without a value are left out.
+fn weighted_interest(positions: &[PositionView]) -> (Option<Decimal>, Decimal) {
+    let (mut sum, mut weight) = (Decimal::ZERO, Decimal::ZERO);
+    for p in positions {
+        if let (Some(rate), Some(v)) = (p.instrument.interest_percent, p.value) {
+            sum += rate * v;
+            weight += v;
+        }
+    }
+    (
+        sum.checked_div(weight).map(|a| a.round_dp(2)),
+        weight.round_dp(2),
+    )
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PortfolioView {
@@ -157,6 +173,10 @@ pub struct PortfolioView {
     pub needs_rebalance: bool,
     /// Split of the value by asset kind, for the pie chart.
     pub kind_shares: Vec<KindShare>,
+    /// Value-weighted mean of the hand-entered interest rates (bonds, cash, deposits), percent.
+    pub avg_interest_percent: Option<Decimal>,
+    /// Value of the positions that have such a rate: the weight behind `avg_interest_percent`.
+    pub interest_value: Decimal,
     /// Symbols valued at their purchase cost because no price was entered (bonds): an estimate.
     pub estimated_prices: Vec<String>,
     /// Set when the trade history is broken (e.g. a sale above the quantity held, after merging two
@@ -299,6 +319,8 @@ fn broken_view(portfolio: Portfolio, e: &CoreError) -> PortfolioView {
         max_deviation: None,
         needs_rebalance: false,
         kind_shares: Vec::new(),
+        avg_interest_percent: None,
+        interest_value: Decimal::ZERO,
         estimated_prices: Vec::new(),
         problem: Some(Problem {
             code: e.code().into(),
@@ -360,6 +382,7 @@ fn build_view(inp: Inputs) -> PortfolioView {
         .flatten();
 
     let kind_shares = kind_shares(&positions, total_value);
+    let (avg_interest_percent, interest_value) = weighted_interest(&positions);
     let estimated_prices = positions
         .iter()
         .filter(|p| p.price_source.as_deref() == Some("cost"))
@@ -367,6 +390,8 @@ fn build_view(inp: Inputs) -> PortfolioView {
         .collect();
     PortfolioView {
         kind_shares,
+        avg_interest_percent,
+        interest_value,
         estimated_prices,
         needs_rebalance: max_deviation.is_some_and(|d| d > inp.portfolio.tolerance_percent),
         total_gain: positions.iter().filter_map(|p| p.gain).sum(),

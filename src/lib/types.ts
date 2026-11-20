@@ -77,6 +77,7 @@ export interface PortfolioView {
 	positions: PositionView[];
 	totalValue: string;
 	totalGain: string;
+	avgInterestPercent: string | null;
 	targetsSum: string;
 	missingPrices: string[];
 	missingRates: string[];
@@ -125,6 +126,7 @@ export interface Dashboard {
 	currency: string;
 	totalValue: string;
 	totalGain: string;
+	avgInterestPercent: string | null;
 	missingRates: string[];
 	portfolios: PortfolioTile[];
 }
