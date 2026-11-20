@@ -40,6 +40,17 @@
       "icons/icon.ico"
     ],
     "shortDescription": "Kalkulator rebalansowania portfela",
-    "category": "Finance"
+    "category": "Finance",
+    "windows": {
+      "nsis": {
+        "languages": [
+          "English",
+          "Polish"
+        ],
+        "headerImage": "icons/installer-header.bmp",
+        "sidebarImage": "icons/installer-sidebar.bmp",
+        "installerIcon": "icons/icon.ico"
+      }
+    }
   }
 }
