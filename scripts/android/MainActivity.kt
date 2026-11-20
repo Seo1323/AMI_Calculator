@@ -24,6 +24,8 @@ import kotlin.concurrent.thread
 // It also gives the page `window.AmiSync` for the sync file (src/lib/sync.svelte.ts): the dialog
 // plugin hands out content:// URIs whose access ends with the app process, but sync must keep
 // working after a restart, so the file is picked here with a persistable grant.
+private const val MAX_FILE_BYTES = 32 * 1024 * 1024 // same limit as ami_core::sync::MAX_FILE_BYTES
+
 class MainActivity : TauriActivity() {
   private var web: WebView? = null
   private var pickId: Int? = null
@@ -78,10 +80,32 @@ class MainActivity : TauriActivity() {
       if (it.moveToFirst()) it.getString(0) else null
     } ?: uri.lastPathSegment ?: ""
 
+  // The page may only touch a file the user picked here and this app still holds a persisted grant
+  // for: not another content:// URI (the app's own providers, or a file picked long ago).
   private fun content(uri: String): Uri {
     val u = Uri.parse(uri)
-    require(u.scheme == "content") { "not a content:// URI" } // the page may only use what the user picked
+    require(u.scheme == "content") { "not a content:// URI" }
+    require(contentResolver.persistedUriPermissions.any { it.uri == u && it.isReadPermission && it.isWritePermission }) {
+      "this file was not picked in this app"
+    }
     return u
+  }
+
+  private fun readLimited(uri: Uri): String {
+    val input = contentResolver.openInputStream(uri) ?: return ""
+    return input.use {
+      val out = java.io.ByteArrayOutputStream()
+      val buf = ByteArray(64 * 1024)
+      var total = 0
+      while (true) {
+        val n = it.read(buf)
+        if (n < 0) break
+        total += n
+        if (total > MAX_FILE_BYTES) throw IOException("the sync file is too large")
+        out.write(buf, 0, n)
+      }
+      out.toString(Charsets.UTF_8.name())
+    }
   }
 
   private inner class SyncBridge {
@@ -108,10 +132,14 @@ class MainActivity : TauriActivity() {
         reply(id, try {
           val ok = JSONObject().put("ok", true)
           when (op) {
-            "read" -> ok.put(
-              "text",
-              contentResolver.openInputStream(content(uri))?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
-            )
+            "read" -> ok.put("text", readLimited(content(uri)))
+            "release" -> {
+              // The file is no longer used: give the grant back (Android caps how many an app may hold).
+              contentResolver.releasePersistableUriPermission(
+                content(uri), Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+              )
+              ok
+            }
             "write" -> {
               // "wt" truncates: a shorter file must not keep the tail of the old one.
               (contentResolver.openOutputStream(content(uri), "wt") ?: throw IOException("cannot open the file"))

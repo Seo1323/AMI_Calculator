@@ -17,6 +17,8 @@ interface Stored {
 	label: string;
 	/** Seals the file; the same on every device. Kept like the database: readable by this device only. */
 	passphrase: string;
+	/** This device expects a sealed file (it synced one, or joined an existing file with a passphrase): a plain one is then refused, not sealed. */
+	sealed: boolean;
 }
 
 function read(): Stored | null {
@@ -29,7 +31,7 @@ function read(): Stored | null {
 
 function remember() {
 	try {
-		const v: Stored = { target: sync.target, label: sync.label, passphrase: sync.passphrase };
+		const v: Stored = { target: sync.target, label: sync.label, passphrase: sync.passphrase, sealed: sync.sealed };
 		localStorage.setItem(KEY, JSON.stringify(v));
 	} catch {
 		/* storage unavailable: the choice then only lasts for this session */
@@ -43,6 +45,7 @@ export const sync = $state({
 	target: saved?.target ?? null,
 	label: saved?.label ?? '',
 	passphrase: saved?.passphrase ?? '',
+	sealed: saved?.sealed ?? false,
 	busy: false,
 	lastAt: null as Date | null,
 	lastStats: null as { inserted: number; updated: number } | null,
@@ -103,18 +106,26 @@ export async function connect(create: boolean) {
 		const path = create
 			? await save({ defaultPath: 'ami-sync.ami', filters: FILTERS })
 			: await open({ multiple: false, directory: false, filters: FILTERS });
-		if (path) chosen = { target: path, label: path };
+		// The backend only touches .ami files; the save dialog does not add the extension by itself.
+		const file = path && create && !/\.ami$/i.test(path) ? `${path}.ami` : path;
+		if (file) chosen = { target: file, label: file };
 	}
 	if (!chosen) return;
+	if (sync.target && sync.target !== chosen.target && onAndroid()) bridge('release', sync.target).catch(() => {});
 	sync.target = chosen.target;
 	sync.label = chosen.label;
+	// Joining an existing file with a passphrase: that file was sealed by the first device, so a plain
+	// one here would be a planted file, not something to adopt. A new file starts plain (or empty).
+	sync.sealed = !create && !!sync.passphrase;
 	sync.error = null;
 	remember();
 	await syncNow();
 }
 
 export function disconnect() {
+	if (sync.target && onAndroid()) bridge('release', sync.target).catch(() => {});
 	sync.target = null;
+	sync.sealed = false;
 	sync.label = '';
 	sync.lastAt = null;
 	sync.lastStats = null;
@@ -129,18 +140,24 @@ export async function syncNow() {
 	if (!target || sync.busy || !isTauri()) return;
 	sync.busy = true;
 	const passphrase = sync.passphrase || null;
+	const allowPlain = !sync.sealed; // only until a sealed file has been seen
 	try {
 		let stats: { inserted: number; updated: number };
 		if (onAndroid()) {
 			const text = (await bridge('read', target)).text ?? '';
 			const out = await invoke<{ stats: typeof stats; outgoing: string | null }>('sync_text', {
 				contents: text,
-				passphrase
+				passphrase,
+				allowPlain
 			});
 			if (out.outgoing) await bridge('write', target, out.outgoing);
 			stats = out.stats;
 		} else {
-			stats = (await invoke<{ stats: typeof stats }>('sync_file', { path: target, passphrase })).stats;
+			stats = (await invoke<{ stats: typeof stats }>('sync_file', { path: target, passphrase, allowPlain })).stats;
+		}
+		if (passphrase && !sync.sealed) {
+			sync.sealed = true;
+			remember();
 		}
 		sync.lastAt = new Date();
 		sync.lastStats = stats;

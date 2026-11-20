@@ -1356,4 +1356,72 @@ mod tests {
             Err(CoreError::NotFound)
         ));
     }
+
+    fn selling(sells: &[(Uuid, Decimal)]) -> RebalanceResult {
+        let z = Decimal::ZERO;
+        RebalanceResult {
+            total_before: z,
+            contribution: z,
+            total_after: z,
+            cash_left: z,
+            max_deviation_before: z,
+            needs_rebalance: false,
+            tax: None,
+            positions: sells
+                .iter()
+                .map(|(id, units)| rebalance::PositionResult {
+                    id: id.to_string(),
+                    current_value: z,
+                    current_percent: z,
+                    target_percent: z,
+                    deviation_before: z,
+                    target_value: z,
+                    units_to_trade: *units,
+                    trade_value: z,
+                    value_after: z,
+                    percent_after: z,
+                    deviation_after: z,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_loss_on_one_sale_offsets_a_gain_on_another() {
+        let f = fixture();
+        let id = f.portfolio.meta.id;
+        f.store
+            .set_fx_rate(&FxRate {
+                currency: Currency::new("EUR").unwrap(),
+                rate_pln: dec!(4),
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
+            .unwrap();
+        // ETF: 10 units bought at 400 PLN, now 600 PLN: +200 a unit.
+        f.store
+            .set_quote(&quote(f.etf.meta.id, dec!(150), "EUR"))
+            .unwrap();
+        // BTC: 1 unit bought at 500000, now 499800: -200 a unit.
+        let mut buy = trade(f.btc.meta.id, 3, TradeSide::Buy, dec!(1), dec!(500000));
+        buy.portfolio_id = id;
+        f.store.save_trade(buy).unwrap();
+        f.store
+            .set_quote(&quote(f.btc.meta.id, dec!(499800), "PLN"))
+            .unwrap();
+        let inp = load(&f.store, id).unwrap();
+
+        // +1000 and -200 net to +800, taxed once: 152. Taxing each sale alone would give 190.
+        let t = sales_tax(
+            &inp,
+            &selling(&[(f.etf.meta.id, dec!(-5)), (f.btc.meta.id, dec!(-1))]),
+        );
+        assert_eq!((t.realized_gain, t.tax), (dec!(800), dec!(152)));
+        // A loss overall is reported as such and owes nothing.
+        let t = sales_tax(&inp, &selling(&[(f.btc.meta.id, dec!(-1))]));
+        assert_eq!((t.realized_gain, t.tax), (dec!(-200), dec!(0)));
+        // Buying realizes nothing.
+        let t = sales_tax(&inp, &selling(&[(f.etf.meta.id, dec!(3))]));
+        assert_eq!((t.realized_gain, t.tax), (dec!(0), dec!(0)));
+    }
 }

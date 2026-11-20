@@ -327,6 +327,7 @@ const en: Record<keyof typeof pl, string> = {
 	'error.notAnExport': 'This is not an AMI Calculator backup file.',
 	'error.passphraseNeeded': 'The sync file is encrypted: enter the passphrase and sync again.',
 	'error.wrongPassphrase': 'Wrong passphrase, or the sync file is damaged.',
+	'error.notSealed': 'The sync file is not encrypted, but this device has a passphrase set. Someone may have replaced it: check the folder.',
 	'error.unsupportedVersion': 'The file comes from a newer app version.',
 	'error.validation': 'Invalid data: {detail}',
 	'error.missingReference': 'A linked record does not exist.',

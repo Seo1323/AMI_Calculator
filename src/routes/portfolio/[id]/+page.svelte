@@ -65,18 +65,16 @@
 		const wanted = id;
 		// The view is awaited first: it records today's value, which the history then includes.
 		const v = await invoke<PortfolioView>('portfolio_view', { id });
-		const [h, all, allTrades] = await Promise.all([
+		const [h, all, ownTrades] = await Promise.all([
 			invoke<History>('portfolio_history', { id }),
 			db.list<Instrument>('instrument'),
-			db.list<Trade>('trade')
+			invoke<Trade[]>('portfolio_trades', { id })
 		]);
 		if (wanted !== id) return; // the user moved to another portfolio while this was loading
 		view = v;
 		history = h;
 		instruments = all.sort((a, b) => a.symbol.localeCompare(b.symbol));
-		trades = allTrades
-			.filter((x) => x.portfolioId === id)
-			.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+		trades = ownTrades.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 		if (!tradeForm.instrumentId && instruments.length) tradeForm.instrumentId = instruments[0].id;
 	}
 

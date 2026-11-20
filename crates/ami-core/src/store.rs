@@ -298,6 +298,17 @@ fn read_all<T: Entity>(conn: &Connection, include_deleted: bool) -> Result<Vec<T
     rows.map(|d| Ok(serde_json::from_str(&d?)?)).collect()
 }
 
+/// Records of one portfolio through the indexed `portfolio_id` column (only `trades` and
+/// `allocation_targets` have it), instead of parsing every portfolio's records and filtering.
+fn read_for_portfolio<T: Entity>(conn: &Connection, portfolio_id: Uuid) -> Result<Vec<T>> {
+    let mut stmt = conn.prepare_cached(&format!(
+        "SELECT data FROM {} WHERE portfolio_id = ?1 AND deleted_at IS NULL ORDER BY created_at, id",
+        T::TABLE
+    ))?;
+    let rows = stmt.query_map([portfolio_id.to_string()], |r| r.get::<_, String>(0))?;
+    rows.map(|d| Ok(serde_json::from_str(&d?)?)).collect()
+}
+
 fn set_setting(conn: &Connection, key: &str, value: &Value) -> Result<()> {
     conn.execute(
         "INSERT INTO settings (key, value, updated_at) VALUES (?1, ?2, ?3)
@@ -641,19 +652,11 @@ impl Store {
     // ----- portfolio helpers -----
 
     pub fn trades_of(&self, portfolio_id: Uuid) -> Result<Vec<Trade>> {
-        Ok(self
-            .list::<Trade>()?
-            .into_iter()
-            .filter(|t| t.portfolio_id == portfolio_id)
-            .collect())
+        read_for_portfolio(&self.conn, portfolio_id)
     }
 
     pub fn targets_of(&self, portfolio_id: Uuid) -> Result<Vec<AllocationTarget>> {
-        Ok(self
-            .list::<AllocationTarget>()?
-            .into_iter()
-            .filter(|t| t.portfolio_id == portfolio_id)
-            .collect())
+        read_for_portfolio(&self.conn, portfolio_id)
     }
 
     /// Replaces a portfolio's target allocation with the given (instrument, percent) list.
@@ -671,12 +674,18 @@ impl Store {
             distinct.len() == targets.len(),
             "an instrument appears twice in the targets",
         )?;
-        self.conn.execute_batch("SAVEPOINT set_targets")?;
-        let result = self.apply_targets(portfolio_id, targets);
+        self.in_transaction(|| self.apply_targets(portfolio_id, targets))
+    }
+
+    /// Runs `f` as one transaction: all or nothing, and one disk sync instead of one per write
+    /// (a quote refresh writes dozens of rows).
+    pub fn in_transaction<R>(&self, f: impl FnOnce() -> Result<R>) -> Result<R> {
+        self.conn.execute_batch("SAVEPOINT batch")?;
+        let result = f();
         let end = if result.is_ok() {
-            "RELEASE set_targets"
+            "RELEASE batch"
         } else {
-            "ROLLBACK TO set_targets; RELEASE set_targets"
+            "ROLLBACK TO batch; RELEASE batch"
         };
         self.conn.execute_batch(end)?;
         result

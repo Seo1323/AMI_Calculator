@@ -327,6 +327,7 @@ const de: Record<keyof typeof pl, string> = {
 	'error.notAnExport': 'Das ist keine AMI Calculator-Sicherungsdatei.',
 	'error.passphraseNeeded': 'Die Abgleichsdatei ist verschlüsselt: Gib die Passphrase ein und gleiche erneut ab.',
 	'error.wrongPassphrase': 'Falsche Passphrase oder beschädigte Abgleichsdatei.',
+	'error.notSealed': 'Die Abgleichsdatei ist nicht verschlüsselt, auf diesem Gerät ist aber eine Passphrase gesetzt. Jemand könnte sie ausgetauscht haben: Prüfe den Ordner.',
 	'error.unsupportedVersion': 'Die Datei stammt aus einer neueren App-Version.',
 	'error.validation': 'Ungültige Daten: {detail}',
 	'error.missingReference': 'Ein verknüpfter Eintrag existiert nicht.',

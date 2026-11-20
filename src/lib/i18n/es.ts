@@ -327,6 +327,7 @@ const es: Record<keyof typeof pl, string> = {
 	'error.notAnExport': 'Este no es un archivo de copia de AMI Calculator.',
 	'error.passphraseNeeded': 'El archivo de sincronización está cifrado: escribe la frase y sincroniza de nuevo.',
 	'error.wrongPassphrase': 'Frase incorrecta o archivo de sincronización dañado.',
+	'error.notSealed': 'El archivo de sincronización no está cifrado, pero este dispositivo tiene una frase definida. Alguien pudo haberlo sustituido: revisa la carpeta.',
 	'error.unsupportedVersion': 'El archivo procede de una versión más nueva de la app.',
 	'error.validation': 'Datos no válidos: {detail}',
 	'error.missingReference': 'Un registro vinculado no existe.',

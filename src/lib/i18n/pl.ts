@@ -325,6 +325,7 @@ const pl = {
 	'error.notAnExport': 'To nie jest plik kopii AMI Calculator.',
 	'error.passphraseNeeded': 'Plik synchronizacji jest zaszyfrowany: wpisz hasło i synchronizuj ponownie.',
 	'error.wrongPassphrase': 'Nieprawidłowe hasło albo uszkodzony plik synchronizacji.',
+	'error.notSealed': 'Plik synchronizacji nie jest zaszyfrowany, a to urządzenie ma ustawione hasło. Ktoś mógł go podmienić: sprawdź folder.',
 	'error.unsupportedVersion': 'Plik pochodzi z nowszej wersji aplikacji.',
 	'error.validation': 'Nieprawidłowe dane: {detail}',
 	'error.missingReference': 'Powiązany rekord nie istnieje.',

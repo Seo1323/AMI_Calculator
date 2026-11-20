@@ -515,4 +515,98 @@ mod tests {
         );
         assert!(compute(&edge).is_ok());
     }
+
+    /// Deterministic pseudo-random inputs (no extra crate): every one must keep the invariants.
+    #[test]
+    fn invariants_hold_over_many_inputs() {
+        let mut seed = 0x2545_F491_4F6C_DD1D_u64;
+        let mut next = move |m: u64| {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (seed >> 33) % m
+        };
+        let mut checked = 0;
+        for _ in 0..400 {
+            let n = 2 + next(5) as usize;
+            let w: Vec<u64> = (0..n).map(|_| 1 + next(9)).collect();
+            let sum: u64 = w.iter().sum();
+            let mut pct: Vec<u64> = w.iter().map(|x| 100 * x / sum).collect();
+            pct[0] += 100 - pct.iter().sum::<u64>();
+            let positions: Vec<Position> = (0..n)
+                .map(|i| {
+                    let fractional = next(4) == 0;
+                    Position {
+                        id: format!("P{i}"),
+                        quantity: if fractional {
+                            Decimal::new(next(40_000) as i64, 3)
+                        } else {
+                            Decimal::from(next(40))
+                        },
+                        price: Decimal::new(1 + next(50_000) as i64, 2),
+                        target_percent: Decimal::from(pct[i]),
+                        fractional,
+                    }
+                })
+                .collect();
+            let contribution = Decimal::from(next(5500) as i64 - 500);
+            let mode = if next(2) == 0 {
+                Mode::BuyOnly
+            } else {
+                Mode::Full
+            };
+            let case = RebalanceInput {
+                positions: positions.clone(),
+                contribution,
+                mode,
+                tolerance_percent: dec!(5),
+                fraction_decimals: 3,
+            };
+            let Ok(r) = compute(&case) else { continue }; // e.g. buy-only with a withdrawal
+            checked += 1;
+            let spent: Decimal = r.positions.iter().map(|p| p.trade_value).sum();
+            assert_eq!(r.cash_left, contribution - spent, "cash adds up: {case:?}");
+            if contribution >= Decimal::ZERO {
+                assert!(r.cash_left >= Decimal::ZERO, "no overspending: {case:?}");
+            }
+            for (p, res) in positions.iter().zip(&r.positions) {
+                assert!(
+                    p.quantity + res.units_to_trade >= Decimal::ZERO,
+                    "sold more than held: {case:?}"
+                );
+                if mode == Mode::BuyOnly {
+                    assert!(
+                        res.units_to_trade >= Decimal::ZERO,
+                        "buy-only sold: {case:?}"
+                    );
+                }
+            }
+        }
+        assert!(
+            checked >= 150,
+            "the sweep must reach enough valid inputs, got {checked}"
+        );
+    }
+
+    #[test]
+    fn the_tolerance_edge_is_exclusive() {
+        let at = |a: i64, b: i64| {
+            compute(&input(
+                vec![
+                    pos("A", Decimal::from(a), dec!(1), dec!(50)),
+                    pos("B", Decimal::from(b), dec!(1), dec!(50)),
+                ],
+                dec!(0),
+                Mode::Full,
+            ))
+            .unwrap()
+        };
+        let exactly = at(550_000, 450_000); // 55.0000% against 50%: deviation exactly 5
+        assert_eq!(exactly.max_deviation_before, dec!(5));
+        assert!(
+            !exactly.needs_rebalance,
+            "a deviation equal to the tolerance is still within it"
+        );
+        assert!(at(550_001, 449_999).needs_rebalance, "5.0001 is over");
+    }
 }

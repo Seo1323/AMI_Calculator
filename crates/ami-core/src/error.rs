@@ -35,6 +35,8 @@ pub enum CoreError {
     PassphraseNeeded,
     #[error("wrong passphrase, or the protected file is damaged")]
     WrongPassphrase,
+    #[error("the sync file is not protected, but this device expects a passphrase")]
+    NotSealed,
     #[error("sell on {date} exceeds the quantity held")]
     Oversold { date: String },
     #[error("missing price for {0}")]
@@ -67,6 +69,7 @@ impl CoreError {
             CoreError::DatabaseTooNew(_) => "databaseTooNew",
             CoreError::PassphraseNeeded => "passphraseNeeded",
             CoreError::WrongPassphrase => "wrongPassphrase",
+            CoreError::NotSealed => "notSealed",
             CoreError::Oversold { .. } => "oversold",
             CoreError::MissingPrice(_) => "missingPrice",
             CoreError::Provider(_) => "provider",
