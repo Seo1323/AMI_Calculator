@@ -21,6 +21,7 @@
 	import { PERF_MODES } from '$lib/perf';
 	import { perf } from '$lib/perf.svelte';
 	import { invoke, isTauri, type DataLocation, type ImportMode, type ImportReport } from '$lib/tauri';
+	import { sync, connect, disconnect, syncNow, setPassphrase } from '$lib/sync.svelte';
 
 	const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'];
 	let version = $state('');
@@ -64,6 +65,14 @@
 			messages = [t('settings.exported', { path })];
 		} catch (e) {
 			error = errorText(e);
+		}
+	}
+
+	async function pickSyncFile(create: boolean) {
+		try {
+			await connect(create);
+		} catch (e) {
+			sync.error = e;
 		}
 	}
 
@@ -333,6 +342,43 @@
 			<dt><kbd>Alt</kbd> + <kbd>B</kbd></dt>
 			<dd>{t('shortcut.sidebar')}</dd>
 		</dl>
+	</section>
+
+	<section class="card stack">
+		<h2>{t('sync.title')}</h2>
+		<p class="muted">{t('sync.hint')}</p>
+		<p class="muted">{t('sync.privacy')}</p>
+		<label class="field">
+			{t('sync.passphrase')}
+			<input
+				type="password"
+				autocomplete="new-password"
+				value={sync.passphrase}
+				oninput={(e) => setPassphrase(e.currentTarget.value)}
+			/>
+		</label>
+		{#if sync.target}
+			<p>{t('sync.file', { name: sync.label })}</p>
+			<p class="muted">
+				{#if sync.busy}
+					{t('sync.busy')}
+				{:else if sync.lastAt && sync.lastStats}
+					{t('sync.last', { time: fmtDate(sync.lastAt), ...sync.lastStats })}
+				{:else}
+					{t('sync.never')}
+				{/if}
+			</p>
+			<div class="row">
+				<button class="btn primary" disabled={sync.busy} onclick={syncNow}>{t('sync.now')}</button>
+				<button class="btn" onclick={disconnect}>{t('sync.disconnect')}</button>
+			</div>
+		{:else}
+			<div class="row">
+				<button class="btn primary" onclick={() => pickSyncFile(true)}>{t('sync.create')}</button>
+				<button class="btn" onclick={() => pickSyncFile(false)}>{t('sync.join')}</button>
+			</div>
+		{/if}
+		{#if sync.error}<div class="notice error">{errorText(sync.error)}</div>{/if}
 	</section>
 
 	<section class="card stack">

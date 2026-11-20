@@ -13,6 +13,7 @@ use ami_core::money::Currency;
 use ami_core::portfolio::{self, PortfolioView};
 use ami_core::rebalance::{self, Mode, RebalanceInput, RebalanceResult};
 use ami_core::store::{EntityKind, ImportMode, ImportStats, Store, UI_SETTINGS_KEY};
+use ami_core::sync::SyncOutcome;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::Serialize;
@@ -257,7 +258,7 @@ fn import_json(
 ) -> CmdResult<ImportReport> {
     let bundle = ExportBundle::from_json(&contents)?;
     let mut store = state.store();
-    let backup = backup_now(&store, &state.data_dir, "before-import")?;
+    let backup = backup_now(&store, &state.data_dir.join(BACKUPS_DIR), "before-import")?;
     let stats = store.import_data(&bundle.data, mode)?;
     let settings = (mode == ImportMode::Replace && !bundle.data.settings.is_null())
         .then_some(bundle.data.settings);
@@ -269,15 +270,14 @@ fn import_json(
     })
 }
 
-fn backup_now(store: &Store, data_dir: &Path, prefix: &str) -> Result<PathBuf, CoreError> {
-    let dir = data_dir.join(BACKUPS_DIR);
-    fs::create_dir_all(&dir)?;
+fn backup_now(store: &Store, dir: &Path, prefix: &str) -> Result<PathBuf, CoreError> {
+    fs::create_dir_all(dir)?;
     let path = dir.join(format!(
         "{prefix}-{}.db",
         Utc::now().format("%Y%m%d-%H%M%S%.3f")
     ));
     store.backup_to(&path)?;
-    prune_backups(&dir);
+    prune_backups(dir);
     Ok(path)
 }
 
@@ -295,6 +295,82 @@ fn prune_backups(dir: &Path) {
     for old in &files[..excess] {
         let _ = fs::remove_file(old);
     }
+}
+
+// ---------- sync through a shared file ----------
+
+/// One sync round. Safety copies go to their own folder so frequent syncs cannot push the
+/// user's own backups out of the newest-10 limit.
+fn run_sync(
+    state: &AppState,
+    incoming: Option<&str>,
+    passphrase: Option<&str>,
+) -> Result<SyncOutcome, CoreError> {
+    let dir = state.data_dir.join(BACKUPS_DIR).join("sync");
+    let mut store = state.store();
+    ami_core::sync::sync(
+        &mut store,
+        env!("CARGO_PKG_VERSION"),
+        incoming,
+        passphrase,
+        |s| backup_now(s, &dir, "before-sync").map(drop),
+    )
+}
+
+/// For callers that do the file access themselves (Android content:// URIs): merges the text
+/// read from the sync file and returns the text to write back, if any.
+#[tauri::command]
+fn sync_text(
+    state: State<'_, AppState>,
+    contents: Option<String>,
+    passphrase: Option<String>,
+) -> CmdResult<SyncOutcome> {
+    Ok(run_sync(
+        &state,
+        contents.as_deref(),
+        passphrase.as_deref(),
+    )?)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SyncReport {
+    stats: ImportStats,
+    wrote: bool,
+}
+
+/// Desktop: reads and writes the sync file here (not through the fs plugin, whose access to a
+/// picked path ends with the session), so the folder keeps working after a restart.
+#[tauri::command]
+fn sync_file(
+    state: State<'_, AppState>,
+    path: PathBuf,
+    passphrase: Option<String>,
+) -> CmdResult<SyncReport> {
+    Ok(sync_at(&state, &path, passphrase.as_deref())?)
+}
+
+fn sync_at(
+    state: &AppState,
+    path: &Path,
+    passphrase: Option<&str>,
+) -> Result<SyncReport, CoreError> {
+    let text = match fs::read_to_string(path) {
+        Ok(t) => Some(t),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(e.into()),
+    };
+    let out = run_sync(state, text.as_deref(), passphrase)?;
+    if let Some(json) = &out.outgoing {
+        // Temp file + rename: a sync tool never uploads a half-written file.
+        let tmp = path.with_extension("ami.tmp");
+        fs::write(&tmp, json)?;
+        fs::rename(&tmp, path)?;
+    }
+    Ok(SyncReport {
+        stats: out.stats,
+        wrote: out.outgoing.is_some(),
+    })
 }
 
 #[derive(Serialize)]
@@ -356,6 +432,8 @@ pub fn run() {
             settings_save,
             export_json,
             import_json,
+            sync_text,
+            sync_file,
             data_location,
             app_version
         ])
@@ -367,6 +445,100 @@ pub fn run() {
 mod tests {
     use super::*;
     use rust_decimal_macros::dec;
+
+    fn device(name: &str) -> (AppState, PathBuf) {
+        let root = std::env::temp_dir().join(format!("ami-sync-test-{}-{name}", Uuid::now_v7()));
+        fs::create_dir_all(&root).unwrap();
+        let store = Store::open_in_memory().unwrap();
+        (
+            AppState {
+                store: Mutex::new(store),
+                data_dir: root.clone(),
+            },
+            root,
+        )
+    }
+
+    fn add_portfolio(state: &AppState, name: &str) {
+        use ami_core::model::{AccountType, Meta, Portfolio};
+        state
+            .store()
+            .save(Portfolio {
+                meta: Meta::new(),
+                name: name.into(),
+                base_currency: Currency::new("PLN").unwrap(),
+                tolerance_percent: dec!(5),
+                account_type: AccountType::default(),
+            })
+            .unwrap();
+    }
+
+    fn names(state: &AppState) -> Vec<String> {
+        let mut v: Vec<_> = state
+            .store()
+            .list::<ami_core::model::Portfolio>()
+            .unwrap()
+            .into_iter()
+            .map(|p| p.name)
+            .collect();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn two_devices_share_one_file_in_a_folder() {
+        let (a, a_dir) = device("a");
+        let (b, _) = device("b");
+        let shared = a_dir.join("ami-sync.ami"); // a folder both devices can reach
+        add_portfolio(&a, "IKE");
+        assert!(
+            sync_at(&a, &shared, None).unwrap().wrote,
+            "creates the missing file"
+        );
+        assert!(
+            !shared.with_extension("ami.tmp").exists(),
+            "no temp file left behind"
+        );
+
+        add_portfolio(&b, "Konto B");
+        let r = sync_at(&b, &shared, None).unwrap();
+        assert_eq!((r.stats.inserted, r.wrote), (1, true));
+        assert_eq!(names(&b), ["IKE", "Konto B"]);
+        assert!(
+            b.data_dir.join(BACKUPS_DIR).join("sync").exists(),
+            "safety copy before applying news"
+        );
+
+        assert_eq!(sync_at(&a, &shared, None).unwrap().stats.inserted, 1);
+        assert_eq!(names(&a), ["IKE", "Konto B"]);
+        // Everything is in step now: a further round neither writes nor changes.
+        let again = sync_at(&b, &shared, None).unwrap();
+        assert_eq!((again.stats, again.wrote), (ImportStats::default(), false));
+    }
+
+    #[test]
+    fn a_file_that_is_not_ours_is_never_overwritten() {
+        let (a, dir) = device("foreign");
+        add_portfolio(&a, "IKE");
+        let other = dir.join("notes.ami");
+        fs::write(&other, "my shopping list").unwrap();
+        assert!(sync_at(&a, &other, None).is_err());
+        assert_eq!(fs::read_to_string(&other).unwrap(), "my shopping list");
+    }
+
+    #[test]
+    fn an_empty_file_just_created_by_the_user_is_filled() {
+        let (a, dir) = device("empty");
+        add_portfolio(&a, "IKE");
+        let f = dir.join("new.ami");
+        fs::write(&f, "").unwrap();
+        assert!(sync_at(&a, &f, None).unwrap().wrote);
+        assert!(
+            fs::read_to_string(&f)
+                .unwrap()
+                .contains("ami-calculator-export")
+        );
+    }
 
     fn online(id: Uuid) -> Quote {
         Quote {
@@ -426,5 +598,32 @@ mod tests {
             (q.return_12m_percent, q.dividend_yield_percent),
             (None, None)
         );
+    }
+
+    #[test]
+    fn a_protected_file_on_disk_needs_its_passphrase() {
+        let (a, dir) = device("sealed-a");
+        let (b, _) = device("sealed-b");
+        let f = dir.join("ami-sync.ami");
+        add_portfolio(&a, "Tajne IKE");
+        assert!(sync_at(&a, &f, Some("pw")).unwrap().wrote);
+        assert!(
+            !fs::read_to_string(&f).unwrap().contains("Tajne IKE"),
+            "the folder only holds ciphertext"
+        );
+
+        let before = fs::read_to_string(&f).unwrap();
+        for pw in [None, Some("zle")] {
+            assert!(sync_at(&b, &f, pw).is_err());
+        }
+        assert_eq!(
+            fs::read_to_string(&f).unwrap(),
+            before,
+            "a refused sync leaves the file alone"
+        );
+        assert!(names(&b).is_empty());
+
+        assert_eq!(sync_at(&b, &f, Some("pw")).unwrap().stats.inserted, 1);
+        assert_eq!(names(&b), ["Tajne IKE"]);
     }
 }
