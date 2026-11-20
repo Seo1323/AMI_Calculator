@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { confirm } from '@tauri-apps/plugin-dialog';
+	import { ask } from '$lib/confirm';
 	import { t, fmtMoney, fmtNumber, fmtDate, fmtDay, errorText } from '$lib/i18n/index.svelte';
 	import { settings } from '$lib/settings.svelte';
 	import { db } from '$lib/db';
@@ -136,7 +136,7 @@
 
 	const deletePortfolio = (p: Portfolio) =>
 		run(async () => {
-			if (!(await confirm(t('portfolio.deleteConfirm', { name: p.name }), { kind: 'warning' }))) return;
+			if (!(await ask(t('portfolio.deleteConfirm', { name: p.name })))) return;
 			await db.remove('portfolio', p.id);
 			await load();
 		});

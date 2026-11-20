@@ -48,6 +48,7 @@ const fr: Record<keyof typeof pl, string> = {
 
 	'common.save': 'Enregistrer',
 	'common.cancel': 'Annuler',
+	'common.ok': 'OK',
 	'common.edit': 'Modifier',
 	'common.delete': 'Supprimer',
 	'portfolio.empty': "Vous n'avez pas encore de portefeuille. Créez le premier ci-dessous.",

@@ -46,6 +46,7 @@ const pl = {
 
 	'common.save': 'Zapisz',
 	'common.cancel': 'Anuluj',
+	'common.ok': 'OK',
 	'common.edit': 'Edytuj',
 	'common.delete': 'Usuń',
 	'portfolio.empty': 'Nie masz jeszcze portfela. Utwórz pierwszy poniżej.',
