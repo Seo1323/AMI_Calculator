@@ -6,7 +6,7 @@ Stan na 2026-11-20 (wydanie 0.5.0). Plik czyta Claude Code na początku sesji (p
 
 Kalkulator rebalansowania portfela inwestycyjnego, dla jednej osoby (właściciel repo), na razie dla znajomych. Priorytet platform: **Windows > Linux > Android**.
 
-- **Zakres: tylko kalkulator portfela.** Budżet domowy został wycięty (decyzja właściciela, 2026-11-18), nie wraca.
+- **Zakres: tylko kalkulator portfela.** Budżet domowy został wycięty (decyzja właściciela, 2026-11-18), nie wraca. **Import CSV z biur maklerskich też nie powstaje** (decyzja właściciela, 2026-11-20): żadnych integracji z brokerami.
 - **Portfele**: instrumenty (GPW, ETF-y, akcje, krypto), transakcje, średnia cena, zysk, alokacja docelowa, rebalansowanie (tylko dokupowanie albo pełne).
 - **Kursy online**: NBP (waluty), Yahoo Finance (GPW `.WA`, giełdy zagraniczne), CoinGecko (krypto).
 - **Dane lokalnie**, bez kont i chmury. Kopia w jednym pliku `.ami` (JSON), np. na pendrive.
@@ -108,7 +108,7 @@ Pipeline wydań (Windows exe+msi, Linux AppImage+deb+rpm, Android arm64 APK podp
 3. **Android (etap 6)**: przycisk „wstecz”, bezpieczne marginesy, wygląd na małym ekranie, test na emulatorze lub telefonie (w tym eksport/import `.ami` i CSV), odświeżanie kursów w tle.
 4. **Windows**: instalator był tylko budowany w CI, nigdy uruchomiony. Poprosić o test na prawdziwym Windowsie. SmartScreen pokaże ostrzeżenie (brak płatnego certyfikatu).
 5. **Linux**: przetestować AppImage i deb (do tej pory uruchamiany był tylko plik z `target/`).
-6. **Z pierwotnego planu, jeszcze nie ma**: import CSV z biura maklerskiego (potrzebny przykładowy plik z brokera właściciela), rebalansowanie z podatkiem (IKE/IKZE/zwykły rachunek).
+6. **Z pierwotnego planu, jeszcze nie ma**: rebalansowanie z podatkiem (IKE/IKZE/zwykły rachunek).
 7. **Drobne**: pole daty pokazuje format amerykański (ustawienia systemu WebKit), wąskie okno wymaga przewijania tabel w bok.
 8. **Później**: synchronizacja między urządzeniami; upublicznienie repozytorium (licencja, README ze zrzutami ekranu, certyfikat podpisu Windows, ewentualnie automatyczne aktualizacje).
 
