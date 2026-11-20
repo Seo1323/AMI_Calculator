@@ -319,6 +319,11 @@ const de: Record<keyof typeof pl, string> = {
 	'settings.location.backups': 'Automatische Sicherungen (letzte 10)',
 	'settings.about': 'Über die App',
 	'settings.version': 'Version {version}',
+	'update.check': 'Nach Updates suchen',
+	'update.checking': 'Suche…',
+	'update.available': 'Eine neuere Version ist verfügbar: {version}.',
+	'update.upToDate': 'Du hast die neueste veröffentlichte Version ({version}).',
+	'update.download': 'Download-Seite öffnen',
 
 	'error.invalidCurrency': 'Ungültiger Währungscode.',
 	'error.missingRate': 'Wechselkurs fehlt.',

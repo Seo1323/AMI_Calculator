@@ -93,6 +93,12 @@ async function bridge(op: string, uri = '', text = '') {
 	return r;
 }
 
+/** Opens a release page: through the Android bridge, or the backend on desktop (both check the address). */
+export async function openPage(url: string) {
+	if (onAndroid()) await bridge('open', url);
+	else await invoke('update_open', { url });
+}
+
 // ---------- choosing the file ----------
 
 /** `create`: a new file (first device). Otherwise an existing one (every further device). */

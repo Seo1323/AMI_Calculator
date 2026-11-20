@@ -319,6 +319,11 @@ const uk: Record<keyof typeof pl, string> = {
 	'settings.location.backups': 'Автоматичні копії (останні 10)',
 	'settings.about': 'Про застосунок',
 	'settings.version': 'Версія {version}',
+	'update.check': 'Перевірити оновлення',
+	'update.checking': 'Перевіряю…',
+	'update.available': 'Доступна новіша версія: {version}.',
+	'update.upToDate': 'У вас найновіша опублікована версія ({version}).',
+	'update.download': 'Відкрити сторінку завантаження',
 
 	'error.invalidCurrency': 'Неправильний код валюти.',
 	'error.missingRate': 'Немає курсу валюти.',

@@ -74,3 +74,10 @@ export interface DataLocation {
 	backups: string;
 	schemaVersion: number;
 }
+
+export interface UpdateInfo {
+	current: string;
+	latest: string;
+	newer: boolean;
+	url: string;
+}

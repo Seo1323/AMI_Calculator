@@ -317,6 +317,11 @@ const pl = {
 	'settings.location.backups': 'Kopie automatyczne (ostatnie 10)',
 	'settings.about': 'O aplikacji',
 	'settings.version': 'Wersja {version}',
+	'update.check': 'Sprawdź aktualizacje',
+	'update.checking': 'Sprawdzam…',
+	'update.available': 'Dostępna nowsza wersja: {version}.',
+	'update.upToDate': 'Masz najnowszą opublikowaną wersję ({version}).',
+	'update.download': 'Otwórz stronę pobierania',
 
 	'error.invalidCurrency': 'Nieprawidłowy kod waluty.',
 	'error.missingRate': 'Brak kursu waluty.',

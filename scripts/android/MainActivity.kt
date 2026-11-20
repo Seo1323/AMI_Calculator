@@ -25,6 +25,8 @@ import kotlin.concurrent.thread
 // plugin hands out content:// URIs whose access ends with the app process, but sync must keep
 // working after a restart, so the file is picked here with a persistable grant.
 private const val MAX_FILE_BYTES = 32 * 1024 * 1024 // same limit as ami_core::sync::MAX_FILE_BYTES
+// The only pages the bridge opens (same prefix as src-tauri/src/update.rs).
+private const val RELEASES_PAGE = "https://github.com/Seo1323/AMI_Calculator-releases/releases/"
 
 class MainActivity : TauriActivity() {
   private var web: WebView? = null
@@ -112,6 +114,20 @@ class MainActivity : TauriActivity() {
     /** Answers through `window.__amiSyncResult(id, json)`; file access runs off the UI thread. */
     @JavascriptInterface
     fun call(id: Int, op: String, uri: String, text: String) {
+      if (op == "open") {
+        runOnUiThread {
+          reply(id, try {
+            require(uri.startsWith(RELEASES_PAGE) && uri.none { it.isWhitespace() || it == '\\' }) {
+              "this page may not be opened"
+            }
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)))
+            JSONObject().put("ok", true)
+          } catch (e: Throwable) {
+            failure(e)
+          })
+        }
+        return
+      }
       if (op == "pick") {
         runOnUiThread {
           pickId = id

@@ -1,5 +1,6 @@
 pub mod display;
 mod fetch;
+mod update;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -184,6 +185,23 @@ async fn bond_offers() -> CmdResult<ami_core::providers::BondOffers> {
     fetch::bond_offers()
         .await
         .map_err(|e| CoreError::Provider(e).into())
+}
+
+/// Looks for a newer release in the public releases repository.
+#[tauri::command]
+async fn update_check() -> CmdResult<Option<update::UpdateInfo>> {
+    Ok(update::check().await.map_err(CoreError::Provider)?)
+}
+
+/// Opens a release page in the browser (desktop; Android does it through its own bridge).
+#[tauri::command]
+fn update_open(url: String) -> CmdResult<()> {
+    if !update::page_allowed(&url) {
+        return Err(CoreError::Validation("this page may not be opened".into()).into());
+    }
+    #[cfg(desktop)]
+    open::that(&url).map_err(CoreError::from)?;
+    Ok(())
 }
 
 /// Downloads NBP rates and quotes for all instruments with an online source.
@@ -478,6 +496,8 @@ pub fn run() {
             bond_offers,
             quote_preview,
             quotes_refresh,
+            update_check,
+            update_open,
             fx_list,
             fx_set,
             settings_load,
