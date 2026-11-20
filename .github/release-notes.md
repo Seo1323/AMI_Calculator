@@ -1,3 +1,10 @@
+## Co nowego w 0.5.1
+- **Rebalansowanie z podatkiem**: portfel ma teraz typ rachunku (zwykły, IKE, IKZE), wybierany przy zakładaniu i w edycji portfela. Gdy wynik rebalansowania zawiera sprzedaż, aplikacja pokazuje szacowany podatek (19% od zysku ze sprzedaży, straty na jednych pozycjach pomniejszają zyski na innych; na IKE i IKZE 0). Stare portfele traktowane są jak zwykły rachunek.
+- **Android: marginesy.** Dolne menu nie nachodzi już na pasek gestów, a treść zaczyna się pod paskiem stanu, także na telefonach bez wycięcia na kamerę. Marginesy uwzględniają też klawiaturę ekranową.
+- **Android: menu u góry.** Nowa opcja (Ustawienia → Wygląd → „Pasek menu u góry”) przenosi pasek menu z dołu na górę w układzie telefonu.
+- **Daty**: pod każdym polem daty widać wybrany dzień zapisany w języku aplikacji (np. „20 lis 2026”), bo okienko wyboru daty używa formatu systemowego.
+- **Do wiedzenia**: podatek to szacunek według średniej ceny zakupu, bez opłat od sprzedaży i strat z poprzednich lat (urząd skarbowy liczy metodą FIFO), więc może się różnić od PIT-38. Nie zmniejsza kwoty przeznaczonej na zakupy. Poprawka marginesów Androida była sprawdzona tylko na emulatorze, a nie na prawdziwym telefonie. Tłumaczenia nowych tekstów (de/es/fr/uk) nie były sprawdzone przez osobę znającą język.
+
 ## Co nowego w 0.5.0
 - **Historia wartości portfela**: na stronie portfela jest wykres wartości w czasie oraz linia „Wpłacone” (suma kupna z opłatami minus sprzedaż, liczona z transakcji po dzisiejszych kursach walut). Wartość zapisuje się raz dziennie przy otwarciu pulpitu lub strony portfela, gdy wycena jest kompletna.
 - **Średnie oprocentowanie** na pulpicie, liście portfeli i stronie portfela: średnia ważona wartością z ręcznie wpisanych stóp (obligacje, gotówka, lokaty). ETF-y i akcje bez wpisanej stopy się nie liczą.
