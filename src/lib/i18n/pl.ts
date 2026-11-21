@@ -177,6 +177,8 @@ const pl = {
 	'pf.compareAmounts': 'Kwoty',
 	'pf.compareAfter': 'Odchylenie po',
 	'pf.compareNone': 'Podaj co najmniej jedną kwotę większą od zera.',
+	'pf.compareAmount': 'Wpłata',
+	'pf.compareCash': 'Gotówka',
 	'trades.title': 'Transakcje',
 	'trades.editing': 'Edycja transakcji',
 	'trades.date': 'Data',

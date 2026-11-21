@@ -179,6 +179,8 @@ const uk: Record<keyof typeof pl, string> = {
 	'pf.compareAmounts': 'Суми',
 	'pf.compareAfter': 'Відхилення після',
 	'pf.compareNone': 'Введіть принаймні одну суму більшу за нуль.',
+	'pf.compareAmount': 'Внесок',
+	'pf.compareCash': 'Залишок',
 	'trades.title': 'Операції',
 	'trades.editing': 'Редагування операції',
 	'trades.date': 'Дата',

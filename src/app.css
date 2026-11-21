@@ -207,6 +207,7 @@ button {
 input[type='text'],
 input[type='number'],
 input[type='password'],
+input[type='date'],
 input:not([type]),
 select {
 	background: var(--surface-2);
@@ -223,6 +224,7 @@ select {
 input[type='text']:hover,
 input[type='number']:hover,
 input[type='password']:hover,
+input[type='date']:hover,
 input:not([type]):hover,
 select:hover {
 	border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
@@ -514,6 +516,7 @@ tbody tr:hover {
 	input[type='text'],
 	input[type='number'],
 	input[type='password'],
+	input[type='date'],
 	input:not([type]) {
 		min-height: 44px;
 	}

@@ -174,6 +174,8 @@
 	let compareText = $state('500; 1000; 2000; 5000');
 	let comparison = $state<{ amount: string; s: Summary }[] | null>(null);
 	let compareError = $state('');
+	// Buy-only results never sell: leave the empty column out so the table fits a phone.
+	const anySold = $derived(comparison?.some((c) => c.s.sold > 0) ?? false);
 	const compare = () =>
 		run(async () => {
 			const amounts = parseAmounts(compareText);
@@ -403,11 +405,11 @@
 					<table>
 						<thead>
 							<tr>
-								<th class="num">{t('rebalance.contribution')}</th>
+								<th class="num">{t('pf.compareAmount')}</th>
 								<th class="num">{t('pf.compareAfter')}</th>
 								<th class="num">{t('trades.buy')}</th>
-								<th class="num">{t('trades.sell')}</th>
-								<th class="num">{t('rebalance.cashLeft')}</th>
+								{#if anySold}<th class="num">{t('trades.sell')}</th>{/if}
+								<th class="num">{t('pf.compareCash')}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -416,7 +418,7 @@
 									<td class="num">{fmtMoney(c.amount, currency)}</td>
 									<td class="num">{fmtNumber(c.s.maxDeviationAfter)} {t('unit.pp')}</td>
 									<td class="num">{fmtMoney(c.s.bought, currency)}</td>
-									<td class="num">{fmtMoney(c.s.sold, currency)}</td>
+									{#if anySold}<td class="num">{fmtMoney(c.s.sold, currency)}</td>{/if}
 									<td class="num">{fmtMoney(c.s.cashLeft, currency)}</td>
 								</tr>
 							{/each}
