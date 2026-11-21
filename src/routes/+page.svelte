@@ -98,7 +98,7 @@
 					<a class="pf" href={`/portfolio/${p.id}`}>
 						<div class="pf-top">
 							{#if !p.hasProblem && p.complete}
-								<BalanceGlyph balanced={!p.needsRebalance} deviation={leanOf(p)} size={46} />
+								<BalanceGlyph balanced={!p.needsRebalance} deviation={leanOf(p)} size={40} />
 							{/if}
 							<div class="pf-id">
 								<strong>{p.name}</strong>

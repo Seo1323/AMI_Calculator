@@ -1,5 +1,5 @@
 :root {
-	--accent: #12a090;
+	--accent: #0d8477;
 	--font-display: 'Bricolage Grotesque Variable', Inter, 'Segoe UI', system-ui, sans-serif;
 	--font-scale: 1;
 	--radius: 14px;
@@ -11,7 +11,7 @@
 	--border: #d3dcd8;
 	--text: #11201d;
 	--text-muted: #566865;
-	--positive: #1f8a3c;
+	--positive: #187a33;
 	--negative: #c43a2a;
 	--warning: #a8650a;
 	--shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 8px 24px -12px rgb(16 24 40 / 0.14);
