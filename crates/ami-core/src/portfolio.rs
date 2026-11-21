@@ -366,7 +366,8 @@ fn build_view(inp: Inputs) -> PortfolioView {
         {
             missing_rates.push(q.currency.to_string());
         }
-        let value = unit.map(|p| p * h.quantity);
+        // price x FX rate x quantity can pass Decimal's range even when each is within MAX_AMOUNT
+        let value = unit.and_then(|p| p.checked_mul(h.quantity));
         let cost_base = inp.to_base(h.cost, &instrument.currency);
         positions.push(PositionView {
             avg_cost: (!h.quantity.is_zero()).then(|| (h.cost / h.quantity).round_dp(6)),
@@ -678,6 +679,33 @@ mod tests {
             v.problem.as_ref().map(|p| p.code.as_str()),
             Some("missingReference")
         );
+    }
+
+    #[test]
+    fn an_out_of_range_valuation_is_missing_not_a_panic() {
+        use crate::money::MAX_AMOUNT;
+        let f = fixture();
+        let mut t = trade(f.etf.meta.id, 2, TradeSide::Buy, MAX_AMOUNT, dec!(1));
+        t.portfolio_id = f.portfolio.meta.id;
+        f.store.save_trade(t).unwrap();
+        f.store
+            .set_quote(&quote(f.etf.meta.id, MAX_AMOUNT, "EUR"))
+            .unwrap();
+        f.store
+            .set_fx_rate(&FxRate {
+                currency: Currency::new("EUR").unwrap(),
+                rate_pln: MAX_AMOUNT,
+                source: "manual".into(),
+                fetched_at: Utc::now(),
+            })
+            .unwrap();
+        // 1e12 x 1e12 x 1e12 does not fit in a Decimal: the position is left unvalued
+        let v = view(&f.store, f.portfolio.meta.id).unwrap();
+        assert!(v.positions.iter().any(|p| p.value.is_none()));
+        // and nothing downstream panics on it either
+        let _ = crate::dashboard::build(&f.store, &Currency::new("PLN").unwrap());
+        let _ = history(&f.store, f.portfolio.meta.id);
+        let _ = rebalance(&f.store, f.portfolio.meta.id, dec!(100), Mode::Full);
     }
 
     #[test]
