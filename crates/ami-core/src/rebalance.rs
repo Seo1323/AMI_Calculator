@@ -669,16 +669,23 @@ mod proptests {
                 Mode::Full => (-max_units * 10_000..=max_units * 10_000).boxed(),
             }
             .prop_map(|c| Decimal::new(c, 4));
-            (positions, contribution, 0u32..=8).prop_map(move |(positions, contribution, dp)| {
-                RebalanceInput {
+            (positions, contribution, 0u32..=8, 0..=10_000i64).prop_map(
+                move |(positions, contribution, dp, tol)| RebalanceInput {
                     positions,
                     contribution,
                     mode,
-                    tolerance_percent: Decimal::ZERO,
+                    tolerance_percent: Decimal::new(tol, 2),
                     fraction_decimals: dp,
-                }
-            })
+                },
+            )
         })
+    }
+
+    fn p_zero_weight(input: &RebalanceInput, id: &str) -> bool {
+        input
+            .positions
+            .iter()
+            .any(|p| p.id == id && p.target_percent.is_zero())
     }
 
     fn any_mode() -> impl Strategy<Value = Mode> {
@@ -698,16 +705,24 @@ mod proptests {
         fn spending_and_quantities_stay_within_bounds(
             input in any_mode().prop_flat_map(|m| valid_input(1_000_000, m))
         ) {
-            let Ok(r) = compute(&input) else { return Ok(()) };
+            let r = match compute(&input) {
+                Ok(r) => r,
+                Err(CoreError::EmptyPortfolio) => return Ok(()),
+                Err(e) => return Err(TestCaseError::fail(format!("unexpected error: {e}"))),
+            };
             let spent: Decimal = r.positions.iter().map(|p| p.trade_value).sum();
             // purchases never exceed the deposit; the bookkeeping adds up
             prop_assert!(r.cash_left >= Decimal::ZERO, "cash_left {}", r.cash_left);
             prop_assert_eq!(r.cash_left, input.contribution - spent);
             prop_assert!(spent <= input.contribution);
+            prop_assert_eq!(r.total_after, r.total_before + spent);
             for (p, res) in input.positions.iter().zip(&r.positions) {
                 prop_assert!(p.quantity + res.units_to_trade >= Decimal::ZERO, "oversold {}", p.id);
                 prop_assert!(res.value_after >= Decimal::ZERO);
-                if !p.fractional {
+                prop_assert_eq!(res.value_after, (p.quantity + res.units_to_trade) * p.price);
+                if p.fractional {
+                    prop_assert!(res.units_to_trade.scale() <= input.fraction_decimals);
+                } else {
                     prop_assert!(res.units_to_trade.fract().is_zero(), "fractional units for {}", p.id);
                 }
             }
@@ -715,10 +730,17 @@ mod proptests {
 
         #[test]
         fn buy_only_never_sells(input in valid_input(1_000_000, Mode::BuyOnly)) {
-            let Ok(r) = compute(&input) else { return Ok(()) };
+            let r = match compute(&input) {
+                Ok(r) => r,
+                Err(CoreError::EmptyPortfolio) => return Ok(()),
+                Err(e) => return Err(TestCaseError::fail(format!("unexpected error: {e}"))),
+            };
             for res in &r.positions {
                 prop_assert!(res.units_to_trade >= Decimal::ZERO, "sold {}", res.id);
                 prop_assert!(res.trade_value >= Decimal::ZERO);
+                if p_zero_weight(&input, &res.id) {
+                    prop_assert!(res.units_to_trade.is_zero(), "bought zero-weight {}", res.id);
+                }
             }
         }
 
@@ -726,16 +748,22 @@ mod proptests {
         fn result_does_not_depend_on_position_order(
             input in any_mode().prop_flat_map(|m| valid_input(1_000_000, m))
         ) {
+            let key = |p: &Position| (p.quantity, p.price, p.target_percent, p.fractional);
+            for (i, a) in input.positions.iter().enumerate() {
+                // shortcut: exact ties are resolved by position index, so they are excluded here
+                prop_assume!(input.positions[i + 1..].iter().all(|b| key(a) != key(b)));
+            }
             let mut reversed = input.clone();
             reversed.positions.reverse();
             let (a, b) = (compute(&input), compute(&reversed));
-            prop_assert_eq!(a.is_ok(), b.is_ok());
             let (Ok(a), Ok(b)) = (a, b) else { return Ok(()) };
             prop_assert_eq!(a.total_before, b.total_before);
             prop_assert_eq!(a.needs_rebalance, b.needs_rebalance);
             for res in &a.positions {
                 let other = b.positions.iter().find(|x| x.id == res.id).unwrap();
                 prop_assert_eq!(res.units_to_trade, other.units_to_trade, "id {}", res.id);
+                prop_assert_eq!(res.trade_value, other.trade_value);
+                prop_assert_eq!(res.value_after, other.value_after);
             }
             prop_assert_eq!(a.cash_left, b.cash_left);
         }
