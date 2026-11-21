@@ -46,7 +46,7 @@ export interface Settings {
 	dashboardWidgets: string;
 }
 
-export const ACCENTS = ['#12a090', '#2f6fed', '#c2410c', '#9333ea', '#db2777', '#0891b2', '#ca8a04', '#475569'];
+export const ACCENTS = ['#0d8477', '#2f6fed', '#c2410c', '#9333ea', '#db2777', '#0891b2', '#ca8a04', '#475569'];
 
 export const FONT_FAMILIES: FontFamily[] = ['default', 'serif', 'mono'];
 export const SHADOWS: Shadows[] = ['none', 'soft', 'strong'];
