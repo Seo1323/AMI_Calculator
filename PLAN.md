@@ -34,7 +34,7 @@ scripts/           release.mjs (wydanie), android-signing.py (podpis APK w CI)
 | Repozytorium (prywatne) | https://github.com/Seo1323/AMI_Calculator |
 | Kod lokalnie | `~/Projects/AMI_Calculator` |
 | Baza użytkownika (dev i release) | `~/.local/share/com.seo1323.amicalculator/ami.db` (+ `backups/`, ostatnie 10 kopii sprzed importu) |
-| **Klucz do podpisu Androida** | lokalny folder właściciela poza repozytorium (`ami-release.p12` + `plik z hasłem` z hasłem i aliasem `ami`) |
+| **Klucz do podpisu Androida** | lokalny folder właściciela poza repozytorium (plik `.p12`, alias i hasło) |
 | Kopia klucza w GitHub | sekrety `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (nie da się ich odczytać, tylko użyć w buildzie) |
 
 **Klucza nigdy nie generuj ponownie.** Nowy klucz uniemożliwia aktualizację APK na telefonach, na których jest stary. Zostaje 1 kopia w tym folderze i kopia na pendrive u właściciela.
@@ -51,7 +51,7 @@ npm test                          # testy rachunku dat obligacji (node:test, bez
 npm run tauri build -- --no-bundle   # lokalny build release, ok. 14 min (LTO)
 ```
 
-**Wydanie:** `npm run release X.Y.Z` (podbija wersję, commit, tag z opisem, push). GitHub buduje 6 plików do szkicu. Sprawdź, że są **wszystkie 6** (`gh release view vX.Y.Z --json assets`), potem opublikuj jako pre-release: `gh release edit vX.Y.Z --draft=false --prerelease`. Przed wydaniem poczekaj na zielone CI na `main`.
+**Wydanie:** `npm run release X.Y.Z` (podbija wersję, commit, tag z opisem, push). GitHub buduje 6 plików do szkicu, a od dodania macOS (niepodpisany uniwersalny `.dmg`, niesprawdzony, bez podpisu Apple) 7. Sprawdź, że są **wszystkie** (`gh release view vX.Y.Z --json assets`), potem opublikuj jako pre-release: `gh release edit vX.Y.Z --draft=false --prerelease`. Przed wydaniem poczekaj na zielone CI na `main`.
 
 **Test interfejsu na żywo:** debugowy plik binarny ładuje frontend z `http://localhost:1420`, więc najpierw `npm run dev`. Zrzut okna: `niri msg action screenshot-window --id <id>`, potem `wl-paste --type image/png`. **Przed wstawieniem danych demo zrób kopię `ami.db*` i potem ją przywróć.**
 
