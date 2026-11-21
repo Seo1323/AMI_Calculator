@@ -13,6 +13,7 @@
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import { quotes as quoteState } from '$lib/quotes.svelte';
 	import RebalanceResultView from '$lib/components/RebalanceResultView.svelte';
+	import { parseAmounts, summarize, type Summary } from '$lib/whatif';
 	import { toDecimal, today, type AccountType, type History, type Instrument, type Portfolio, type PortfolioView, type Trade } from '$lib/types';
 
 	const id = $derived(page.params.id ?? '');
@@ -98,6 +99,7 @@
 			});
 			editing = false;
 			result = null;
+			comparison = null;
 			await load();
 		});
 
@@ -128,6 +130,7 @@
 			});
 			editingDetails = false;
 			result = null;
+			comparison = null;
 			await load();
 		});
 
@@ -146,6 +149,7 @@
 			tradeForm = { ...emptyTrade(), instrumentId: tradeForm.instrumentId };
 			editingTradeId = null;
 			result = null;
+			comparison = null;
 			await load();
 		});
 
@@ -155,12 +159,28 @@
 			await db.remove('trade', tr.id);
 			if (editingTradeId === tr.id) cancelEditTrade();
 			result = null;
+			comparison = null;
 			await load();
 		});
 
 	const calculate = () =>
 		run(async () => {
 			result = await invoke<RebalanceResult>('portfolio_rebalance', { id, contribution: toDecimal(contribution), mode });
+		});
+
+	// What-if: the same read-only rebalance for several deposits at once, nothing is saved.
+	let compareText = $state('500; 1000; 2000; 5000');
+	let comparison = $state<{ amount: string; s: Summary }[] | null>(null);
+	let compareError = $state('');
+	const compare = () =>
+		run(async () => {
+			const amounts = parseAmounts(compareText);
+			compareError = amounts.length ? '' : t('pf.compareNone');
+			if (!amounts.length) return;
+			const results = await Promise.all(
+				amounts.map((a) => invoke<RebalanceResult>('portfolio_rebalance', { id, contribution: a, mode }))
+			);
+			comparison = amounts.map((amount, i) => ({ amount, s: summarize(results[i]) }));
 		});
 
 	const tradeTotal = $derived(
@@ -354,6 +374,48 @@
 		{#if result}
 			<RebalanceResultView {result} {currency} label={symbol} />
 		{/if}
+
+		<!-- What if -->
+		<section class="card stack">
+			<h2>{t('pf.compare')}</h2>
+			<p class="muted small">{t('pf.compareHint')}</p>
+			<div class="row">
+				<label class="field">
+					{t('pf.compareAmounts')} ({currency})
+					<input bind:value={compareText} />
+				</label>
+				<button class="btn primary" onclick={compare}>{t('common.calculate')}</button>
+			</div>
+			{#if compareError}
+				<div class="notice error">{compareError}</div>
+			{/if}
+			{#if comparison}
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th class="num">{t('rebalance.contribution')}</th>
+								<th class="num">{t('pf.compareAfter')}</th>
+								<th class="num">{t('trades.buy')}</th>
+								<th class="num">{t('trades.sell')}</th>
+								<th class="num">{t('rebalance.cashLeft')}</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each comparison as c (c.amount)}
+								<tr>
+									<td class="num">{fmtMoney(c.amount, currency)}</td>
+									<td class="num">{fmtNumber(c.s.maxDeviationAfter)} {t('unit.pp')}</td>
+									<td class="num">{fmtMoney(c.s.bought, currency)}</td>
+									<td class="num">{fmtMoney(c.s.sold, currency)}</td>
+									<td class="num">{fmtMoney(c.s.cashLeft, currency)}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{/if}
+		</section>
 
 		<!-- Trades -->
 		<section class="card stack">
