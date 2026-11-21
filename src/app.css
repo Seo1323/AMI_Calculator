@@ -1,18 +1,19 @@
 :root {
-	--accent: #2f6fed;
+	--accent: #12a090;
+	--font-display: 'Bricolage Grotesque Variable', Inter, 'Segoe UI', system-ui, sans-serif;
 	--font-scale: 1;
 	--radius: 14px;
 	--space: 1rem;
 
-	--bg: #f4f5f9;
-	--surface: #ffffff;
-	--surface-2: #eef0f4;
-	--border: #dde1e8;
-	--text: #161a22;
-	--text-muted: #5d6677;
-	--positive: #0f8a5f;
-	--negative: #c8322a;
-	--warning: #b26b00;
+	--bg: #eef2f0;
+	--surface: #fbfcfb;
+	--surface-2: #e6ece9;
+	--border: #d3dcd8;
+	--text: #11201d;
+	--text-muted: #566865;
+	--positive: #1f8a3c;
+	--negative: #c43a2a;
+	--warning: #a8650a;
 	--shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 8px 24px -12px rgb(16 24 40 / 0.14);
 	--shadow-lg: 0 2px 4px rgb(16 24 40 / 0.06), 0 18px 40px -18px rgb(16 24 40 / 0.28);
 	--ring: 0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent);
@@ -42,15 +43,15 @@
 }
 
 :root[data-theme='dark'] {
-	--bg: #0d0f14;
-	--surface: #181b22;
-	--surface-2: #21252e;
-	--border: #2d323d;
-	--text: #e7e9ee;
-	--text-muted: #9aa3b2;
-	--positive: #3ecf8e;
-	--negative: #ff6b61;
-	--warning: #f0a83a;
+	--bg: #0b1214;
+	--surface: #121c1f;
+	--surface-2: #1a2629;
+	--border: #263639;
+	--text: #e6eeea;
+	--text-muted: #90a39f;
+	--positive: #72d46f;
+	--negative: #ff7a63;
+	--warning: #f2b04a;
 	--shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 10px 28px -14px rgb(0 0 0 / 0.7);
 	--shadow-lg: 0 2px 6px rgb(0 0 0 / 0.5), 0 22px 46px -18px rgb(0 0 0 / 0.85);
 	--glow: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -115,10 +116,14 @@ h3 {
 	margin: 0;
 	line-height: 1.25;
 }
+h1,
+.big {
+	font-family: var(--font-display);
+}
 h1 {
-	font-size: 1.75rem;
-	font-weight: 700;
-	letter-spacing: -0.02em;
+	font-size: 1.85rem;
+	font-weight: 650;
+	letter-spacing: -0.025em;
 }
 h2 {
 	font-size: 1.1rem;
@@ -413,9 +418,11 @@ tbody tr:hover {
 /* ---------- Personalisation (set from Settings > Appearance) ---------- */
 :root[data-font='serif'] {
 	font-family: Georgia, 'Times New Roman', serif;
+	--font-display: Georgia, 'Times New Roman', serif;
 }
 :root[data-font='mono'] {
 	font-family: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+	--font-display: ui-monospace, 'JetBrains Mono', Consolas, monospace;
 }
 :root[data-shadows='none'] {
 	--shadow: none;
