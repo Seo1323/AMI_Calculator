@@ -1023,6 +1023,49 @@ mod tests {
     }
 
     #[test]
+    fn every_older_schema_upgrades_and_keeps_user_data() {
+        // The unused budget tables must survive too: they stay in users' databases for good.
+        for old in 1..MIGRATIONS.len() {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("ami.db");
+            {
+                let conn = Connection::open(&path).unwrap();
+                for sql in &MIGRATIONS[..old] {
+                    conn.execute_batch(sql).unwrap();
+                }
+                conn.execute(
+                    "INSERT INTO settings (key, value, updated_at) VALUES ('k', '\"v\"', 't')",
+                    [],
+                )
+                .unwrap();
+                conn.execute(
+                    "INSERT INTO accounts (id, created_at, updated_at, data) VALUES ('a', 't', 't', '{}')",
+                    [],
+                )
+                .unwrap();
+                conn.pragma_update(None, "user_version", old as i64)
+                    .unwrap();
+            }
+            let s = Store::open(&path).unwrap();
+            assert_eq!(
+                s.schema_version().unwrap(),
+                MIGRATIONS.len() as i64,
+                "from v{old}"
+            );
+            assert_eq!(
+                s.get_setting("k").unwrap(),
+                Some(serde_json::json!("v")),
+                "from v{old}"
+            );
+            let accounts: i64 = s
+                .conn
+                .query_row("SELECT COUNT(*) FROM accounts", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(accounts, 1, "budget table lost data from v{old}");
+        }
+    }
+
+    #[test]
     fn rejects_newer_database() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("ami.db");
