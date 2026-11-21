@@ -12,6 +12,8 @@
 	import { fromSaved, fromUnits, type TargetRow } from '$lib/targets';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import { quotes as quoteState } from '$lib/quotes.svelte';
+	import BalanceGlyph from '$lib/components/BalanceGlyph.svelte';
+	import { lean } from '$lib/balance';
 	import RebalanceResultView from '$lib/components/RebalanceResultView.svelte';
 	import { parseAmounts, summarize, type Summary } from '$lib/whatif';
 	import { toDecimal, today, type AccountType, type History, type Instrument, type Portfolio, type PortfolioView, type Trade } from '$lib/types';
@@ -254,9 +256,16 @@
 					</div>
 				{/if}
 				{#if view.maxDeviation !== null}
-					<div>
-						<span class="muted">{t('rebalance.deviation')}</span>
-						<strong class:warn-text={view.needsRebalance}>{fmtNumber(view.maxDeviation)} {t('unit.pp')}</strong>
+					<div class="dev">
+						<BalanceGlyph
+							balanced={!view.needsRebalance}
+							deviation={lean(view.positions.map((p) => ({ current: p.currentPercent === null ? null : Number(p.currentPercent), target: Number(p.targetPercent) })))}
+							size={38}
+						/>
+						<div>
+							<span class="muted">{t('rebalance.deviation')}</span>
+							<strong class:warn-text={view.needsRebalance}>{fmtNumber(view.maxDeviation)} {t('unit.pp')}</strong>
+						</div>
 					</div>
 				{/if}
 			</div>
@@ -537,8 +546,9 @@
 		gap: var(--space);
 	}
 	.big {
-		font-size: clamp(1.6rem, 7vw, 2rem);
-		font-weight: 700;
+		font-size: clamp(1.8rem, 8vw, 2.4rem);
+		font-weight: 600;
+		letter-spacing: -0.03em;
 		font-variant-numeric: tabular-nums;
 	}
 	.kpis {
@@ -549,6 +559,11 @@
 		display: flex;
 		flex-direction: column;
 		font-variant-numeric: tabular-nums;
+	}
+	.kpis .dev {
+		flex-direction: row;
+		align-items: center;
+		gap: 0.6rem;
 	}
 	.kpis span {
 		font-size: 0.8rem;

@@ -3,6 +3,8 @@
 	import { settings, widgetList } from '$lib/settings.svelte';
 	import { invoke, isTauri } from '$lib/tauri';
 	import { quotes } from '$lib/quotes.svelte';
+	import BalanceGlyph from '$lib/components/BalanceGlyph.svelte';
+	import { lean } from '$lib/balance';
 	import AllocationBar from '$lib/components/AllocationBar.svelte';
 	import RefreshQuotes from '$lib/components/RefreshQuotes.svelte';
 	import type { Dashboard } from '$lib/types';
@@ -28,6 +30,8 @@
 	});
 	const colorOf = (id: string) => slots.get(id) ?? 8;
 	const widgets = $derived(widgetList().filter((w) => w.visible));
+	const leanOf = (p: Dashboard['portfolios'][number]) =>
+		lean(p.allocation.map((a) => ({ current: Number(a.currentPercent), target: Number(a.targetPercent) })));
 	const empty = $derived(data !== null && data.portfolios.length === 0);
 </script>
 
@@ -92,23 +96,28 @@
 				{/if}
 				{#each data.portfolios as p (p.id)}
 					<a class="pf" href={`/portfolio/${p.id}`}>
-						<div class="pf-head">
-							<strong>{p.name}</strong>
-							<span class="num">{p.value === null ? '—' : fmtMoney(p.value, data.currency)}</span>
-						</div>
-						<div class="pf-sub small">
-							{#if p.hasProblem}
-								<span class="status warn-text">⚠ {t('portfolio.dataProblemShort')}</span>
-							{:else if !p.complete}
-								<span class="muted">{t('dashboard.incomplete')}</span>
-							{:else if p.needsRebalance}
-								<span class="status warn-text">⚠ {t('dashboard.needsRebalance')} · {fmtNumber(p.maxDeviation ?? 0)} {t('unit.pp')}</span>
-							{:else}
-								<span class="status ok-text">✓ {t('dashboard.inTolerance')}</span>
+						<div class="pf-top">
+							{#if !p.hasProblem && p.complete}
+								<BalanceGlyph balanced={!p.needsRebalance} deviation={leanOf(p)} size={46} />
 							{/if}
-							{#if p.gain !== null}
-								<span class:pos={Number(p.gain) > 0} class:neg={Number(p.gain) < 0}>{fmtMoney(p.gain, data.currency)}</span>
-							{/if}
+							<div class="pf-id">
+								<strong>{p.name}</strong>
+								{#if p.hasProblem}
+									<span class="status warn-text">⚠ {t('portfolio.dataProblemShort')}</span>
+								{:else if !p.complete}
+									<span class="muted small">{t('dashboard.incomplete')}</span>
+								{:else if p.needsRebalance}
+									<span class="small warn-text">{t('dashboard.needsRebalance')} · {fmtNumber(p.maxDeviation ?? 0)} {t('unit.pp')}</span>
+								{:else}
+									<span class="small ok-text">{t('dashboard.inTolerance')}</span>
+								{/if}
+							</div>
+							<div class="pf-val">
+								<span class="num">{p.value === null ? '—' : fmtMoney(p.value, data.currency)}</span>
+								{#if p.gain !== null}
+									<span class="small" class:pos={Number(p.gain) > 0} class:neg={Number(p.gain) < 0}>{fmtMoney(p.gain, data.currency)}</span>
+								{/if}
+							</div>
 						</div>
 						{#if p.allocation.length}
 							<AllocationBar
@@ -153,8 +162,10 @@
 		gap: var(--space);
 	}
 	.hero-num {
-		font-size: clamp(1.8rem, 8vw, 2.4rem);
-		font-weight: 700;
+		font-family: var(--font-display);
+		font-size: clamp(2rem, 9vw, 2.9rem);
+		font-weight: 600;
+		letter-spacing: -0.03em;
 		font-variant-numeric: tabular-nums;
 		line-height: 1.15;
 	}
@@ -201,12 +212,35 @@
 	.pf:hover {
 		border-color: var(--accent);
 	}
-	.pf-head,
-	.pf-sub {
+	.pf-top {
 		display: flex;
-		justify-content: space-between;
-		gap: 0.5rem;
+		align-items: center;
+		gap: 0.8rem;
 		font-variant-numeric: tabular-nums;
+	}
+	.pf-id,
+	.pf-val {
+		display: flex;
+		flex-direction: column;
+	}
+	.pf-id {
+		flex: 1;
+		min-width: 0;
+	}
+	.pf-id strong {
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+	}
+	.pf-val {
+		align-items: flex-end;
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+	}
+	.pf-val .small {
+		font-family: inherit;
+		font-size: 0.85rem;
 	}
 	.warn-text {
 		color: var(--warning);

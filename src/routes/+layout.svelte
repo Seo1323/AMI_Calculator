@@ -1,4 +1,5 @@
 <script lang="ts">
+	import '@fontsource-variable/bricolage-grotesque';
 	import '../app.css';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
