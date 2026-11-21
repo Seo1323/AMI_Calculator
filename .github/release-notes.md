@@ -1,3 +1,8 @@
+## Co nowego w 0.7.0
+- **macOS**: pierwszy instalator `.dmg` (jeden plik dla Intela i Apple Silicon).
+- **Kod jest publiczny** do wglądu (wszystkie prawa zastrzeżone), z README i zrzutami ekranu.
+- **Do wiedzenia**: wersja na macOS nie jest podpisana ani notaryzowana przez Apple i **nie była sprawdzona na prawdziwym Macu** (patrz „Instalacja” niżej). Tłumaczenia (de/es/fr/uk) nadal nie były sprawdzone przez osobę znającą język.
+
 ## Co nowego w 0.5.2
 - **Instalator Windows po polsku i z marką**: kreator, strona „Już zainstalowany”, komunikaty i deinstalator są po polsku (gdy system Windows jest po polsku, w innych przypadkach po angielsku), z panelem bocznym i ikoną aplikacji zamiast domyślnej grafiki NSIS. Pole „Usuń też dane aplikacji” w deinstalatorze jest domyślnie odznaczone, a ponowna instalacja nie kasuje danych.
 - **Android: okna potwierdzenia** mają przyciski „Anuluj” i „OK” w języku aplikacji, a długa ścieżka kopii przed importem zawija się zamiast wychodzić poza ekran.
@@ -96,6 +101,10 @@ Jeśli pojawi się „System Windows ochronił ten komputer”, kliknij **Więce
 - dowolna dystrybucja: `AMI_Calculator_*_amd64.AppImage`, potem `chmod +x AMI_Calculator_*.AppImage` i uruchom,
 - Ubuntu / Debian / Mint: `sudo apt install ./AMI_Calculator_*_amd64.deb`,
 - Fedora / openSUSE: `sudo dnf install ./AMI_Calculator-*.x86_64.rpm`.
+
+**macOS**: pobierz `AMI_Calculator_*_universal.dmg` i przeciągnij aplikację do Programów. Aplikacja nie jest podpisana,
+więc przy pierwszym uruchomieniu kliknij ją prawym przyciskiem → **Otwórz**. Jeśli system pisze, że plik jest uszkodzony:
+`xattr -dr com.apple.quarantine /Applications/AMI_Calculator.app`.
 
 **Android** (arm64): pobierz `AMI_Calculator_*_arm64.apk` na telefon i otwórz.
 Telefon poprosi o zgodę na instalację z nieznanych źródeł. Wersja na Androida jest wczesna.
