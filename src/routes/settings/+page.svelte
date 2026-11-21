@@ -20,8 +20,8 @@
 	import { UI_SCALE_MIN, UI_SCALE_MAX, UI_SCALE_PRESETS } from '$lib/uiScale';
 	import { PERF_MODES } from '$lib/perf';
 	import { perf } from '$lib/perf.svelte';
-	import { invoke, isTauri, type DataLocation, type ImportMode, type ImportReport } from '$lib/tauri';
-	import { sync, connect, disconnect, syncNow, setPassphrase, changePassphrase } from '$lib/sync.svelte';
+	import { invoke, isTauri, type DataLocation, type ImportMode, type ImportReport, type UpdateInfo } from '$lib/tauri';
+	import { sync, connect, disconnect, syncNow, setPassphrase, changePassphrase, openPage } from '$lib/sync.svelte';
 
 	const CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP', 'CHF'];
 	let version = $state('');
@@ -65,6 +65,31 @@
 			messages = [t('settings.exported', { path })];
 		} catch (e) {
 			error = errorText(e);
+		}
+	}
+
+	let update: UpdateInfo | null = $state(null);
+	let checking = $state(false);
+	let updateError: unknown = $state(null);
+	async function checkUpdate() {
+		checking = true;
+		updateError = null;
+		update = null;
+		try {
+			if (!isTauri()) throw { code: 'notInTauri' };
+			// No release published at all counts as "nothing newer".
+			update = (await invoke<UpdateInfo | null>('update_check')) ?? { current: version, latest: version, newer: false, url: '' };
+		} catch (e) {
+			updateError = e;
+		} finally {
+			checking = false;
+		}
+	}
+	async function openUpdate() {
+		try {
+			if (update) await openPage(update.url);
+		} catch (e) {
+			updateError = e;
 		}
 	}
 
@@ -432,7 +457,19 @@
 	<section class="card stack">
 		<h2>{t('settings.about')}</h2>
 		<p class="muted">{t('app.name')} · {t('settings.version', { version: version || '—' })}</p>
-		<div><button class="btn" onclick={resetSettings}>{t('common.reset')}</button></div>
+		<div class="row">
+			<button class="btn" disabled={checking} onclick={checkUpdate}>
+				{checking ? t('update.checking') : t('update.check')}
+			</button>
+			<button class="btn" onclick={resetSettings}>{t('common.reset')}</button>
+		</div>
+		{#if update?.newer}
+			<div class="notice">{t('update.available', { version: update.latest })}</div>
+			<div><button class="btn primary" onclick={openUpdate}>{t('update.download')}</button></div>
+		{:else if update}
+			<p class="muted">{t('update.upToDate', { version: update.current })}</p>
+		{/if}
+		{#if updateError}<div class="notice error">{errorText(updateError)}</div>{/if}
 	</section>
 </div>
 

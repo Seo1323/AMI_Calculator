@@ -32,7 +32,7 @@ pub struct RefreshReport {
     pub failures: Vec<Failure>,
 }
 
-fn client() -> reqwest::Result<reqwest::Client> {
+pub(crate) fn client() -> reqwest::Result<reqwest::Client> {
     reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(15))
@@ -42,7 +42,7 @@ fn client() -> reqwest::Result<reqwest::Client> {
 /// Largest response body accepted; real pages and API answers are tens of kilobytes.
 const MAX_BODY: usize = 4 * 1024 * 1024;
 
-async fn get(client: &reqwest::Client, url: &str) -> Result<String, String> {
+pub(crate) async fn get(client: &reqwest::Client, url: &str) -> Result<String, String> {
     let mut resp = client
         .get(url)
         .send()

@@ -319,6 +319,11 @@ const es: Record<keyof typeof pl, string> = {
 	'settings.location.backups': 'Copias automáticas (las últimas 10)',
 	'settings.about': 'Acerca de',
 	'settings.version': 'Versión {version}',
+	'update.check': 'Buscar actualizaciones',
+	'update.checking': 'Buscando…',
+	'update.available': 'Hay una versión más reciente: {version}.',
+	'update.upToDate': 'Tienes la última versión publicada ({version}).',
+	'update.download': 'Abrir la página de descarga',
 
 	'error.invalidCurrency': 'Código de moneda no válido.',
 	'error.missingRate': 'Falta el tipo de cambio.',
