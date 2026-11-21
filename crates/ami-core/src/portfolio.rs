@@ -32,7 +32,9 @@ pub fn holdings(trades: &[Trade]) -> Result<BTreeMap<Uuid, Holding>> {
         .iter()
         .filter(|t| t.meta.deleted_at.is_none())
         .collect();
-    sorted.sort_by_key(|t| (t.date, t.meta.created_at));
+    // A trade has a date but no time, so within a day buys come first: a backfilled buy must not make an
+    // earlier-entered sell of the same day look like an oversell.
+    sorted.sort_by_key(|t| (t.date, t.side == TradeSide::Sell, t.meta.created_at));
     let mut map: BTreeMap<Uuid, Holding> = BTreeMap::new();
     for t in sorted {
         // A zero-quantity trade changes nothing (and a sell of 0 would divide the cost by a zero quantity).
@@ -223,6 +225,17 @@ fn load(store: &Store, portfolio_id: Uuid) -> Result<Inputs> {
         });
     }
     let holdings = holdings(&store.trades_of(portfolio_id)?)?;
+    // Deleted (e.g. by a tombstone synced from another device) while still held: say so instead of
+    // quietly dropping the position from every total.
+    if let Some((id, _)) = holdings
+        .iter()
+        .find(|(id, h)| !h.quantity.is_zero() && !instruments.contains_key(id))
+    {
+        return Err(CoreError::MissingReference {
+            table: "instrument".into(),
+            id: id.to_string(),
+        });
+    }
     // A bond has no market feed: until its price is entered it is valued at what it cost, not at zero.
     // The cost basis includes buy fees, so the unit price is slightly above the entered purchase price
     // and the gain shows 0 rather than minus the fees.
@@ -297,7 +310,11 @@ pub fn view(store: &Store, portfolio_id: Uuid) -> Result<PortfolioView> {
     match load(store, portfolio_id) {
         Ok(inp) => Ok(build_view(inp)),
         // One broken history must not take the dashboard and the portfolio list down with it.
-        Err(e @ (CoreError::Oversold { .. } | CoreError::Validation(_))) => {
+        Err(
+            e @ (CoreError::Oversold { .. }
+            | CoreError::Validation(_)
+            | CoreError::MissingReference { .. }),
+        ) => {
             let portfolio = store
                 .get::<Portfolio>(portfolio_id)?
                 .ok_or(CoreError::NotFound)?;
@@ -338,7 +355,8 @@ fn build_view(inp: Inputs) -> PortfolioView {
         let instrument = inp.instruments[&id].clone();
         let h = inp.holdings.get(&id).cloned().unwrap_or_default();
         let quote = inp.quotes.get(&id);
-        if quote.is_none() && !h.quantity.is_zero() {
+        let targeted = inp.targets.get(&id).is_some_and(|t| !t.is_zero());
+        if quote.is_none() && (!h.quantity.is_zero() || targeted) {
             missing_prices.push(instrument.symbol.clone());
         }
         let unit = inp.price_in_base(id);
@@ -643,6 +661,26 @@ mod tests {
     }
 
     #[test]
+    fn a_buy_entered_later_on_the_same_day_covers_an_earlier_sell() {
+        let a = Uuid::now_v7();
+        let first_in = trade(a, 5, TradeSide::Sell, dec!(5), dec!(10));
+        let mut later = trade(a, 5, TradeSide::Buy, dec!(10), dec!(10));
+        later.meta.created_at = first_in.meta.created_at + chrono::Duration::seconds(1);
+        assert_eq!(holdings(&[first_in, later]).unwrap()[&a].quantity, dec!(5));
+    }
+
+    #[test]
+    fn a_deleted_instrument_that_is_still_held_is_reported() {
+        let f = fixture();
+        f.store.delete::<Instrument>(f.etf.meta.id).unwrap();
+        let v = view(&f.store, f.portfolio.meta.id).unwrap();
+        assert_eq!(
+            v.problem.as_ref().map(|p| p.code.as_str()),
+            Some("missingReference")
+        );
+    }
+
+    #[test]
     fn overselling_is_rejected() {
         let a = Uuid::now_v7();
         let r = holdings(&[
@@ -724,7 +762,8 @@ mod tests {
         let f = fixture();
         let v = view(&f.store, f.portfolio.meta.id).unwrap();
         assert_eq!(v.positions.len(), 2);
-        assert_eq!(v.missing_prices, ["VWCE"]);
+        // BTC has a target but no price yet, which also makes the numbers incomplete
+        assert_eq!(v.missing_prices, ["BTC", "VWCE"]);
         assert_eq!(v.targets_sum, dec!(100));
         assert!(v.max_deviation.is_none());
 
