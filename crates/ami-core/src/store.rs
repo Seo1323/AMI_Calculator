@@ -1065,6 +1065,68 @@ mod tests {
         }
     }
 
+    /// Every string/number leaf of a JSON tree, in a stable order.
+    fn leaves<'a>(v: &'a mut serde_json::Value, out: &mut Vec<&'a mut serde_json::Value>) {
+        match v {
+            serde_json::Value::Object(m) => m.values_mut().for_each(|x| leaves(x, out)),
+            serde_json::Value::Array(a) => a.iter_mut().for_each(|x| leaves(x, out)),
+            serde_json::Value::String(_) | serde_json::Value::Number(_) => out.push(v),
+            _ => {}
+        }
+    }
+
+    proptest::proptest! {
+        // A hostile or corrupt `.ami` may be rejected, but must never panic (release aborts on panic),
+        // not while parsing, importing, nor when the dashboard and portfolio views read it back.
+        #[test]
+        fn a_corrupted_import_never_panics(
+            edits in proptest::collection::vec(
+                (0usize..64, proptest::sample::select(vec![
+                    "0", "-1", "1000000000001", "999999999999999999999999", "0.0000000001", "-0", "",
+                    "x",
+                    "2026-02-30", "0000-00-00", "PLN", "ZZZ",
+                ])),
+                1..12,
+            ),
+            merge in proptest::bool::ANY,
+        ) {
+            let src = Store::open_in_memory().unwrap();
+            let p = src.save(portfolio("IKE")).unwrap();
+            let i = src.save(instrument()).unwrap();
+            src.save_trade(trade(p.meta.id, i.meta.id, dec!(3))).unwrap();
+            src.set_targets(p.meta.id, &[(i.meta.id, dec!(100))]).ok();
+            let bundle = crate::export::ExportBundle::new("test", src.export_data().unwrap());
+            let mut json: serde_json::Value =
+                serde_json::from_str(&bundle.to_json().unwrap()).unwrap();
+            let mut all = Vec::new();
+            leaves(&mut json["data"], &mut all);
+            let n = all.len();
+            for (idx, text) in &edits {
+                let leaf = &mut *all[idx % n];
+                // Decimals are strings in the file; keep a number a number so the edit still parses
+                *leaf = match leaf {
+                    serde_json::Value::Number(_) => text
+                        .parse::<serde_json::Number>()
+                        .map(serde_json::Value::Number)
+                        .unwrap_or(serde_json::Value::Null),
+                    _ => serde_json::Value::String((*text).into()),
+                };
+            }
+            let Ok(bundle) = crate::export::ExportBundle::from_json(&json.to_string()) else {
+                return Ok(());
+            };
+            let mut dst = Store::open_in_memory().unwrap();
+            let mode = if merge { ImportMode::Merge } else { ImportMode::Replace };
+            if dst.import_data(&bundle.data, mode).is_ok() {
+                for pf in dst.list::<Portfolio>().unwrap() {
+                    let _ = crate::portfolio::view(&dst, pf.meta.id);
+                    let _ = crate::portfolio::history(&dst, pf.meta.id);
+                }
+                let _ = crate::dashboard::build(&dst, &Currency::new("PLN").unwrap());
+            }
+        }
+    }
+
     #[test]
     fn rejects_newer_database() {
         let dir = tempfile::tempdir().unwrap();
