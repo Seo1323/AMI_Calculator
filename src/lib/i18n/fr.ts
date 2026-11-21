@@ -179,6 +179,8 @@ const fr: Record<keyof typeof pl, string> = {
 	'pf.compareAmounts': 'Montants',
 	'pf.compareAfter': 'Écart après',
 	'pf.compareNone': 'Saisissez au moins un montant supérieur à zéro.',
+	'pf.compareAmount': 'Versement',
+	'pf.compareCash': 'Reste',
 	'trades.title': 'Opérations',
 	'trades.editing': 'Modifier l’opération',
 	'trades.date': 'Date',
