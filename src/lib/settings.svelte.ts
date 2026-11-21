@@ -1,3 +1,4 @@
+import { ACCENT_VERSION, keepAccent } from '$lib/accent';
 import { invoke, isTauri } from '$lib/tauri';
 import { clampUiScale } from '$lib/uiScale';
 import { asPerfMode, type PerfMode } from '$lib/perf';
@@ -16,6 +17,8 @@ export interface Settings {
 	locale: Locale;
 	theme: Theme;
 	accent: string;
+	/** Which accent default the saved value belongs to (see accent.ts). */
+	accentVersion: number;
 	density: Density;
 	fontScale: number;
 	/** Whole-interface zoom, 0.5 to 2 (see uiScale.ts). */
@@ -57,6 +60,7 @@ export const DEFAULTS: Settings = {
 	locale: 'pl',
 	theme: 'system',
 	accent: ACCENTS[0],
+	accentVersion: ACCENT_VERSION,
 	density: 'comfortable',
 	fontScale: 1,
 	uiScale: 1,
@@ -91,6 +95,7 @@ function sanitize(raw: unknown): Partial<Settings> {
 		const v = (raw as Record<string, unknown>)[k];
 		if (v !== undefined && typeof v === typeof DEFAULTS[k]) (out as Record<string, unknown>)[k] = v;
 	}
+	if (!keepAccent(out.accent, out.accentVersion)) delete out.accent;
 	if (out.uiScale !== undefined) out.uiScale = clampUiScale(out.uiScale);
 	// A value from an older or hand-edited backup that is not in the list falls back to the default.
 	const oneOf = <K extends 'fontFamily' | 'shadows' | 'darkStyle' | 'contentWidth'>(k: K, list: Settings[K][]) => {
