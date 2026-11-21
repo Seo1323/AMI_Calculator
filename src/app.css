@@ -523,3 +523,16 @@ tbody tr:hover {
 		font-size: calc(22px * var(--font-scale));
 	}
 }
+
+/* Rows that appear after a calculation rise a little, one after another. The reduce-motion and
+   performance switches above turn the animation off. */
+@keyframes rise {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+}
+.rise {
+	animation: rise 0.28s ease-out both;
+	animation-delay: calc(var(--i, 0) * 40ms);
+}

@@ -38,7 +38,7 @@
 			<tbody>
 				{#each result.positions as p, i (i)}
 					{@const a = action(p.unitsToTrade)}
-					<tr>
+					<tr class="rise" style="--i:{i}">
 						<td>{label(p.id)}</td>
 						<td class="num">{fmtMoney(p.currentValue, currency)}</td>
 						<td class="num hide-sm">{fmtNumber(p.currentPercent)}</td>

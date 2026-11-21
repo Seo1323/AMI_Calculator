@@ -402,8 +402,8 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each comparison as c (c.amount)}
-								<tr>
+							{#each comparison as c, i (c.amount)}
+								<tr class="rise" style="--i:{i}">
 									<td class="num">{fmtMoney(c.amount, currency)}</td>
 									<td class="num">{fmtNumber(c.s.maxDeviationAfter)} {t('unit.pp')}</td>
 									<td class="num">{fmtMoney(c.s.bought, currency)}</td>
