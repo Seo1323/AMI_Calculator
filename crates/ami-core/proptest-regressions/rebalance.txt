@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 8e0a471d72548ec96b15bf5293a1fa22beebecf667a16a7b3c036d5e49cd2705 # shrinks to input = RebalanceInput { positions: [Position { id: "p0", quantity: 0.2498, price: 928086.2082, target_percent: 100.00, fractional: false }], contribution: -0.0004, mode: Full, tolerance_percent: 0, fraction_decimals: 1 }

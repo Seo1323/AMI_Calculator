@@ -610,3 +610,134 @@ mod tests {
         assert!(at(550_001, 449_999).needs_rebalance, "5.0001 is over");
     }
 }
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    /// Decimal with up to 4 decimal places and magnitude up to `max_units` (whole units).
+    fn money(max_units: i64) -> impl Strategy<Value = Decimal> {
+        (0..=max_units * 10_000).prop_map(|m| Decimal::new(m, 4))
+    }
+
+    /// `n` target weights in whole hundredths of a percent that sum to exactly 100.
+    fn weights(n: usize) -> impl Strategy<Value = Vec<Decimal>> {
+        proptest::collection::vec(0..=10_000i64, n - 1).prop_map(move |mut cuts| {
+            cuts.sort_unstable();
+            let mut prev = 0;
+            let mut w: Vec<Decimal> = cuts
+                .iter()
+                .map(|&c| {
+                    let d = Decimal::new(c - prev, 2);
+                    prev = c;
+                    d
+                })
+                .collect();
+            w.push(Decimal::new(10_000 - prev, 2));
+            w
+        })
+    }
+
+    /// Valid input; `max_units` bounds price, quantity and contribution.
+    fn valid_input(max_units: i64, mode: Mode) -> impl Strategy<Value = RebalanceInput> {
+        (1usize..=6).prop_flat_map(move |n| {
+            let positions = (
+                weights(n),
+                proptest::collection::vec(
+                    (money(max_units), 1..=max_units * 10_000, any::<bool>()),
+                    n,
+                ),
+            )
+                .prop_map(|(w, rest)| {
+                    rest.into_iter()
+                        .zip(w)
+                        .enumerate()
+                        .map(
+                            |(i, ((quantity, price, fractional), target_percent))| Position {
+                                id: format!("p{i}"),
+                                quantity,
+                                price: Decimal::new(price, 4),
+                                target_percent,
+                                fractional,
+                            },
+                        )
+                        .collect::<Vec<_>>()
+                });
+            let contribution = match mode {
+                Mode::BuyOnly => (0..=max_units * 10_000).boxed(),
+                Mode::Full => (-max_units * 10_000..=max_units * 10_000).boxed(),
+            }
+            .prop_map(|c| Decimal::new(c, 4));
+            (positions, contribution, 0u32..=8).prop_map(move |(positions, contribution, dp)| {
+                RebalanceInput {
+                    positions,
+                    contribution,
+                    mode,
+                    tolerance_percent: Decimal::ZERO,
+                    fraction_decimals: dp,
+                }
+            })
+        })
+    }
+
+    fn any_mode() -> impl Strategy<Value = Mode> {
+        prop_oneof![Just(Mode::BuyOnly), Just(Mode::Full)]
+    }
+
+    proptest! {
+        // compute() must never panic (a release build aborts on panic), at any size up to MAX_AMOUNT.
+        #[test]
+        fn never_panics_even_at_max_amount(
+            input in any_mode().prop_flat_map(|m| valid_input(1_000_000_000_000, m))
+        ) {
+            let _ = compute(&input);
+        }
+
+        #[test]
+        fn spending_and_quantities_stay_within_bounds(
+            input in any_mode().prop_flat_map(|m| valid_input(1_000_000, m))
+        ) {
+            let Ok(r) = compute(&input) else { return Ok(()) };
+            let spent: Decimal = r.positions.iter().map(|p| p.trade_value).sum();
+            // purchases never exceed the deposit; the bookkeeping adds up
+            prop_assert!(r.cash_left >= Decimal::ZERO, "cash_left {}", r.cash_left);
+            prop_assert_eq!(r.cash_left, input.contribution - spent);
+            prop_assert!(spent <= input.contribution);
+            for (p, res) in input.positions.iter().zip(&r.positions) {
+                prop_assert!(p.quantity + res.units_to_trade >= Decimal::ZERO, "oversold {}", p.id);
+                prop_assert!(res.value_after >= Decimal::ZERO);
+                if !p.fractional {
+                    prop_assert!(res.units_to_trade.fract().is_zero(), "fractional units for {}", p.id);
+                }
+            }
+        }
+
+        #[test]
+        fn buy_only_never_sells(input in valid_input(1_000_000, Mode::BuyOnly)) {
+            let Ok(r) = compute(&input) else { return Ok(()) };
+            for res in &r.positions {
+                prop_assert!(res.units_to_trade >= Decimal::ZERO, "sold {}", res.id);
+                prop_assert!(res.trade_value >= Decimal::ZERO);
+            }
+        }
+
+        #[test]
+        fn result_does_not_depend_on_position_order(
+            input in any_mode().prop_flat_map(|m| valid_input(1_000_000, m))
+        ) {
+            let mut reversed = input.clone();
+            reversed.positions.reverse();
+            let (a, b) = (compute(&input), compute(&reversed));
+            prop_assert_eq!(a.is_ok(), b.is_ok());
+            let (Ok(a), Ok(b)) = (a, b) else { return Ok(()) };
+            prop_assert_eq!(a.total_before, b.total_before);
+            prop_assert_eq!(a.needs_rebalance, b.needs_rebalance);
+            for res in &a.positions {
+                let other = b.positions.iter().find(|x| x.id == res.id).unwrap();
+                prop_assert_eq!(res.units_to_trade, other.units_to_trade, "id {}", res.id);
+            }
+            prop_assert_eq!(a.cash_left, b.cash_left);
+        }
+    }
+}
