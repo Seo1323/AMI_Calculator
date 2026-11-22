@@ -41,8 +41,11 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run build
+      - run: cargo fmt --all --check
       - run: cargo test --workspace
       - run: cargo clippy --workspace -- -D warnings
+      - name: Audit dependencies
+        run: cargo install cargo-audit --locked && cargo audit --deny warnings --ignore RUSTSEC-2024-0370 --ignore RUSTSEC-2024-0429 --ignore RUSTSEC-2026-0543
 
   # Compile and test on macOS so a platform break shows up before a release, not during it.
   macos:

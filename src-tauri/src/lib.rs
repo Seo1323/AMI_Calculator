@@ -278,7 +278,7 @@ struct ImportReport {
 
 /// Imports backup contents read by the UI (see `export_json`).
 #[tauri::command]
-fn import_json(
+async fn import_json(
     state: State<'_, AppState>,
     contents: String,
     mode: ImportMode,
@@ -351,7 +351,7 @@ fn run_sync(
 /// For callers that do the file access themselves (Android content:// URIs): merges the text
 /// read from the sync file and returns the text to write back, if any.
 #[tauri::command]
-fn sync_text(
+async fn sync_text(
     state: State<'_, AppState>,
     contents: Option<String>,
     passphrase: Option<String>,
@@ -377,7 +377,7 @@ struct SyncReport {
 /// Desktop: reads and writes the sync file here (not through the fs plugin, whose access to a
 /// picked path ends with the session), so the folder keeps working after a restart.
 #[tauri::command]
-fn sync_file(
+async fn sync_file(
     state: State<'_, AppState>,
     path: PathBuf,
     passphrase: Option<String>,
