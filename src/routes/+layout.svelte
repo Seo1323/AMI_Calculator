@@ -80,14 +80,15 @@
 	function onKey(e: KeyboardEvent) {
 		// Alt+1..4 jumps between sections; Alt+H hides amounts; Alt+B toggles the sidebar.
 		if (!e.altKey || e.ctrlKey || e.metaKey) return;
-		const n = Number(e.key);
+		// e.code, not e.key: on macOS Option+1/H/B type other characters (¡ ˙ ∫) in e.key.
+		const n = e.code.startsWith('Digit') ? Number(e.code.slice(5)) : 0;
 		if (n >= 1 && n <= nav.length) {
 			e.preventDefault();
 			goto(nav[n - 1].href);
-		} else if (e.key.toLowerCase() === 'h') {
+		} else if (e.code === 'KeyH') {
 			e.preventDefault();
 			settings.hideAmounts = !settings.hideAmounts;
-		} else if (e.key.toLowerCase() === 'b') {
+		} else if (e.code === 'KeyB') {
 			e.preventDefault();
 			settings.sidebarCollapsed = !settings.sidebarCollapsed;
 		}
